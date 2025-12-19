@@ -19,7 +19,7 @@ Next.js frontend application for SoluFácil microloans management system.
 pnpm install
 
 # Setup environment
-cp apps/web/.env.example apps/web/.env.local
+cp .env.example .env.local
 # Edit .env.local with your NEXT_PUBLIC_GRAPHQL_URL
 
 # Start dev server
@@ -40,7 +40,7 @@ Required:
 - `NEXT_PUBLIC_GRAPHQL_URL` - API GraphQL endpoint
 - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name
 
-See `apps/web/.env.example` for full list.
+See `.env.example` for full list.
 
 ## E2E Tests
 
