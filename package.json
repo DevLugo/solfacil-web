@@ -1,0 +1,24 @@
+{
+  "name": "solufacil-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Solufacil Web - Next.js frontend application",
+  "scripts": {
+    "dev": "pnpm --filter @solufacil/web dev",
+    "build": "pnpm --filter @solufacil/shared build && pnpm --filter @solufacil/graphql-schema build && pnpm --filter @solufacil/business-logic build && pnpm --filter @solufacil/web build",
+    "start": "pnpm --filter @solufacil/web start",
+    "lint": "pnpm --filter @solufacil/web lint",
+    "test:e2e": "pnpm --filter @solufacil/web test:e2e",
+    "test:e2e:ui": "pnpm --filter @solufacil/web test:e2e:ui",
+    "clean": "rm -rf node_modules apps/web/node_modules packages/*/node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@8.15.1",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

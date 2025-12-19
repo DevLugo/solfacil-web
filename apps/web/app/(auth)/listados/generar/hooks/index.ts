@@ -1,0 +1,1 @@
+export { useGenerateListados } from './useGenerateListados'
