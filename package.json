@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "pnpm --filter @solufacil/shared build && pnpm --filter @solufacil/graphql-schema build && pnpm --filter @solufacil/business-logic build && next build",
+    "build": "pnpm --filter @solufacil/shared build && pnpm --filter @solufacil/database build && pnpm --filter @solufacil/graphql-schema build && pnpm --filter @solufacil/business-logic build && next build",
     "start": "next start",
     "lint": "next lint",
     "clean": "rm -rf .next node_modules packages/*/dist packages/*/node_modules",
