@@ -183,18 +183,18 @@ export function Sidebar({
               </div>
             ) : (
               <>
-                {/* Logo para modo claro */}
+                {/* Logo oscuro (se muestra en modo claro) */}
                 <Image
-                  src="/solufacil.png"
+                  src="/solufacil_dark.png"
                   alt="Solufacil"
                   width={150}
                   height={45}
                   priority
                   className="h-9 w-auto dark:hidden"
                 />
-                {/* Logo para modo oscuro */}
+                {/* Logo claro (se muestra en modo oscuro) */}
                 <Image
-                  src="/solufacil_dark.png"
+                  src="/solufacil.png"
                   alt="Solufacil"
                   width={150}
                   height={45}
