@@ -84,7 +84,7 @@ export function SearchableSelect({
         className="p-0"
         align="start"
         style={{
-          width: 'max(var(--radix-popover-trigger-width), 320px)',
+          width: 'min(var(--radix-popover-trigger-width), calc(100vw - 32px))',
           maxWidth: '500px'
         }}
       >

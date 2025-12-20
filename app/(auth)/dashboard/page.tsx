@@ -283,46 +283,48 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <LayoutDashboard className="h-5 w-5 text-primary" />
+      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
+            <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard CEO</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard CEO</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               {monthNames[currentMonth - 1]} {currentYear}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           {/* Route Selector */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            <span className="hidden sm:inline">Ruta:</span>
-          </div>
-          <Select value={selectedRouteId || 'all'} onValueChange={handleRouteChange}>
-            <SelectTrigger className="w-[200px] bg-background">
-              <SelectValue placeholder="Seleccionar ruta" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Todas las rutas</span>
-                </div>
-              </SelectItem>
-              {routesData?.routes?.map((route) => (
-                <SelectItem key={route.id} value={route.id}>
-                  {route.name}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+              <MapPin className="h-4 w-4" />
+              <span className="hidden sm:inline">Ruta:</span>
+            </div>
+            <Select value={selectedRouteId || 'all'} onValueChange={handleRouteChange}>
+              <SelectTrigger className="w-full sm:w-[200px] bg-background">
+                <SelectValue placeholder="Seleccionar ruta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Todas las rutas</span>
+                  </div>
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="icon" onClick={() => refetch()}>
+                {routesData?.routes?.map((route) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" size="icon" onClick={() => refetch()} className="shrink-0">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>

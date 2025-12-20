@@ -155,10 +155,10 @@ export function TransactionSelectors() {
   return (
     <div className="space-y-3">
       {/* Main Selectors Row */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/50 rounded-lg border">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/50 rounded-lg border">
         {/* Route Selector */}
-        <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
           <SearchableSelect
             options={routeOptions}
             value={selectedRouteId}
@@ -172,19 +172,19 @@ export function TransactionSelectors() {
             searchPlaceholder="Buscar ruta..."
             emptyText="No se encontraron rutas"
             loading={routesLoading}
-            className="w-[200px]"
+            className="w-full sm:w-[200px]"
           />
         </div>
 
         {/* Date Picker */}
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  'w-[200px] justify-start text-left font-normal',
+                  'w-full sm:w-[200px] justify-start text-left font-normal',
                   !selectedDate && 'text-muted-foreground'
                 )}
               >
@@ -195,7 +195,7 @@ export function TransactionSelectors() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0 max-w-[calc(100vw-32px)]" align="start">
               <Calendar
                 mode="single"
                 selected={selectedDate}
@@ -209,8 +209,8 @@ export function TransactionSelectors() {
 
         {/* Localidad/Líder Selector (only shown when route is selected) */}
         {selectedRouteId && (
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <SearchableSelect
               options={leadOptions}
               value={selectedLeadId || 'all'}
@@ -227,7 +227,7 @@ export function TransactionSelectors() {
               searchPlaceholder="Buscar localidad..."
               emptyText="No hay localidades en esta ruta"
               loading={leadsLoading}
-              className="w-[300px]"
+              className="w-full sm:w-[300px]"
             />
             {/* Botón para limpiar selección */}
             {selectedLeadId && (
@@ -240,7 +240,7 @@ export function TransactionSelectors() {
                   setSelectedLocationName(null)
                 }}
                 title="Limpiar localidad seleccionada"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -250,7 +250,7 @@ export function TransactionSelectors() {
 
         {/* Current Selection Summary */}
         {selectedRouteId && (
-          <div className="ml-auto text-sm text-muted-foreground">
+          <div className="sm:ml-auto text-xs sm:text-sm text-muted-foreground text-center sm:text-right w-full sm:w-auto">
             {selectedRoute?.name} •{' '}
             {format(selectedDate, "d MMM yyyy", { locale: es })}
           </div>

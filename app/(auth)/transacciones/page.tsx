@@ -24,11 +24,11 @@ export default function TransaccionesPage() {
 
   return (
     <TransactionProvider>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Operaciones del Día</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Operaciones del Día</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Centro de operaciones para registro de cobranza, créditos, gastos y transferencias
           </p>
         </div>
@@ -37,8 +37,8 @@ export default function TransaccionesPage() {
         <TransactionSelectors />
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-4">
+          <TabsList className="grid w-full grid-cols-5 h-auto lg:w-auto lg:inline-grid">
             <TabsTrigger value="resumen" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Resumen</span>

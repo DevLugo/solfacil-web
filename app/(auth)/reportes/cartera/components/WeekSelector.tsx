@@ -71,8 +71,8 @@ export function WeekSelector({
   const monthName = MONTH_NAMES[(month ?? 1) - 1]
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Previous month */}
         <Button variant="outline" size="icon" onClick={goToPreviousMonth} title="Mes anterior">
           <ChevronLeft className="h-4 w-4" />
@@ -83,7 +83,7 @@ export function WeekSelector({
           value={(month ?? 1).toString()}
           onValueChange={(value) => onMonthChange(parseInt(value))}
         >
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-[120px] sm:w-[140px]">
             <Calendar className="h-4 w-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
@@ -101,7 +101,7 @@ export function WeekSelector({
           value={year.toString()}
           onValueChange={(value) => onYearChange(parseInt(value))}
         >
-          <SelectTrigger className="w-[90px]">
+          <SelectTrigger className="w-[70px] sm:w-[90px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

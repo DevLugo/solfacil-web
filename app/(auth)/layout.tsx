@@ -82,7 +82,7 @@ export default function AuthLayout({
               isMobile ? 'pl-0' : (sidebarCollapsed ? 'pl-16' : 'pl-64')
             )}
           >
-            <div className="container mx-auto p-6">{children}</div>
+            <div className="container mx-auto p-3 sm:p-6">{children}</div>
           </main>
         </div>
       </TransactionProvider>

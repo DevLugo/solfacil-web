@@ -18,38 +18,38 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn('p-3', className)}
+      className={cn('p-2 sm:p-3', className)}
       classNames={{
         months: 'flex flex-col sm:flex-row gap-2',
-        month: 'flex flex-col gap-4',
+        month: 'flex flex-col gap-2 sm:gap-4',
         month_caption: 'flex justify-center pt-1 relative items-center w-full',
-        caption_label: 'text-sm font-medium',
+        caption_label: 'text-xs sm:text-sm font-medium',
         dropdowns: 'flex gap-2 justify-center',
-        dropdown: 'text-sm font-medium bg-background border border-input rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring',
+        dropdown: 'text-xs sm:text-sm font-medium bg-background border border-input rounded-md px-1.5 sm:px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring',
         dropdown_root: 'relative inline-block',
         nav: 'flex items-center gap-1',
         button_previous: cn(
           buttonVariants({ variant: 'outline' }),
-          'absolute left-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
+          'absolute left-0 sm:left-1 h-6 w-6 sm:h-7 sm:w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
         ),
         button_next: cn(
           buttonVariants({ variant: 'outline' }),
-          'absolute right-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
+          'absolute right-0 sm:right-1 h-6 w-6 sm:h-7 sm:w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
         ),
         month_grid: 'w-full border-collapse space-y-1',
         weekdays: 'flex',
         weekday:
-          'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
+          'text-muted-foreground rounded-md w-7 sm:w-9 font-normal text-[0.7rem] sm:text-[0.8rem]',
         week: 'flex w-full mt-2',
         day: cn(
-          'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-primary/15 [&:has([aria-selected].day-outside)]:bg-muted [&:has([aria-selected].day-range-end)]:rounded-r-md',
+          'relative p-0 text-center text-xs sm:text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-primary/15 [&:has([aria-selected].day-outside)]:bg-muted [&:has([aria-selected].day-range-end)]:rounded-r-md',
           props.mode === 'range'
             ? '[&:has(>.day-range-end)]:rounded-r-md [&:has(>.day-range-start)]:rounded-l-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md'
             : '[&:has([aria-selected])]:rounded-md'
         ),
         day_button: cn(
           buttonVariants({ variant: 'ghost' }),
-          'h-9 w-9 p-0 font-normal aria-selected:opacity-100'
+          'h-7 w-7 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100'
         ),
         range_end: 'day-range-end',
         selected:
@@ -66,7 +66,7 @@ function Calendar({
       components={{
         Chevron: ({ orientation }) => {
           const Icon = orientation === 'left' ? ChevronLeft : ChevronRight
-          return <Icon className="h-4 w-4" />
+          return <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
         },
       }}
       {...props}
