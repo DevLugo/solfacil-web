@@ -12,7 +12,6 @@ const config: CodegenConfig = {
           DateTime: 'Date',
           Decimal: 'string',
           JSON: 'Record<string, any>',
-          Upload: 'Promise<{ createReadStream: () => NodeJS.ReadableStream; filename: string; mimetype: string; encoding: string }>',
         },
       },
     },

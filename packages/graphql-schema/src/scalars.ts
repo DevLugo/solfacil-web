@@ -1,6 +1,5 @@
 import { GraphQLScalarType, Kind } from 'graphql'
 import { DateTimeResolver, JSONResolver } from 'graphql-scalars'
-import { GraphQLUpload } from 'graphql-upload-minimal'
 import { Decimal } from 'decimal.js'
 
 // Helper to check if value is a Decimal-like object (handles both decimal.js and Prisma.Decimal)
@@ -46,10 +45,25 @@ export const DecimalScalar = new GraphQLScalarType({
   },
 })
 
+// Custom Upload scalar for file uploads
+export const UploadScalar = new GraphQLScalarType({
+  name: 'Upload',
+  description: 'The `Upload` scalar type represents a file upload.',
+  parseValue(value: unknown) {
+    return value
+  },
+  parseLiteral() {
+    throw new Error('Upload literal unsupported')
+  },
+  serialize() {
+    throw new Error('Upload serialization unsupported')
+  },
+})
+
 // Export all scalars
 export const scalars = {
   DateTime: DateTimeResolver,
   Decimal: DecimalScalar,
   JSON: JSONResolver,
-  Upload: GraphQLUpload,
+  Upload: UploadScalar,
 }
