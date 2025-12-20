@@ -7,8 +7,10 @@ import {
   CreditCard,
   Receipt,
   ArrowLeftRight,
+  Database,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import {
   TransactionProvider,
   TransactionSelectors,
@@ -17,20 +19,33 @@ import {
   CreditosTab,
   GastosTab,
   TransferenciasTab,
+  BulkDateMigrationModal,
 } from '@/components/features/transactions'
 
 export default function TransaccionesPage() {
   const [activeTab, setActiveTab] = useState('resumen')
+  const [showMigrationModal, setShowMigrationModal] = useState(false)
 
   return (
     <TransactionProvider>
       <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Operaciones del Día</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Centro de operaciones para registro de cobranza, créditos, gastos y transferencias
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Operaciones del Día</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              Centro de operaciones para registro de cobranza, créditos, gastos y transferencias
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMigrationModal(true)}
+            className="gap-2 self-start sm:self-auto"
+          >
+            <Database className="h-4 w-4" />
+            Migración de Fechas
+          </Button>
         </div>
 
         {/* Selectors Bar */}
@@ -81,6 +96,12 @@ export default function TransaccionesPage() {
             <TransferenciasTab />
           </TabsContent>
         </Tabs>
+
+        {/* Bulk Date Migration Modal */}
+        <BulkDateMigrationModal
+          open={showMigrationModal}
+          onOpenChange={setShowMigrationModal}
+        />
       </div>
     </TransactionProvider>
   )

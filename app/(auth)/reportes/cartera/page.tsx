@@ -247,14 +247,14 @@ export default function PortfolioReportPage() {
   // Render loading state
   if (loading && !report) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <FileText className="h-5 w-5 text-primary" />
+      <div className="space-y-4 sm:space-y-6 p-3 sm:p-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Reporte de Cartera</h1>
-            <p className="text-muted-foreground">Cargando datos...</p>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">Reporte Cartera</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">Cargando datos...</p>
           </div>
         </div>
         <ReportSkeleton />
@@ -263,54 +263,54 @@ export default function PortfolioReportPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-0 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <FileText className="h-5 w-5 text-primary" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Reporte de Cartera</h1>
-            <p className="text-muted-foreground">
-              Estado de clientes activos y cartera vencida
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">Reporte Cartera</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+              Clientes activos y CV
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1 sm:gap-2 shrink-0">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={() => refetch()}
             disabled={loading}
+            className="h-8 w-8 sm:h-9 sm:w-9"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            <span className="ml-2 hidden sm:inline">Actualizar</span>
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={handleDownloadPDF}
             disabled={pdfLoading || !report}
+            className="h-8 w-8 sm:h-9 sm:w-9"
           >
             {pdfLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Download className="h-4 w-4" />
             )}
-            <span className="ml-2 hidden sm:inline">Descargar PDF</span>
           </Button>
         </div>
       </div>
 
       {/* Period Selector */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Período del Reporte</CardTitle>
+        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-base sm:text-lg">Período del Reporte</CardTitle>
         </CardHeader>
         <CardContent>
           <WeekSelector
@@ -352,14 +352,14 @@ export default function PortfolioReportPage() {
 
       {/* Report Content */}
       {report && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="resumen" className="flex items-center gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              <span>Resumen del Mes</span>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+            <TabsTrigger value="resumen" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Resumen</span>
             </TabsTrigger>
-            <TabsTrigger value="rutas" className="flex items-center gap-2">
-              <Route className="h-4 w-4" />
+            <TabsTrigger value="rutas" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Route className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Por Ruta</span>
             </TabsTrigger>
           </TabsList>
@@ -481,12 +481,11 @@ export default function PortfolioReportPage() {
       {/* Empty State */}
       {!loading && !report && !error && (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <BarChart3 className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold">Sin datos para mostrar</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-8 sm:py-16">
+            <BarChart3 className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/50 mb-2 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold">Sin datos para mostrar</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md">
               No hay información disponible para el período seleccionado.
-              Intenta seleccionar un período diferente.
             </p>
           </CardContent>
         </Card>

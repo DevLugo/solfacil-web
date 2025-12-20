@@ -219,25 +219,25 @@ function ComparisonView({
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-3">
       {/* Clientes Activos */}
-      <div className="rounded-lg border bg-muted/30 p-4">
+      <div className="rounded-lg border bg-muted/30 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Clientes Activos</p>
-          <Badge variant="outline" className="text-xs">Total</Badge>
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Clientes Activos</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs shrink-0">Total</Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold">{currentMonth.clientesActivos}</p>
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold">{currentMonth.clientesActivos}</p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {previousMonth.clientesActivos}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {previousMonth.clientesActivos}</span>
                 <TrendIndicator change={changes.activos} />
               </div>
             )}
           </div>
           {sparklineData && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.activos} dataKey="activos" color="hsl(var(--primary))" height={48} />
             </div>
           )}
@@ -245,27 +245,27 @@ function ComparisonView({
       </div>
 
       {/* Al Corriente */}
-      <div className="rounded-lg border bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900 p-4">
+      <div className="rounded-lg border bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Al Corriente</p>
-          <Badge variant="outline" className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 border-green-300">
-            Promedio
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Al Corriente</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 border-green-300 shrink-0">
+            Prom
           </Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-green-600 dark:text-green-400">
               {(currentMonth.alCorrientePromedio ?? 0).toFixed(1)}
             </p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {(previousMonth.alCorrientePromedio ?? 0).toFixed(1)}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {(previousMonth.alCorrientePromedio ?? 0).toFixed(1)}</span>
                 <TrendIndicator change={changes.alCorriente} />
               </div>
             )}
           </div>
           {sparklineData && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.alCorriente} dataKey="alCorriente" color="rgb(34, 197, 94)" height={48} />
             </div>
           )}
@@ -273,27 +273,27 @@ function ComparisonView({
       </div>
 
       {/* En CV */}
-      <div className="rounded-lg border bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900 p-4">
+      <div className="rounded-lg border bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Cartera Vencida</p>
-          <Badge variant="outline" className="text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 border-red-300">
-            Promedio
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Cartera Vencida</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 border-red-300 shrink-0">
+            Prom
           </Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold text-red-600 dark:text-red-400">
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-red-600 dark:text-red-400">
               {(currentMonth.cvPromedio ?? 0).toFixed(1)}
             </p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {(previousMonth.cvPromedio ?? 0).toFixed(1)}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {(previousMonth.cvPromedio ?? 0).toFixed(1)}</span>
                 <TrendIndicator change={changes.cv} inverted />
               </div>
             )}
           </div>
           {sparklineData && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.cv} dataKey="cv" color="rgb(239, 68, 68)" height={48} inverted />
             </div>
           )}
@@ -301,25 +301,25 @@ function ComparisonView({
       </div>
 
       {/* Renovaciones */}
-      <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 p-4">
+      <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Renovaciones</p>
-          <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border-blue-300">
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Renovaciones</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border-blue-300 shrink-0">
             Total
           </Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{currentMonth.renovaciones}</p>
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{currentMonth.renovaciones}</p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {previousMonth.renovaciones}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {previousMonth.renovaciones}</span>
                 <TrendIndicator change={changes.renovaciones} />
               </div>
             )}
           </div>
           {sparklineData && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.renovaciones} dataKey="renovaciones" color="rgb(59, 130, 246)" height={48} />
             </div>
           )}
@@ -327,25 +327,25 @@ function ComparisonView({
       </div>
 
       {/* Clientes Nuevos */}
-      <div className="rounded-lg border bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900 p-4">
+      <div className="rounded-lg border bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Clientes Nuevos</p>
-          <Badge variant="outline" className="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-300">
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Nuevos</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-300 shrink-0">
             Total
           </Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{currentMonth.nuevos}</p>
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-purple-600 dark:text-purple-400">{currentMonth.nuevos}</p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {previousMonth.nuevos}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {previousMonth.nuevos}</span>
                 <TrendIndicator change={changes.nuevos} />
               </div>
             )}
           </div>
           {sparklineData && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.nuevos} dataKey="nuevos" color="rgb(147, 51, 234)" height={48} />
             </div>
           )}
@@ -353,27 +353,27 @@ function ComparisonView({
       </div>
 
       {/* Tasa de Renovación */}
-      <div className="rounded-lg border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900 p-4">
+      <div className="rounded-lg border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-muted-foreground">Tasa de Renovación</p>
-          <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border-amber-300">
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Tasa Renov.</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border-amber-300 shrink-0">
             %
           </Badge>
         </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">
               {formatPercent(currentMonth.tasaRenovacion ?? 0)}
             </p>
             {previousMonth && changes && (
-              <div className="mt-1 flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{previousMonth.label}: {formatPercent(previousMonth.tasaRenovacion ?? 0)}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {formatPercent(previousMonth.tasaRenovacion ?? 0)}</span>
                 <TrendIndicator change={changes.tasaRenovacion} />
               </div>
             )}
           </div>
           {sparklineData && sparklineData.tasaRenovacion.some((d) => d.value > 0) && (
-            <div className="w-24 flex-shrink-0">
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.tasaRenovacion} dataKey="tasaRenovacion" color="rgb(245, 158, 11)" height={48} />
             </div>
           )}
@@ -545,7 +545,7 @@ function AnnualTrendsView({
         <p className="text-xs text-muted-foreground mb-2">
           {metricConfig.description}
         </p>
-        <ChartContainer config={metricConfig.chartConfig} className="min-h-[220px] w-full">
+        <ChartContainer config={metricConfig.chartConfig} className="min-h-[180px] sm:min-h-[220px] w-full">
           <BarChart data={annualData} margin={{ left: -10, right: 10 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis
@@ -716,11 +716,11 @@ export function MonthComparisonChart({
         ) : hasAnnualData ? (
           <AnnualTrendsView annualData={annualData!} currentMonth={currentMonth} />
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <LineChartIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold">Sin datos anuales</h3>
-            <p className="text-sm text-muted-foreground">
-              No hay suficientes datos para mostrar tendencias anuales
+          <div className="flex flex-col items-center justify-center py-6 sm:py-12 text-center">
+            <LineChartIcon className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/50 mb-2 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold">Sin datos anuales</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              No hay suficientes datos para mostrar tendencias
             </p>
           </div>
         )}

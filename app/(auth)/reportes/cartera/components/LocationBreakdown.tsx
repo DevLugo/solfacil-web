@@ -271,45 +271,45 @@ function RouteCardsView({
 
   if (locations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <MapPin className="h-12 w-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold">Sin datos de rutas</h3>
-        <p className="text-sm text-muted-foreground">
-          No hay rutas con clientes activos en este período
+      <div className="flex flex-col items-center justify-center py-6 sm:py-12 text-center">
+        <MapPin className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/50 mb-2 sm:mb-4" />
+        <h3 className="text-base sm:text-lg font-semibold">Sin datos de rutas</h3>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          No hay rutas con clientes activos
         </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Summary - Compact inline format matching the cards */}
-      <div className="rounded-lg border p-4 bg-muted/30">
-        <p className="text-sm font-medium mb-3">Resumen Total</p>
-        <div className="grid grid-cols-3 gap-3 text-center mb-3">
-          <div className="bg-muted/50 rounded px-3 py-2">
+      <div className="rounded-lg border p-3 sm:p-4 bg-muted/30">
+        <p className="text-xs sm:text-sm font-medium mb-2 sm:mb-3">Resumen Total</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center mb-2 sm:mb-3">
+          <div className="bg-muted/50 rounded px-2 sm:px-3 py-1.5 sm:py-2">
             <div className="flex items-center justify-center">
-              <span className="text-2xl font-bold">{totals.lastWeekClientes}</span>
+              <span className="text-lg sm:text-2xl font-bold">{totals.lastWeekClientes}</span>
               <InlineDelta value={totals.balance} />
             </div>
-            <p className="text-xs text-muted-foreground">Clientes</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Clientes</p>
           </div>
-          <div className="bg-green-50 dark:bg-green-950/30 rounded px-3 py-2">
+          <div className="bg-green-50 dark:bg-green-950/30 rounded px-2 sm:px-3 py-1.5 sm:py-2">
             <div className="flex items-center justify-center">
-              <span className="text-2xl font-bold text-green-600 dark:text-green-400">{totals.pagandoPromedio}</span>
+              <span className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">{totals.pagandoPromedio}</span>
               <InlineDelta value={totals.pagandoDelta} />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-              Pagando <span className="text-[9px] font-semibold text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-800/50 px-1.5 py-0.5 rounded-sm uppercase tracking-wide">prom</span>
+            <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center justify-center gap-0.5 sm:gap-1">
+              Pagando <span className="text-[8px] sm:text-[9px] font-semibold text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-800/50 px-1 sm:px-1.5 py-0.5 rounded-sm uppercase tracking-wide hidden sm:inline">prom</span>
             </p>
           </div>
-          <div className="bg-red-50 dark:bg-red-950/30 rounded px-3 py-2">
+          <div className="bg-red-50 dark:bg-red-950/30 rounded px-2 sm:px-3 py-1.5 sm:py-2">
             <div className="flex items-center justify-center">
-              <span className="text-2xl font-bold text-red-600 dark:text-red-400">{totals.cvPromedio}</span>
+              <span className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{totals.cvPromedio}</span>
               <InlineDelta value={totals.cvDelta} inverted />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-              CV <span className="text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-800/50 px-1.5 py-0.5 rounded-sm uppercase tracking-wide">prom</span>
+            <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center justify-center gap-0.5 sm:gap-1">
+              CV <span className="text-[8px] sm:text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-800/50 px-1 sm:px-1.5 py-0.5 rounded-sm uppercase tracking-wide hidden sm:inline">prom</span>
             </p>
           </div>
         </div>
@@ -335,12 +335,12 @@ function RouteCardsView({
       </div>
 
       {/* Instruction */}
-      <p className="text-sm text-muted-foreground">
-        Haz clic en una ruta para ver el detalle por localidad
+      <p className="text-xs sm:text-sm text-muted-foreground">
+        Toca una ruta para ver detalle por localidad
       </p>
 
       {/* Cards grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {sortedLocations.map((location) => (
           <RouteCard
             key={location.locationId}
@@ -458,37 +458,37 @@ export function LocationBreakdown({
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-3">
+          <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               {selectedRouteId ? (
                 // Drill-down header with back button
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleBackToRoutes}
-                    className="flex items-center gap-1 -ml-2"
+                    className="flex items-center gap-1 -ml-2 h-8 px-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    <span>Rutas</span>
+                    <span className="text-xs sm:text-sm">Rutas</span>
                   </Button>
-                  <div className="h-6 w-px bg-border" />
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Route className="h-5 w-5" />
-                      {selectedRouteName}
+                  <div className="h-5 sm:h-6 w-px bg-border" />
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2 truncate">
+                      <Route className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                      <span className="truncate">{selectedRouteName}</span>
                     </CardTitle>
-                    <CardDescription>
-                      {localityCount} localidades con clientes activos
+                    <CardDescription className="text-xs sm:text-sm">
+                      {localityCount} localidades
                     </CardDescription>
                   </div>
                 </div>
               ) : (
                 // Routes view header
                 <>
-                  <CardTitle className="text-lg">Desglose por Ruta</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-base sm:text-lg">Desglose por Ruta</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
                     {locations.length} rutas con clientes activos
                   </CardDescription>
                 </>
@@ -496,7 +496,7 @@ export function LocationBreakdown({
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
           {selectedRouteId ? (
             // Drill-down: Show localities for selected route
             localityLoading ? (

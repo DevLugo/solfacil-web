@@ -283,48 +283,40 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
-            <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+            <LayoutDashboard className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard CEO</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">Dashboard</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               {monthNames[currentMonth - 1]} {currentYear}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Route Selector */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-              <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Ruta:</span>
-            </div>
-            <Select value={selectedRouteId || 'all'} onValueChange={handleRouteChange}>
-              <SelectTrigger className="w-full sm:w-[200px] bg-background">
-                <SelectValue placeholder="Seleccionar ruta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Todas las rutas</span>
-                  </div>
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select value={selectedRouteId || 'all'} onValueChange={handleRouteChange}>
+            <SelectTrigger className="w-[140px] sm:w-[180px] bg-background h-9">
+              <SelectValue placeholder="Ruta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <span className="font-medium">Todas</span>
+              </SelectItem>
+              {routesData?.routes?.map((route) => (
+                <SelectItem key={route.id} value={route.id}>
+                  {route.name}
                 </SelectItem>
-                {routesData?.routes?.map((route) => (
-                  <SelectItem key={route.id} value={route.id}>
-                    {route.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="outline" size="icon" onClick={() => refetch()} className="shrink-0">
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={() => refetch()} className="shrink-0 h-9 w-9">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -332,12 +324,12 @@ export default function DashboardPage() {
 
       {/* Portfolio KPIs - Main Stats */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Users className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
             Resumen de Cartera
           </CardTitle>
-          <CardDescription>Estado actual de clientes activos</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">Estado actual de clientes activos</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -427,30 +419,31 @@ export default function DashboardPage() {
 
       {/* Financial Stats Row */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
             Indicadores Financieros
           </CardTitle>
-          <CardDescription>Resumen financiero del mes actual</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">Resumen financiero del mes</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60">
-                  <Wallet className="h-6 w-6 text-white" />
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border bg-muted/50 p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 shrink-0">
+                  <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cartera Total</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.totalPortfolio)}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Cartera Total</p>
+                  <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats?.totalPortfolio)}</p>
                   {stats?.trend && (
                     <div className="flex items-center gap-1 text-xs">
                       <TrendIcon trend={stats.trend} />
                       <span className={cn(
+                        'truncate',
                         stats.trend === 'UP' ? 'text-green-600' : stats.trend === 'DOWN' ? 'text-red-600' : ''
                       )}>
-                        {stats.growthPercent}% vs mes anterior
+                        {stats.growthPercent}%
                       </span>
                     </div>
                   )}
@@ -458,46 +451,46 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-green-600">
-                  <TrendingUp className="h-6 w-6 text-white" />
+            <div className="rounded-lg border bg-muted/50 p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-green-600 shrink-0">
+                  <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cobranza Mensual</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.totalPaid)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {stats?.activeWeeks || 0} semanas activas
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Cobranza</p>
+                  <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats?.totalPaid)}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {stats?.activeWeeks || 0} semanas
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600">
-                  <DollarSign className="h-6 w-6 text-white" />
+            <div className="rounded-lg border bg-muted/50 p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shrink-0">
+                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Tasa Recuperacion</p>
-                  <p className="text-2xl font-bold">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Recuperación</p>
+                  <p className="text-lg sm:text-2xl font-bold">
                     {parseFloat(stats?.recoveryRate || '0').toFixed(1)}%
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrency(stats?.weeklyAveragePayments)}/semana
+                  <p className="text-xs text-muted-foreground truncate">
+                    {formatCurrency(stats?.weeklyAveragePayments)}/sem
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600">
-                  <PlusCircle className="h-6 w-6 text-white" />
+            <div className="rounded-lg border bg-muted/50 p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 shrink-0">
+                  <PlusCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Localidades Nuevas</p>
-                  <p className="text-2xl font-bold">{newLocations.length}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Localidades</p>
+                  <p className="text-lg sm:text-2xl font-bold">{newLocations.length}</p>
                   <p className="text-xs text-muted-foreground">
                     Este mes
                   </p>
@@ -586,16 +579,16 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Weekly Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Actividad Semanal
             </CardTitle>
-            <CardDescription>Monto cobrado y clientes que pagaron por semana</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Cobranza y pagos por semana</CardDescription>
           </CardHeader>
           <CardContent>
             {weeklyChartData.length > 0 ? (
-              <ChartContainer config={weeklyChartConfig} className="min-h-[250px] w-full">
+              <ChartContainer config={weeklyChartConfig} className="min-h-[180px] sm:min-h-[250px] w-full">
                 <ComposedChart data={weeklyChartData} margin={{ left: 0, right: 40 }}>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
                   <XAxis
@@ -652,9 +645,9 @@ export default function DashboardPage() {
                 </ComposedChart>
               </ChartContainer>
             ) : (
-              <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
-                <Calendar className="h-12 w-12 mb-4 opacity-50" />
-                <p>Sin datos semanales</p>
+              <div className="flex flex-col items-center justify-center h-[120px] sm:h-[180px] text-muted-foreground">
+                <Calendar className="h-8 w-8 sm:h-12 sm:w-12 mb-2 sm:mb-4 opacity-50" />
+                <p className="text-sm">Sin datos semanales</p>
               </div>
             )}
 
@@ -751,15 +744,15 @@ export default function DashboardPage() {
 
         {/* New Locations */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Localidades Nuevas
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               {newLocations.length > 0
-                ? `${newLocations.length} localidad${newLocations.length > 1 ? 'es' : ''} creada${newLocations.length > 1 ? 's' : ''} este mes`
-                : 'No se han creado localidades este mes'}
+                ? `${newLocations.length} este mes`
+                : 'Sin nuevas este mes'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -793,10 +786,10 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
-                <Building2 className="h-12 w-12 mb-4 opacity-50" />
-                <p>Sin localidades nuevas</p>
-                <p className="text-sm">Este mes no se han abierto nuevas localidades</p>
+              <div className="flex flex-col items-center justify-center h-[100px] sm:h-[150px] text-muted-foreground">
+                <Building2 className="h-8 w-8 sm:h-12 sm:w-12 mb-2 opacity-50" />
+                <p className="text-sm">Sin localidades nuevas</p>
+                <p className="text-xs">Este mes no se han abierto nuevas localidades</p>
               </div>
             )}
           </CardContent>
@@ -807,12 +800,12 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-7">
         {/* Top Locations */}
         <Card className="lg:col-span-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              Top Localidades por Clientes
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+              <span className="truncate">Top Localidades</span>
             </CardTitle>
-            <CardDescription>Localidades con mas clientes activos</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Localidades con más clientes activos</CardDescription>
           </CardHeader>
           <CardContent>
             {topLocations.length > 0 ? (
@@ -857,9 +850,9 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
-                <MapPin className="h-12 w-12 mb-4 opacity-50" />
-                <p>Sin datos de localidades</p>
+              <div className="flex flex-col items-center justify-center h-[100px] sm:h-[150px] text-muted-foreground">
+                <MapPin className="h-8 w-8 sm:h-12 sm:w-12 mb-2 opacity-50" />
+                <p className="text-sm">Sin datos de localidades</p>
               </div>
             )}
           </CardContent>
@@ -867,12 +860,12 @@ export default function DashboardPage() {
 
         {/* Recent Activity */}
         <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Receipt className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Actividad Reciente
             </CardTitle>
-            <CardDescription>Ultimas transacciones</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Últimas transacciones</CardDescription>
           </CardHeader>
           <CardContent>
             {transactions.length === 0 ? (
