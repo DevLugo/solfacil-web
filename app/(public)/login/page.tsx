@@ -99,13 +99,23 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           {/* Logo real de Solufácil */}
           <div className="mx-auto mb-4">
+            {/* Logo para modo claro */}
             <Image
               src="/solufacil.png"
               alt="Solufácil"
               width={200}
               height={60}
               priority
-              className="h-14 w-auto"
+              className="h-14 w-auto dark:hidden"
+            />
+            {/* Logo para modo oscuro */}
+            <Image
+              src="/solufacil_dark.png"
+              alt="Solufácil"
+              width={200}
+              height={60}
+              priority
+              className="h-14 w-auto hidden dark:block"
             />
           </div>
 
