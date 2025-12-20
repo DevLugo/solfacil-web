@@ -22,6 +22,7 @@ import {
   PREVIEW_BULK_DATE_MIGRATION,
   EXECUTE_BULK_DATE_MIGRATION,
 } from '@/graphql/mutations/bulkDateMigration'
+import { useTransactionContext } from '../transaction-context'
 
 interface BulkDateMigrationModalProps {
   open: boolean
@@ -35,6 +36,7 @@ export function BulkDateMigrationModal({
   onSuccess,
 }: BulkDateMigrationModalProps) {
   const { toast } = useToast()
+  const { selectedRouteId } = useTransactionContext()
 
   // Form state
   const [startDate, setStartDate] = useState('')
@@ -114,6 +116,7 @@ export function BulkDateMigrationModal({
           startCreatedAt,
           endCreatedAt,
           newBusinessDate: newDate,
+          routeId: selectedRouteId || undefined,
         },
       },
     })
@@ -130,6 +133,7 @@ export function BulkDateMigrationModal({
           startCreatedAt,
           endCreatedAt,
           newBusinessDate: newDate,
+          routeId: selectedRouteId || undefined,
         },
       },
     })
@@ -168,6 +172,23 @@ export function BulkDateMigrationModal({
               ejecutar.
             </AlertDescription>
           </Alert>
+
+          {/* Route Filter Indicator */}
+          {selectedRouteId ? (
+            <Alert>
+              <Database className="h-4 w-4" />
+              <AlertDescription>
+                Filtrando por la ruta actualmente seleccionada
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Sin ruta seleccionada. Se migrarán datos de TODAS las rutas.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Date Range Selection */}
           <div className="space-y-3">
