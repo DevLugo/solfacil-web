@@ -97,20 +97,20 @@ export default function LoginPage() {
         <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-primary" />
 
         <CardHeader className="space-y-1 text-center">
-          {/* Logo real de Solufácil */}
+          {/* Logo de Solufácil */}
           <div className="mx-auto mb-4">
-            {/* Logo oscuro (se muestra en modo claro) */}
+            {/* Logo claro (se muestra en modo light) */}
             <Image
-              src="/solufacil_dark.png"
+              src="/solufacil.png"
               alt="Solufácil"
               width={200}
               height={60}
               priority
               className="h-14 w-auto dark:hidden"
             />
-            {/* Logo claro (se muestra en modo oscuro) */}
+            {/* Logo oscuro (se muestra en modo dark) */}
             <Image
-              src="/solufacil.png"
+              src="/solufacil_dark.png"
               alt="Solufácil"
               width={200}
               height={60}

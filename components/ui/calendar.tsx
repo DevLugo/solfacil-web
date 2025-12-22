@@ -22,19 +22,19 @@ function Calendar({
       classNames={{
         months: 'flex flex-col sm:flex-row gap-2',
         month: 'flex flex-col gap-2 sm:gap-4',
-        month_caption: 'flex justify-center pt-1 relative items-center w-full',
-        caption_label: 'text-xs sm:text-sm font-medium',
+        month_caption: 'flex items-center justify-between gap-2 px-1 pb-2',
+        caption_label: 'text-xs sm:text-sm font-medium flex-1 text-center',
         dropdowns: 'flex gap-2 justify-center',
         dropdown: 'text-xs sm:text-sm font-medium bg-background border border-input rounded-md px-1.5 sm:px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring',
         dropdown_root: 'relative inline-block',
-        nav: 'flex items-center gap-1',
+        nav: 'contents',
         button_previous: cn(
           buttonVariants({ variant: 'outline' }),
-          'absolute left-0 sm:left-1 h-6 w-6 sm:h-7 sm:w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
+          'h-7 w-7 sm:h-8 sm:w-8 p-0 opacity-60 hover:opacity-100 order-first'
         ),
         button_next: cn(
           buttonVariants({ variant: 'outline' }),
-          'absolute right-0 sm:right-1 h-6 w-6 sm:h-7 sm:w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
+          'h-7 w-7 sm:h-8 sm:w-8 p-0 opacity-60 hover:opacity-100 order-last'
         ),
         month_grid: 'w-full border-collapse space-y-1',
         weekdays: 'flex',

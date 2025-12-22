@@ -1,24 +1,32 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useRouteManagement } from './hooks/useRouteManagement'
 import { RouteBreakdownTable } from './components/RouteBreakdownTable'
 import { LocalityList } from './components/LocalityList'
+import { CreateRouteModal } from './components/CreateRouteModal'
 
 /**
  * Route administration page
  * Allows viewing current route statistics and moving localities between routes
  * Always shows data for the current month
+ * Uses the same KPI calculations as the portfolio report for consistency
  */
 export default function AdministrarRutasPage() {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const {
     routes,
     otherRoutes,
+    routeDeltas,
+    totals,
     selectedRoute,
     loading,
     error,
     setSelectedRoute,
+    refetch,
   } = useRouteManagement()
 
   if (loading) {
@@ -58,11 +66,27 @@ export default function AdministrarRutasPage() {
           </p>
         </div>
 
-        {/* Current Period Badge */}
-        <Badge variant="outline" className="border-border text-foreground">
-          Current Month
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Nueva Ruta
+          </Button>
+          {/* Current Period Badge */}
+          <Badge variant="outline" className="border-border text-foreground">
+            Current Month
+          </Badge>
+        </div>
       </div>
+
+      {/* Create Route Modal */}
+      <CreateRouteModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onSuccess={refetch}
+      />
 
       {/* Main Content */}
       {selectedRoute ? (
@@ -72,7 +96,12 @@ export default function AdministrarRutasPage() {
           onBack={() => setSelectedRoute(null)}
         />
       ) : (
-        <RouteBreakdownTable routes={routes} onSelectRoute={setSelectedRoute} />
+        <RouteBreakdownTable
+          routes={routes}
+          routeDeltas={routeDeltas}
+          totals={totals}
+          onSelectRoute={setSelectedRoute}
+        />
       )}
     </div>
   )
