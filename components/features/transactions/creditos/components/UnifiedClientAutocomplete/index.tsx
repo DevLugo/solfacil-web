@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLazyQuery } from '@apollo/client'
 import { User, ChevronsUpDown, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,7 @@ export function UnifiedClientAutocomplete({
   onValueChange,
   leadId,
   excludeBorrowerId,
+  excludeBorrowerIds,
   locationId,
   activeLoansForRenewal = [],
   placeholder,
@@ -54,23 +55,8 @@ export function UnifiedClientAutocomplete({
   const [newClientName, setNewClientName] = useState('')
   const [newClientPhone, setNewClientPhone] = useState('')
   const [isEditSaving, setIsEditSaving] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
 
   const { updateBorrower, updatePersonalData, updatePhone } = useClientMutations()
-
-  // Attach wheel event listener to enable scrolling in dropdown
-  useEffect(() => {
-    const container = listRef.current
-    if (!container || !open) return
-
-    const handleWheel = (e: WheelEvent) => {
-      e.stopPropagation()
-      container.scrollTop += e.deltaY
-    }
-
-    container.addEventListener('wheel', handleWheel, { passive: false })
-    return () => container.removeEventListener('wheel', handleWheel)
-  }, [open])
 
   const defaultPlaceholder = mode === 'borrower' ? 'Buscar cliente...' : 'Buscar aval...'
 
@@ -106,6 +92,9 @@ export function UnifiedClientAutocomplete({
 
     const uniqueBorrowers = new Map<string, PreviousLoan>()
     for (const loan of activeLoansForRenewal) {
+      // Skip if borrower is in the exclude list (already in pending loans)
+      if (excludeBorrowerIds?.has(loan.borrower.id)) continue
+
       if (!uniqueBorrowers.has(loan.borrower.id)) {
         uniqueBorrowers.set(loan.borrower.id, loan)
       }
@@ -115,15 +104,22 @@ export function UnifiedClientAutocomplete({
       const leadLocation = loan.lead?.personalData?.addresses?.[0]?.location
       const borrowerLocation = loan.borrower.personalData?.addresses?.[0]?.location
 
+      // Use borrower's location if available, otherwise fallback to lead's location
+      const finalLocationId = borrowerLocation?.id || leadLocation?.id
+      const finalLocationName = borrowerLocation?.name || leadLocation?.name
+
+      // isFromCurrentLocation: true if no locationId filter, no location found, or locations match
+      const isFromCurrentLocation = !locationId || !finalLocationId || finalLocationId === locationId
+
       return {
         id: loan.borrower.id,
         personalDataId: loan.borrower.personalData?.id,
         phoneId: loan.borrower.personalData?.phones?.[0]?.id,
         fullName: loan.borrower.personalData?.fullName || 'Sin nombre',
         phone: loan.borrower.personalData?.phones?.[0]?.number,
-        locationId: borrowerLocation?.id,
-        locationName: borrowerLocation?.name,
-        isFromCurrentLocation: locationId ? borrowerLocation?.id === locationId : true,
+        locationId: finalLocationId,
+        locationName: finalLocationName,
+        isFromCurrentLocation,
         loanFinishedCount: loan.borrower.loanFinishedCount,
         hasActiveLoans: true,
         pendingDebtAmount: parseFloat(loan.pendingAmountStored || '0'),
@@ -142,7 +138,7 @@ export function UnifiedClientAutocomplete({
         action: 'connect',
       }
     })
-  }, [activeLoansForRenewal, mode, locationId])
+  }, [activeLoansForRenewal, mode, locationId, excludeBorrowerIds])
 
   // Debounce search
   useEffect(() => {
@@ -167,7 +163,11 @@ export function UnifiedClientAutocomplete({
   const results = useMemo(() => {
     if (mode === 'borrower') {
       const borrowers: BorrowerSearchResult[] = borrowerData?.searchBorrowers || []
-      return borrowers.map((b): UnifiedClientValue => {
+      // Filter out excluded borrowers (already in pending loans)
+      const filteredBorrowers = excludeBorrowerIds
+        ? borrowers.filter((b) => !excludeBorrowerIds.has(b.id))
+        : borrowers
+      return filteredBorrowers.map((b): UnifiedClientValue => {
         const activeLoan = activeLoansByBorrowerId.get(b.id)
         let activeLoanData: ActiveLoanData | undefined
 
@@ -213,6 +213,8 @@ export function UnifiedClientAutocomplete({
       return personalData.map((p): UnifiedClientValue => {
         const personLocationId = p.addresses?.[0]?.location?.id
         const personLocationName = p.addresses?.[0]?.location?.name
+        // isFromCurrentLocation: true if no locationId filter, no location found, or locations match
+        const isFromCurrentLocation = !locationId || !personLocationId || personLocationId === locationId
         return {
           id: p.id,
           personalDataId: p.id,
@@ -221,13 +223,13 @@ export function UnifiedClientAutocomplete({
           phone: p.phones[0]?.number,
           locationId: personLocationId,
           locationName: personLocationName,
-          isFromCurrentLocation: locationId ? personLocationId === locationId : true,
+          isFromCurrentLocation,
           clientState: 'existing',
           action: 'connect',
         }
       })
     }
-  }, [mode, borrowerData, personalDataData, locationId, activeLoansByBorrowerId])
+  }, [mode, borrowerData, personalDataData, locationId, activeLoansByBorrowerId, excludeBorrowerIds])
 
   // Separate by location
   const fromCurrentLocation = results.filter((r) => r.isFromCurrentLocation)
@@ -451,6 +453,7 @@ export function UnifiedClientAutocomplete({
         className="p-0"
         align="start"
         style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '340px' }}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <Command shouldFilter={false}>
           <CommandInput
@@ -459,10 +462,7 @@ export function UnifiedClientAutocomplete({
             onValueChange={setSearchTerm}
             className="h-12 text-base"
           />
-          <CommandList
-            ref={listRef}
-            className="max-h-[50vh] md:max-h-[60vh] overflow-y-auto overscroll-contain"
-          >
+          <CommandList className="max-h-[50vh] md:max-h-[60vh]">
             {loading && (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 Buscando...

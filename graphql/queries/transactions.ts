@@ -79,6 +79,7 @@ export const TRANSACTIONS_QUERY = gql`
             amountGived
             borrower {
               personalData {
+                id
                 fullName
               }
             }
@@ -106,8 +107,10 @@ export const TRANSACTIONS_QUERY = gql`
           lead {
             id
             personalData {
+              id
               fullName
               addresses {
+                id
                 location {
                   id
                   name
@@ -179,8 +182,10 @@ export const LOANS_BY_DATE_LEAD_QUERY = gql`
           lead {
             id
             personalData {
+              id
               fullName
               addresses {
+                id
                 location {
                   id
                   name
@@ -196,6 +201,7 @@ export const LOANS_BY_DATE_LEAD_QUERY = gql`
             pendingAmountStored
             borrower {
               personalData {
+                id
                 fullName
               }
             }
@@ -256,8 +262,11 @@ export const PREVIOUS_LOANS_QUERY = gql`
             }
           }
           lead {
+            id
             personalData {
+              id
               addresses {
+                id
                 location {
                   id
                   name
@@ -274,6 +283,19 @@ export const PREVIOUS_LOANS_QUERY = gql`
 // ============================================================
 // PAYMENTS - Para Tab de Abonos
 // ============================================================
+
+// Query para obtener pagos de un préstamo específico (usado en cancelación)
+export const LOAN_PAYMENTS_BY_LOAN_QUERY = gql`
+  query LoanPaymentsByLoan($loanId: ID!) {
+    loanPayments(loanId: $loanId, limit: 100) {
+      id
+      amount
+      comission
+      receivedAt
+      paymentMethod
+    }
+  }
+`
 
 export const LEAD_PAYMENTS_QUERY = gql`
   query LeadPayments($fromDate: DateTime!, $toDate: DateTime!, $leadId: ID!) {
@@ -295,8 +317,10 @@ export const LEAD_PAYMENTS_QUERY = gql`
         borrower {
           id
           personalData {
+            id
             fullName
             phones {
+              id
               number
             }
           }
@@ -310,6 +334,7 @@ export const LEAD_PAYMENTS_QUERY = gql`
           }
         }
         loantype {
+          id
           name
           weekDuration
         }
@@ -345,7 +370,9 @@ export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
       loan {
         id
         borrower {
+          id
           personalData {
+            id
             fullName
           }
         }
@@ -454,6 +481,7 @@ export const EXPENSES_BY_DATE_QUERY = gql`
           lead {
             id
             personalData {
+              id
               fullName
             }
           }

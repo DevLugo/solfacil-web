@@ -342,7 +342,7 @@ export function BankIncomeModal({
         </div>
 
         {/* Transactions List */}
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           {loading ? (
             <div className="space-y-3 py-4">
               {[1, 2, 3, 4, 5].map((i) => (

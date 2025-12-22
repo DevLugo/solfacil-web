@@ -85,6 +85,9 @@ export function LoanTableRow({ loan, isAdmin, onEdit, onCancel }: LoanTableRowPr
         </div>
       </TableCell>
       <TableCell className="text-right">
+        {formatCurrency(parseFloat(loan.comissionAmount || '0'))}
+      </TableCell>
+      <TableCell className="text-right">
         {formatCurrency(parseFloat(loan.expectedWeeklyPayment))}
       </TableCell>
       <TableCell className="text-right">

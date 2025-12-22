@@ -94,6 +94,7 @@ export function LoansTable({
                 <TableHead>Tipo</TableHead>
                 <TableHead>Aval</TableHead>
                 <TableHead className="text-right">Montos</TableHead>
+                <TableHead className="text-right">Comisión</TableHead>
                 <TableHead className="text-right">Pago Semanal</TableHead>
                 <TableHead className="text-right">Deuda Total</TableHead>
                 {isAdmin && (

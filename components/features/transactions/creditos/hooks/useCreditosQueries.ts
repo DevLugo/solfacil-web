@@ -8,6 +8,7 @@ import {
   ACTIVE_LOANS_FOR_RENEWAL_QUERY,
 } from '@/graphql/queries/transactions'
 import { ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
+import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Loan, LoanType, Account, PreviousLoan } from '../types'
 
 interface UseCreditosQueriesParams {
@@ -24,7 +25,7 @@ export function useCreditosQueries({
   // Query loans granted on the selected date for the selected lead
   const {
     data: loansData,
-    loading: loansLoading,
+    loading: loansLoadingRaw,
     error: loansError,
     refetch: refetchLoans,
   } = useQuery(LOANS_BY_DATE_LEAD_QUERY, {
@@ -70,7 +71,7 @@ export function useCreditosQueries({
   const { data: accountsData, loading: accountsLoading, refetch: refetchAccounts } = useQuery(ACCOUNTS_QUERY, {
     variables: {
       routeId: selectedRouteId,
-      type: 'OFFICE_CASH_FUND',
+      type: 'EMPLOYEE_CASH_FUND',
     },
     skip: !selectedRouteId,
     fetchPolicy: 'no-cache',
@@ -124,6 +125,16 @@ export function useCreditosQueries({
 
   // Get default account (first one)
   const defaultAccount = accounts[0] || null
+
+  // Handle date change refetch
+  const { isRefetching } = useDateChangeRefetch({
+    selectedDate,
+    enabled: !!selectedLeadId,
+    refetchFn: refetchLoans,
+  })
+
+  // Combine loading states
+  const loansLoading = loansLoadingRaw || isRefetching
 
   return {
     loansToday,

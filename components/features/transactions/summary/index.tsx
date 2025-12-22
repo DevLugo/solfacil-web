@@ -105,8 +105,8 @@ export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: Summ
     }
   }, [refreshKey, refetch, selectedDate, selectedRoute])
 
-  // Loading state
-  if (loading && transactions.length === 0) {
+  // Loading state - show skeleton whenever loading to indicate data refresh
+  if (loading) {
     return <SummaryTabSkeleton />
   }
 

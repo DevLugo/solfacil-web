@@ -143,14 +143,14 @@ export const UPDATE_LOAN_EXTENDED = gql`
 export const CANCEL_LOAN_WITH_ACCOUNT_RESTORE = gql`
   mutation CancelLoanWithAccountRestore($id: ID!, $accountId: ID!) {
     cancelLoanWithAccountRestore(id: $id, accountId: $accountId) {
-      id
-      status
-      amountGived
-      borrower {
-        personalData {
-          fullName
-        }
-      }
+      success
+      deletedLoanId
+      restoredAmount
+      accountId
+      paymentsDeleted
+      totalCashPayments
+      totalBankPayments
+      totalPaymentComissions
     }
   }
 `

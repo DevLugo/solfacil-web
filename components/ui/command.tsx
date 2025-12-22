@@ -7,6 +7,7 @@ import { Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { createScrollableHandler } from "@/hooks/use-scrollable"
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -61,13 +62,13 @@ const CommandList = React.forwardRef<
   <CommandPrimitive.List
     ref={ref}
     className={cn(
-      "max-h-[300px] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth",
-      // Improve scrollbar visibility and touch scrolling
+      "max-h-[300px] overflow-y-auto overflow-x-hidden",
+      "overscroll-contain scroll-auto touch-pan-y",
       "scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent",
-      // Ensure pointer events work for mouse scroll
-      "[&>*]:pointer-events-auto",
       className
     )}
+    style={{ WebkitOverflowScrolling: 'touch' }}
+    onWheel={createScrollableHandler()}
     {...props}
   />
 ))

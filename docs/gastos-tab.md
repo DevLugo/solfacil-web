@@ -1,8 +1,23 @@
-# Gastos Tab - Documentación de Edge Cases
+# Transacciones - Documentación de Edge Cases
 
 ## Resumen
 
 El tab de Gastos permite crear, editar y eliminar transacciones de tipo EXPENSE. Cada operación afecta el balance de la cuenta origen asociada.
+
+---
+
+## Regla de Selección de Cuenta por Operación
+
+| Operación | Cuenta Predeterminada | Razón |
+|-----------|----------------------|-------|
+| Gastos | EMPLOYEE_CASH_FUND | Gastos salen de caja del líder/ruta |
+| Créditos | EMPLOYEE_CASH_FUND | Créditos se otorgan desde caja de la ruta |
+| Abonos | EMPLOYEE_CASH_FUND | Pagos entran a caja de la ruta |
+| Transferencias | EMPLOYEE_CASH_FUND | Se transfiere entre cajas de rutas |
+| Vaciar Cuentas | EMPLOYEE_CASH_FUND → destino | Vacía caja de ruta a oficina |
+| Distribuir | origen → EMPLOYEE_CASH_FUND | Distribuye desde oficina a rutas |
+
+**Nota:** `OFFICE_CASH_FUND` solo se usa como cuenta destino/origen en operaciones centralizadas (vaciar/distribuir), nunca como cuenta de operación de la ruta.
 
 ---
 
@@ -412,3 +427,119 @@ const refetchAll = async () => {
    │ UI updated       │                   │                    │
    │                  │                   │                    │
 ```
+
+---
+
+## 11. Lógica de Localidad (Location)
+
+### Concepto Importante
+
+En el sistema, **la localidad se obtiene del Líder (Lead)**, no directamente de una tabla de localidades. Esto es fundamental para entender cómo funciona la selección y validación de localidades.
+
+### Flujo de Selección de Localidad
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  1. Usuario selecciona RUTA en el dropdown                               │
+│     ↓                                                                    │
+│  2. Se ejecuta query LEADS_BY_ROUTE_QUERY                                │
+│     - Trae todos los Employee con type = 'LEAD' de esa ruta              │
+│     - Cada Lead tiene: personalData.addresses[0].location                │
+│     ↓                                                                    │
+│  3. Dropdown "Localidad" muestra los LEADS (no locations directamente)   │
+│     - Label: "{LocationName} · ({LeadFullName})"                         │
+│     - Value: Lead.id                                                     │
+│     ↓                                                                    │
+│  4. Al seleccionar un "Lead/Localidad":                                  │
+│     - setSelectedLeadId(lead.id)                                         │
+│     - setSelectedLocationId(lead.personalData.addresses[0].location.id)  │
+│     - setSelectedLocationName(lead.personalData.addresses[0].location.name)│
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Archivos Clave
+
+| Archivo | Responsabilidad |
+|---------|-----------------|
+| `transaction-selectors.tsx` | Query LEADS_BY_ROUTE y lógica de selección |
+| `transaction-context.tsx` | Estado global: selectedLocationId, selectedLocationName |
+| `creditos/index.tsx` | Pasa locationId a CreateLoansModal |
+| `BorrowerRepository.ts` | Compara borrower.locationId con search locationId |
+
+### Query de Leads
+
+```graphql
+query LeadsByRoute($routeId: ID!) {
+  employees(routeId: $routeId, type: LEAD) {
+    id
+    personalData {
+      id
+      fullName
+      addresses {
+        id
+        location {
+          id    # ← Este es el locationId que se usa
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+### Warning "Cliente de Otra Localidad"
+
+El warning se muestra en CreateLoansModal cuando:
+
+```typescript
+// CreateLoansModal/index.tsx:112
+const isBorrowerFromDifferentLocation = selectedBorrower &&
+  selectedBorrower.isFromCurrentLocation === false
+```
+
+### Lógica de Determinación de Location (BorrowerRepository.ts)
+
+El sistema determina la location del borrower en este orden de prioridad:
+
+```typescript
+// 1. Primero: Location propia del borrower (de su address)
+const borrowerAddresses = borrower.personalDataRelation?.addresses || []
+const primaryBorrowerAddress = borrowerAddresses.find((addr) => addr.locationRelation?.name)
+let finalLocationId = primaryBorrowerAddress?.location
+
+// 2. Fallback: Location del lead de su préstamo más reciente
+if (!finalLocationId && borrower.loans.length > 0) {
+  for (const loan of borrower.loans) {
+    const leadAddress = loan.leadRelation?.personalDataRelation?.addresses?.[0]
+    if (leadAddress?.location) {
+      finalLocationId = leadAddress.location
+      break
+    }
+  }
+}
+
+// 3. Determinar isFromCurrentLocation:
+// - Si no hay locationId en búsqueda → true (no filtrar)
+// - Si no se pudo determinar location del borrower → true (no mostrar warning)
+// - Si hay ambos → comparar finalLocationId === locationId
+const isFromCurrentLocation = !locationId || !finalLocationId || finalLocationId === locationId
+```
+
+### Dato Importante
+
+**La mayoría de los Borrowers (~98.5%) NO tienen Address/Location propia**, pero el sistema usa el fallback del lead de sus préstamos para determinar su localidad:
+
+```sql
+-- Borrowers con address propia: 60 de 4101 (~1.5%)
+-- Pero tienen préstamos con leads que SÍ tienen location
+```
+
+### Comportamiento del Warning
+
+| Caso | isFromCurrentLocation | Warning |
+|------|----------------------|---------|
+| Borrower tiene location = locationId buscado | `true` | No |
+| Borrower tiene location ≠ locationId buscado | `false` | Sí |
+| Borrower sin location propia pero lead tiene location = buscado | `true` | No |
+| Borrower sin location propia y lead tiene location ≠ buscado | `false` | Sí |
+| Borrower sin location y sin préstamos con lead | `true` | No (asume local) |

@@ -11,6 +11,7 @@ import {
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
 } from '@/graphql/mutations/transactions'
+import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Expense, Account } from '../types'
 
 interface UseGastosQueriesOptions {
@@ -26,7 +27,7 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
   // Query para obtener los gastos del dia
   const {
     data: expensesData,
-    loading: expensesLoading,
+    loading: expensesLoadingRaw,
     refetch: refetchExpenses,
   } = useQuery(EXPENSES_BY_DATE_QUERY, {
     variables: {
@@ -35,7 +36,8 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
       routeId: selectedRouteId,
     },
     skip: !selectedRouteId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
   })
 
   // Query para obtener las cuentas de la ruta
@@ -46,7 +48,7 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
   } = useQuery(ACCOUNTS_QUERY, {
     variables: { routeId: selectedRouteId },
     skip: !selectedRouteId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
   })
 
   // Mutations
@@ -54,8 +56,23 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
   const [updateTransaction, { loading: isUpdating }] = useMutation(UPDATE_TRANSACTION)
   const [deleteTransaction, { loading: isDeleting }] = useMutation(DELETE_TRANSACTION)
 
-  const expenses: Expense[] =
+  // Expense sources that are automatically created by the system (shown in other tabs)
+  // These should NOT appear in the Gastos tab
+  const AUTOMATIC_EXPENSE_SOURCES = [
+    'LOAN_GRANTED',              // Desembolso del préstamo (tab Créditos)
+    'LOAN_GRANTED_COMISSION',    // Comisión por otorgar crédito (tab Créditos)
+    'LOAN_PAYMENT_COMISSION',    // Comisión de pago recibido (tab Abonos)
+    'LOAN_CANCELLED_ADJUSTMENT', // Ajuste por cancelación (tab Créditos)
+    'LOAN_CANCELLED_BANK_REVERSAL', // Reversión bancaria por cancelación
+  ]
+
+  // Filter out automatic expenses - only show manual expenses
+  const allExpenses: Expense[] =
     expensesData?.transactions?.edges?.map((edge: TransactionEdge) => edge.node) || []
+
+  const expenses: Expense[] = allExpenses.filter(
+    (expense) => !AUTOMATIC_EXPENSE_SOURCES.includes(expense.expenseSource || '')
+  )
 
   const accounts: Account[] = accountsData?.accounts || []
 
@@ -63,6 +80,16 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
   const refetchAll = async () => {
     await Promise.all([refetchExpenses(), refetchAccounts()])
   }
+
+  // Handle date change refetch
+  const { isRefetching } = useDateChangeRefetch({
+    selectedDate,
+    enabled: !!selectedRouteId,
+    refetchFn: refetchExpenses,
+  })
+
+  // Combine loading states
+  const expensesLoading = expensesLoadingRaw || isRefetching
 
   return {
     expenses,

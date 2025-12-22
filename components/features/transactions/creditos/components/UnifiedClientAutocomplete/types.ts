@@ -8,6 +8,8 @@ export interface UnifiedClientAutocompleteProps {
   leadId?: string
   // For aval mode - exclude borrower from results
   excludeBorrowerId?: string
+  // Exclude multiple borrowers (e.g., already in pending loans list)
+  excludeBorrowerIds?: Set<string>
   // Location for prioritization and warnings
   locationId?: string | null
   // Active loans for renewal - shows loan info in dropdown

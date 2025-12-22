@@ -1,11 +1,12 @@
 'use client'
 
-import { useQuery } from '@apollo/client'
 import { useMemo } from 'react'
+import { useQuery } from '@apollo/client'
 import {
   ROUTES_QUERY,
   ALL_TRANSACTIONS_BY_DATE_QUERY,
 } from '@/graphql/queries/transactions'
+import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import { createDateRange } from '../utils'
 import type { Route, TransactionNode } from '../types'
 
@@ -31,7 +32,7 @@ export function useSummaryQueries({
 
   const {
     data,
-    loading,
+    loading: loadingRaw,
     error,
     refetch,
   } = useQuery(ALL_TRANSACTIONS_BY_DATE_QUERY, {
@@ -41,8 +42,19 @@ export function useSummaryQueries({
       routeId: selectedRoute?.id,
     },
     skip: !selectedDate || !selectedRoute,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
   })
+
+  // Handle date change refetch
+  const { isRefetching } = useDateChangeRefetch({
+    selectedDate,
+    enabled: !!selectedRoute,
+    refetchFn: refetch,
+  })
+
+  // Combine loading states
+  const loading = loadingRaw || isRefetching
 
   const { transactions, totalCount } = useMemo(() => {
     if (!data?.transactions?.edges) {

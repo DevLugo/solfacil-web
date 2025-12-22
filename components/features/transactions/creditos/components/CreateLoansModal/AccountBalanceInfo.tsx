@@ -12,7 +12,8 @@ interface AccountBalanceInfoProps {
 }
 
 export function AccountBalanceInfo({ account, totalAmount, hasInsufficientFunds }: AccountBalanceInfoProps) {
-  const accountBalance = parseFloat(account?.amount || '0')
+  // Use accountBalance (computed from transactions) if available, fallback to amount (stored)
+  const accountBalance = parseFloat(account?.accountBalance || account?.amount || '0')
 
   return (
     <div className="pt-4 border-t">

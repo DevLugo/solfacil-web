@@ -3,6 +3,7 @@
 import * as React from 'react'
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area'
 import { cn } from '@/lib/utils'
+import { createScrollableHandler } from '@/hooks/use-scrollable'
 
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
@@ -13,7 +14,11 @@ const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]" style={{display: 'block', minWidth: 'auto', width: '100%', maxWidth: '100%'}}>
+    <ScrollAreaPrimitive.Viewport
+      className="h-full w-full rounded-[inherit] overflow-y-auto overflow-x-hidden"
+      style={{display: 'block', minWidth: 'auto', width: '100%', maxWidth: '100%'}}
+      onWheel={createScrollableHandler({ horizontal: true })}
+    >
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

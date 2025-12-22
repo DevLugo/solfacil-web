@@ -21,6 +21,7 @@ import { UnifiedClientAutocomplete } from '../UnifiedClientAutocomplete'
 import { LocationWarning } from '../LocationWarning'
 import { usePendingLoans } from '../../hooks/usePendingLoans'
 import { CREATE_LOANS_IN_BATCH } from '@/graphql/mutations/transactions'
+import { ROUTES_WITH_ACCOUNTS_QUERY, ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
 
 import { PendingLoanCard } from './PendingLoanCard'
 import { AccountBalanceInfo } from './AccountBalanceInfo'
@@ -54,9 +55,9 @@ export function CreateLoansModal({
     generateTempId,
   } = usePendingLoans()
 
-  // Use the default cash account for the route (OFFICE_CASH_FUND)
+  // Use the default cash account for the route (EMPLOYEE_CASH_FUND)
   const defaultAccount = useMemo(() => {
-    return accounts.find((a) => a.type === 'OFFICE_CASH_FUND') || accounts[0]
+    return accounts.find((a) => a.type === 'EMPLOYEE_CASH_FUND') || accounts[0]
   }, [accounts])
 
   // Form state for adding a new loan
@@ -121,8 +122,8 @@ export function CreateLoansModal({
     }
   }, [selectedLoanType, editingLoanId])
 
-  // Account balance and validation
-  const accountBalance = parseFloat(defaultAccount?.amount || '0')
+  // Account balance and validation - use accountBalance (computed) if available
+  const accountBalance = parseFloat(defaultAccount?.accountBalance || defaultAccount?.amount || '0')
   const hasInsufficientFunds = accountBalance < totals.totalAmount
 
   // Reset form
@@ -239,6 +240,16 @@ export function CreateLoansModal({
     }
   }
 
+  // Get IDs of borrowers already in pending loans (for preventing duplicate renewals)
+  // Exclude the borrower of the loan being edited so they can be re-selected
+  const pendingBorrowerIds = useMemo(() => {
+    return new Set(
+      pendingLoans
+        .filter((loan) => loan.borrowerId && loan.tempId !== editingLoanId) // Exclude the one being edited
+        .map((loan) => loan.borrowerId as string)
+    )
+  }, [pendingLoans, editingLoanId])
+
   // Add or update loan in pending list
   const handleAddLoan = () => {
     if (!selectedLoanTypeId || !requestedAmount) {
@@ -257,6 +268,39 @@ export function CreateLoansModal({
         variant: 'destructive',
       })
       return
+    }
+
+    // Prevent duplicate renewals - check if borrower is already in pending loans
+    // (but allow if we're editing the same loan)
+    if (
+      selectedBorrower.id &&
+      pendingBorrowerIds.has(selectedBorrower.id) &&
+      !editingLoanId
+    ) {
+      toast({
+        title: 'Cliente duplicado',
+        description: `${selectedBorrower.fullName} ya tiene un crédito pendiente en la lista`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Also check if editing a different loan and changing to an existing borrower
+    if (
+      selectedBorrower.id &&
+      editingLoanId
+    ) {
+      const otherLoansWithSameBorrower = pendingLoans.filter(
+        (loan) => loan.borrowerId === selectedBorrower.id && loan.tempId !== editingLoanId
+      )
+      if (otherLoansWithSameBorrower.length > 0) {
+        toast({
+          title: 'Cliente duplicado',
+          description: `${selectedBorrower.fullName} ya tiene un crédito pendiente en la lista`,
+          variant: 'destructive',
+        })
+        return
+      }
     }
 
     // Determine borrower info
@@ -311,6 +355,13 @@ export function CreateLoansModal({
       }
     }
 
+    // When editing, preserve the previousLoanId from the existing pending loan
+    // if we don't have a new activeLoan selected (fixes renewal data loss on edit)
+    const existingPendingLoan = editingLoanId
+      ? pendingLoans.find((l) => l.tempId === editingLoanId)
+      : undefined
+    const previousLoanId = selectedActiveLoan?.id || existingPendingLoan?.previousLoanId
+
     const pendingLoanData: PendingLoan = {
       tempId: editingLoanId || generateTempId(),
       requestedAmount,
@@ -319,7 +370,7 @@ export function CreateLoansModal({
       loantypeName: selectedLoanType?.name || '',
       weekDuration: selectedLoanType?.weekDuration || 0,
       comissionAmount: comissionAmount || '0',
-      previousLoanId: selectedActiveLoan?.id,
+      previousLoanId,
       borrowerId,
       borrowerPersonalDataId,
       borrowerPhoneId,
@@ -336,7 +387,7 @@ export function CreateLoansModal({
         ? { amount: firstPaymentAmount, paymentMethod: 'CASH' }
         : undefined,
       isFromDifferentLocation: selectedBorrower?.isFromCurrentLocation === false,
-      isRenewal,
+      isRenewal: !!previousLoanId,
     }
 
     if (editingLoanId) {
@@ -426,6 +477,11 @@ export function CreateLoansModal({
             grantorId,
           },
         },
+        // Refetch accounts to update balances after creating loans
+        refetchQueries: [
+          { query: ROUTES_WITH_ACCOUNTS_QUERY },
+          { query: ACCOUNTS_QUERY, variables: { routeId: undefined, type: 'EMPLOYEE_CASH_FUND' } },
+        ],
       })
 
       toast({
@@ -448,15 +504,16 @@ export function CreateLoansModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
-        <DialogHeader className="pb-2">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-4 md:px-6 pt-4 md:pt-6 pb-2 shrink-0">
           <DialogTitle className="text-lg md:text-xl">Registrar Créditos</DialogTitle>
           <DialogDescription className="text-sm md:text-base">
             Agrega los créditos a otorgar y guárdalos todos de una vez
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Left side: Form to add loans */}
           <div className="space-y-4 md:space-y-5">
             <div className="flex items-center justify-between">
@@ -485,6 +542,7 @@ export function CreateLoansModal({
                 leadId={leadId}
                 locationId={locationId}
                 activeLoansForRenewal={loansForRenewal}
+                excludeBorrowerIds={pendingBorrowerIds}
                 placeholder="Buscar cliente o renovar préstamo..."
                 allowCreate
                 allowEdit
@@ -523,6 +581,7 @@ export function CreateLoansModal({
                 renewalPendingAmount={renewalPendingAmount}
                 calculatedAmountGived={calculatedAmountGived}
                 calculatedWeeklyPayment={calculatedWeeklyPayment}
+                requestedAmount={parseFloat(requestedAmount) || 0}
               />
             )}
 
@@ -616,9 +675,13 @@ export function CreateLoansModal({
               hasInsufficientFunds={hasInsufficientFunds}
             />
           </div>
+          {/* End of right side */}
         </div>
+        {/* End of grid */}
+      </div>
+      {/* End of scrollable content */}
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
+      <DialogFooter className="flex-col sm:flex-row gap-2 px-4 md:px-6 py-4 border-t shrink-0 bg-background">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

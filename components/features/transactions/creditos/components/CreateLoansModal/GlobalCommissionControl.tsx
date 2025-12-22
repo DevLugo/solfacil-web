@@ -3,7 +3,11 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import type { PendingLoan } from '../../types'
+
+// CSS classes to hide number input spinners
+const noSpinnerClass = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 interface GlobalCommissionControlProps {
   globalComissionAmount: string
@@ -29,7 +33,7 @@ export function GlobalCommissionControl({
         value={globalComissionAmount}
         onChange={(e) => onGlobalComissionChange(e.target.value)}
         placeholder="0"
-        className="h-8 w-20 text-sm"
+        className={cn('h-8 w-20 text-sm', noSpinnerClass)}
       />
       <Button
         variant="outline"

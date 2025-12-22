@@ -26,6 +26,18 @@ const EXPENSE_SOURCE_LABELS: Record<string, string> = {
 }
 
 /**
+ * Expense sources that are automatically created by the system
+ * These should NOT appear in the Gastos section (they are shown elsewhere)
+ */
+const AUTOMATIC_EXPENSE_SOURCES = [
+  'LOAN_GRANTED',              // Goes to "Colocado"
+  'LOAN_GRANTED_COMISSION',    // Part of commissions
+  'LOAN_PAYMENT_COMISSION',    // Part of commissions
+  'LOAN_CANCELLED_ADJUSTMENT', // System adjustments
+  'LOAN_CANCELLED_BANK_REVERSAL', // System reversals
+]
+
+/**
  * Get location info from a transaction's lead
  */
 function getLocationFromLead(lead?: TransactionNode['lead']): {
@@ -122,19 +134,19 @@ export function processTransactionsByLocality(
         loc.paymentCount++
       }
     } else if (tx.type === 'EXPENSE') {
-      // Check if it's a loan granted
-      if (tx.expenseSource === 'LOAN_GRANTED' && tx.loan) {
+      // Check if it's a loan granted (Colocado)
+      if (tx.expenseSource === 'LOAN_GRANTED') {
         const loanGranted: LoanGrantedSummary = {
           id: tx.id,
           borrowerName: tx.loan?.borrower?.personalData?.fullName || 'Sin nombre',
-          amount: parseFloat(tx.loan.amountGived || tx.amount) || amount,
+          amount: parseFloat(tx.loan?.amountGived || tx.amount) || amount,
           date: tx.date,
         }
         loc.loansGranted.push(loanGranted)
         loc.totalLoansGranted += loanGranted.amount
         loc.loansGrantedCount++
-      } else {
-        // Regular expense
+      } else if (!AUTOMATIC_EXPENSE_SOURCES.includes(tx.expenseSource || '')) {
+        // Regular expense (exclude automatic system expenses)
         const expense: ExpenseSummary = {
           id: tx.id,
           source: tx.expenseSource || 'OTHER',
@@ -145,6 +157,8 @@ export function processTransactionsByLocality(
         loc.expenses.push(expense)
         loc.totalExpenses += amount
       }
+      // Note: LOAN_GRANTED_COMISSION and LOAN_PAYMENT_COMISSION are excluded
+      // as they are already tracked in totalCommissions from payment data
     }
   }
 

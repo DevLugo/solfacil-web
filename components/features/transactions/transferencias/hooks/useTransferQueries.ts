@@ -3,6 +3,7 @@
 import { useQuery } from '@apollo/client'
 import { startOfDay, endOfDay } from 'date-fns'
 import { ACCOUNTS_QUERY, TRANSFERS_AND_INVESTMENTS_BY_DATE_QUERY } from '@/graphql/queries/transactions'
+import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Account, Transfer } from '../types'
 import { INCOME_SOURCES } from '../constants'
 
@@ -28,7 +29,7 @@ export function useTransferQueries({
   // Query para obtener transfers e inversiones del día
   const {
     data: transfersData,
-    loading: transfersLoading,
+    loading: transfersLoadingRaw,
     refetch: refetchTransfers,
   } = useQuery(TRANSFERS_AND_INVESTMENTS_BY_DATE_QUERY, {
     variables: {
@@ -37,7 +38,8 @@ export function useTransferQueries({
       routeId: selectedRouteId,
     },
     skip: !selectedRouteId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
   })
 
   // Query para obtener las cuentas de la ruta
@@ -48,7 +50,7 @@ export function useTransferQueries({
   } = useQuery(ACCOUNTS_QUERY, {
     variables: { routeId: selectedRouteId },
     skip: !selectedRouteId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
   })
 
   // Refetch all data after a mutation (only if route is selected)
@@ -57,6 +59,16 @@ export function useTransferQueries({
       await Promise.all([refetchTransfers(), refetchAccounts()])
     }
   }
+
+  // Handle date change refetch
+  const { isRefetching } = useDateChangeRefetch({
+    selectedDate,
+    enabled: !!selectedRouteId,
+    refetchFn: refetchTransfers,
+  })
+
+  // Combine loading states
+  const transfersLoading = transfersLoadingRaw || isRefetching
 
   // Combine transfers and capital investments (MONEY_INVESTMENT only)
   const transfersList: Transfer[] =

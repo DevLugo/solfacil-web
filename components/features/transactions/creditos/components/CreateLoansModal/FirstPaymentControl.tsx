@@ -3,6 +3,10 @@
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+
+// CSS classes to hide number input spinners
+const noSpinnerClass = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 interface FirstPaymentControlProps {
   includeFirstPayment: boolean
@@ -31,7 +35,7 @@ export function FirstPaymentControl({
           value={firstPaymentAmount}
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="Monto"
-          className="h-9 flex-1"
+          className={cn('h-9 flex-1', noSpinnerClass)}
         />
       )}
     </div>

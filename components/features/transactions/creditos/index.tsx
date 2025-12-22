@@ -6,6 +6,7 @@ import { MapPin } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTransactionContext } from '../transaction-context'
 import { CANCEL_LOAN_WITH_ACCOUNT_RESTORE } from '@/graphql/mutations/transactions'
+import { ROUTES_WITH_ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { useCreditosQueries } from './hooks'
@@ -110,9 +111,17 @@ export function CreditosTab() {
     selectedRouteId,
   })
 
+  // Find bank account for cancellation preview
+  const bankAccount = useMemo(() => {
+    return accounts.find((a) => a.type === 'BANK')
+  }, [accounts])
+
   // Mutation for canceling loans
   const [cancelLoanWithAccountRestore, { loading: canceling }] = useMutation(
-    CANCEL_LOAN_WITH_ACCOUNT_RESTORE
+    CANCEL_LOAN_WITH_ACCOUNT_RESTORE,
+    {
+      refetchQueries: [{ query: ROUTES_WITH_ACCOUNTS_QUERY }],
+    }
   )
 
   // Calculate totals
@@ -153,17 +162,27 @@ export function CreditosTab() {
     if (!loanToCancel || !defaultAccount) return
 
     try {
-      await cancelLoanWithAccountRestore({
+      const { data } = await cancelLoanWithAccountRestore({
         variables: {
           id: loanToCancel.id,
           accountId: defaultAccount.id,
         },
       })
 
-      toast({
-        title: 'Crédito cancelado',
-        description: `El crédito de ${loanToCancel.borrower.personalData.fullName} ha sido cancelado y el saldo restaurado.`,
-      })
+      const result = data?.cancelLoanWithAccountRestore
+
+      if (result?.paymentsDeleted > 0) {
+        const totalPayments = parseFloat(result.totalCashPayments) + parseFloat(result.totalBankPayments)
+        toast({
+          title: 'Crédito cancelado',
+          description: `El crédito de ${loanToCancel.borrower.personalData?.fullName || 'cliente'} ha sido cancelado. Se eliminaron ${result.paymentsDeleted} pago(s) por $${totalPayments.toLocaleString()}.`,
+        })
+      } else {
+        toast({
+          title: 'Crédito cancelado',
+          description: `El crédito de ${loanToCancel.borrower.personalData?.fullName || 'cliente'} ha sido cancelado y el saldo restaurado.`,
+        })
+      }
 
       setLoanToCancel(null)
       refetchLoans()
@@ -244,6 +263,7 @@ export function CreditosTab() {
       <CancelLoanDialog
         loan={loanToCancel}
         account={defaultAccount}
+        bankAccount={bankAccount}
         canceling={canceling}
         onConfirm={handleCancelLoan}
         onCancel={() => setLoanToCancel(null)}

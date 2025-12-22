@@ -269,7 +269,7 @@ export function TransactionSelectors() {
             >
               {getAccountIcon(account.type)}
               <span className="font-medium">{account.name}</span>
-              <span className="font-bold">{formatCurrency(parseFloat(account.amount || '0'))}</span>
+              <span className="font-bold">{formatCurrency(parseFloat(account.accountBalance || account.amount || '0'))}</span>
             </Badge>
           ))}
         </div>
