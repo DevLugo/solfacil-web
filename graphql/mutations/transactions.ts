@@ -360,3 +360,26 @@ export const UPDATE_ACCOUNT = gql`
     }
   }
 `
+
+// ============================================================
+// FALCO COMPENSATORY PAYMENT MUTATIONS
+// ============================================================
+
+export const CREATE_FALCO_COMPENSATORY_PAYMENT = gql`
+  mutation CreateFalcoCompensatoryPayment($input: CreateFalcoCompensatoryPaymentInput!) {
+    createFalcoCompensatoryPayment(input: $input) {
+      id
+      amount
+      createdAt
+      leadPaymentReceived {
+        id
+        falcoAmount
+        falcoCompensatoryPayments {
+          id
+          amount
+          createdAt
+        }
+      }
+    }
+  }
+`

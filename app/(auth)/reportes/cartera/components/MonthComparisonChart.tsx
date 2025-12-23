@@ -35,7 +35,8 @@ import { cn } from '@/lib/utils'
 
 interface MonthData {
   label: string // "Dic 2025"
-  clientesActivos: number
+  clientesActivosInicio?: number // Clientes al inicio del mes
+  clientesActivos: number // Clientes al final del mes
   alCorrientePromedio: number
   cvPromedio: number
   renovaciones: number
@@ -220,7 +221,7 @@ function ComparisonView({
 
   return (
     <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-3">
-      {/* Clientes Activos */}
+      {/* Clientes Activos - Mostrando Inicio y Final del mes */}
       <div className="rounded-lg border bg-muted/30 p-3 sm:p-4">
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Clientes Activos</p>
@@ -228,7 +229,25 @@ function ComparisonView({
         </div>
         <div className="flex items-end justify-between gap-2 sm:gap-4">
           <div className="min-w-0">
-            <p className="text-xl sm:text-3xl font-bold">{currentMonth.clientesActivos}</p>
+            {/* Mostrar inicio y final del mes si son diferentes */}
+            <div className="flex items-baseline gap-2">
+              {typeof currentMonth.clientesActivosInicio === 'number' &&
+               currentMonth.clientesActivosInicio !== currentMonth.clientesActivos && (
+                <>
+                  <p className="text-xl sm:text-3xl font-bold">
+                    {currentMonth.clientesActivosInicio}
+                  </p>
+                  <span className="text-xl sm:text-3xl text-muted-foreground">→</span>
+                </>
+              )}
+              <p className="text-xl sm:text-3xl font-bold">{currentMonth.clientesActivos}</p>
+            </div>
+            {typeof currentMonth.clientesActivosInicio === 'number' &&
+             currentMonth.clientesActivosInicio !== currentMonth.clientesActivos && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Inicio → Final del mes
+              </p>
+            )}
             {previousMonth && changes && (
               <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {previousMonth.clientesActivos}</span>

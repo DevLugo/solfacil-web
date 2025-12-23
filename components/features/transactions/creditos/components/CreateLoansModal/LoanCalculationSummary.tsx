@@ -23,18 +23,18 @@ export function LoanCalculationSummary({
   const debtExceedsRequest = renewalPendingAmount > requestedAmount
 
   return (
-    <div className="p-2.5 rounded-lg bg-muted/50 space-y-1.5 text-sm">
+    <div className="p-2.5 rounded-md bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-600 space-y-1">
       {isRenewal && renewalPendingAmount > 0 && (
         <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">A entregar:</span>
-          <span className={`font-semibold ${showDebtWarning ? 'text-destructive' : 'text-primary'}`}>
+          <span className="text-xs font-medium text-green-800 dark:text-green-200">A entregar:</span>
+          <span className={`text-base font-bold ${showDebtWarning ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-200'}`}>
             {formatCurrency(calculatedAmountGived)}
           </span>
         </div>
       )}
       <div className="flex justify-between items-center">
-        <span className="text-muted-foreground">Pago semanal:</span>
-        <span className="font-medium">{formatCurrency(calculatedWeeklyPayment)}</span>
+        <span className="text-xs text-green-700 dark:text-green-300">Pago semanal:</span>
+        <span className="text-sm font-semibold text-green-800 dark:text-green-200">{formatCurrency(calculatedWeeklyPayment)}</span>
       </div>
       {showDebtWarning && (
         <div className="flex items-start gap-2 p-2 mt-2 rounded bg-destructive/10 text-destructive text-xs">

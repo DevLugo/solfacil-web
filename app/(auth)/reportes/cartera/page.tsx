@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, memo, useCallback } from 'react'
 import { useQuery } from '@apollo/client'
 import {
   Card,
@@ -11,6 +11,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   FileText,
   Loader2,
@@ -30,6 +38,10 @@ import {
   Minus,
   ArrowUpRight,
   ArrowDownRight,
+  Filter,
+  X,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -88,9 +100,162 @@ function ReportSkeleton() {
   )
 }
 
+// Memoized Period and Filters component to prevent re-renders when data loads
+interface PeriodFiltersProps {
+  year: number
+  month: number
+  currentActiveWeek: WeekRange | null
+  setYear: (year: number) => void
+  setMonth: (month: number) => void
+  goToCurrentPeriod: () => void
+  routes: RouteType[]
+  selectedRouteIds: string[]
+  setSelectedRouteIds: (ids: string[]) => void
+}
+
+interface WeekRange {
+  start: string
+  end: string
+  weekNumber: number
+  year: number
+}
+
+const PeriodFiltersCard = memo(function PeriodFiltersCard({
+  year,
+  month,
+  currentActiveWeek,
+  setYear,
+  setMonth,
+  goToCurrentPeriod,
+  routes,
+  selectedRouteIds,
+  setSelectedRouteIds,
+}: PeriodFiltersProps) {
+  const [routeFilterOpen, setRouteFilterOpen] = useState(false)
+
+  const handleRouteToggle = useCallback((routeId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRouteIds([...selectedRouteIds, routeId])
+    } else {
+      setSelectedRouteIds(selectedRouteIds.filter((id) => id !== routeId))
+    }
+  }, [selectedRouteIds, setSelectedRouteIds])
+
+  const handleClearRoutes = useCallback(() => {
+    setSelectedRouteIds([])
+  }, [setSelectedRouteIds])
+
+  const handleRemoveRoute = useCallback((routeId: string) => {
+    setSelectedRouteIds(selectedRouteIds.filter((id) => id !== routeId))
+  }, [selectedRouteIds, setSelectedRouteIds])
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+        <CardTitle className="text-base sm:text-lg">Período y Filtros</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <WeekSelector
+          periodType="MONTHLY"
+          year={year}
+          month={month}
+          currentActiveWeek={currentActiveWeek}
+          onPeriodTypeChange={() => {}}
+          onYearChange={setYear}
+          onMonthChange={setMonth}
+          onWeekNumberChange={() => {}}
+          onPrevious={() => {}}
+          onNext={() => {}}
+          onGoToCurrent={goToCurrentPeriod}
+        />
+
+        {/* Route Filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtrar por ruta:</span>
+          <Popover open={routeFilterOpen} onOpenChange={setRouteFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 justify-between min-w-[150px]"
+              >
+                {selectedRouteIds.length === 0 ? (
+                  <span className="text-muted-foreground">Todas las rutas</span>
+                ) : (
+                  <span>{selectedRouteIds.length} ruta{selectedRouteIds.length > 1 ? 's' : ''}</span>
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-0" align="start">
+              <div className="p-2 border-b">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Seleccionar rutas</span>
+                  {selectedRouteIds.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={handleClearRoutes}
+                    >
+                      Limpiar
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <ScrollArea className="h-[200px]">
+                <div className="p-2 space-y-1">
+                  {routes.map((route) => (
+                    <label
+                      key={route.id}
+                      className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedRouteIds.includes(route.id)}
+                        onCheckedChange={(checked) => handleRouteToggle(route.id, !!checked)}
+                      />
+                      <span className="text-sm">{route.name}</span>
+                    </label>
+                  ))}
+                  {routes.length === 0 && (
+                    <p className="text-sm text-muted-foreground p-2">No hay rutas disponibles</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+
+          {/* Show selected routes as badges */}
+          {selectedRouteIds.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selectedRouteIds.map((routeId) => {
+                const route = routes.find((r) => r.id === routeId)
+                return (
+                  <Badge
+                    key={routeId}
+                    variant="secondary"
+                    className="text-xs flex items-center gap-1"
+                  >
+                    {route?.name || routeId}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleRemoveRoute(routeId)}
+                    />
+                  </Badge>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+})
+
 export default function PortfolioReportPage() {
   const [activeTab, setActiveTab] = useState('resumen')
   const [showRecoveredDeadDebtModal, setShowRecoveredDeadDebtModal] = useState(false)
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
 
   // Period navigation - always use MONTHLY view
   const {
@@ -100,6 +265,12 @@ export default function PortfolioReportPage() {
     setMonth,
     goToCurrentPeriod,
   } = usePeriodNavigation('MONTHLY')
+
+  // Build filters object from selected routes
+  const filters = useMemo(() => {
+    if (selectedRouteIds.length === 0) return undefined
+    return { routeIds: selectedRouteIds }
+  }, [selectedRouteIds])
 
   // Calculate previous month for comparison
   const { prevYear, prevMonth } = useMemo(() => {
@@ -122,6 +293,7 @@ export default function PortfolioReportPage() {
     periodType: 'MONTHLY',
     year,
     month,
+    filters,
   })
 
   // Portfolio report data - previous month for comparison
@@ -132,6 +304,7 @@ export default function PortfolioReportPage() {
     periodType: 'MONTHLY',
     year: prevYear,
     month: prevMonth,
+    filters,
   })
 
   // Locality report for "Por Localidad" view
@@ -141,6 +314,7 @@ export default function PortfolioReportPage() {
   } = useLocalityReport({
     year,
     month,
+    filters,
   })
 
   // Recovered dead debt
@@ -162,8 +336,11 @@ export default function PortfolioReportPage() {
     currentMonth: month,
   })
 
-  // Routes data for filters (future use)
+  // Routes data for filters
   const { data: routesData } = useQuery<{ routes: RouteType[] }>(GET_ROUTES)
+
+  // Stable reference for routes to prevent PeriodFiltersCard re-renders
+  const routes = useMemo(() => routesData?.routes || [], [routesData?.routes])
 
   // Transform annual data for chart
   const annualData: AnnualMonthData[] = useMemo(() => {
@@ -191,10 +368,20 @@ export default function PortfolioReportPage() {
       return value
     }
 
+    // clientesActivosInicio = previous month's totalClientesActivos
+    // This is the most reliable way to get the "start of month" count
+    const clientesActivosInicio = previousReport?.summary.totalClientesActivos !== undefined
+      ? safeNumber(previousReport.summary.totalClientesActivos)
+      : undefined
+
+    // Use backend's totalClientesActivos directly (clientes activos al final del mes)
+    const clientesActivos = safeNumber(report.summary.totalClientesActivos)
+
     // Current month data
     const currentMonth = {
       label: formatMonthLabel(month, year),
-      clientesActivos: safeNumber(report.summary.totalClientesActivos),
+      clientesActivosInicio,
+      clientesActivos,
       alCorrientePromedio: safeNumber(report.summary.clientesAlCorriente),
       cvPromedio: safeNumber(report.summary.promedioCV ?? report.summary.clientesEnCV),
       renovaciones: safeNumber(report.renovationKPIs.totalRenovaciones),
@@ -244,23 +431,8 @@ export default function PortfolioReportPage() {
     }
   }
 
-  // Render loading state
-  if (loading && !report) {
-    return (
-      <div className="space-y-4 sm:space-y-6 p-3 sm:p-0">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">Reporte Cartera</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Cargando datos...</p>
-          </div>
-        </div>
-        <ReportSkeleton />
-      </div>
-    )
-  }
+  // Check if this is initial load (no report data yet)
+  const isInitialLoad = loading && !report
 
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-0 overflow-x-hidden">
@@ -273,7 +445,7 @@ export default function PortfolioReportPage() {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">Reporte Cartera</h1>
             <p className="text-xs sm:text-sm text-muted-foreground truncate">
-              Clientes activos y CV
+              {loading ? 'Cargando datos...' : 'Clientes activos y CV'}
             </p>
           </div>
         </div>
@@ -307,27 +479,24 @@ export default function PortfolioReportPage() {
         </div>
       </div>
 
-      {/* Period Selector */}
-      <Card>
-        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
-          <CardTitle className="text-base sm:text-lg">Período del Reporte</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <WeekSelector
-            periodType="MONTHLY"
-            year={year}
-            month={month}
-            currentActiveWeek={currentActiveWeek}
-            onPeriodTypeChange={() => {}}
-            onYearChange={setYear}
-            onMonthChange={setMonth}
-            onWeekNumberChange={() => {}}
-            onPrevious={() => {}}
-            onNext={() => {}}
-            onGoToCurrent={goToCurrentPeriod}
-          />
-        </CardContent>
-      </Card>
+      {/* Period Selector and Filters - Always rendered, never affected by loading */}
+      <PeriodFiltersCard
+        year={year}
+        month={month}
+        currentActiveWeek={currentActiveWeek}
+        setYear={setYear}
+        setMonth={setMonth}
+        goToCurrentPeriod={goToCurrentPeriod}
+        routes={routes}
+        selectedRouteIds={selectedRouteIds}
+        setSelectedRouteIds={setSelectedRouteIds}
+      />
+
+      {/* Show skeleton only on initial load, otherwise show report content */}
+      {isInitialLoad ? (
+        <ReportSkeleton />
+      ) : (
+        <>
 
       {/* Error State */}
       {error && (
@@ -489,6 +658,8 @@ export default function PortfolioReportPage() {
             </p>
           </CardContent>
         </Card>
+      )}
+        </>
       )}
     </div>
   )

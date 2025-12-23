@@ -216,6 +216,31 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
     setLastSelectedIndex(null)
   }, [])
 
+  // Set all to no payment
+  const handleSetAllNoPayment = useCallback((filteredLoans: ActiveLoan[]) => {
+    const newPayments: Record<string, PaymentEntry> = {}
+    filteredLoans.forEach((loan) => {
+      const initialCommission = payments[loan.id]?.initialCommission ||
+        (loan.loantype?.loanPaymentComission
+          ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
+          : '0')
+
+      newPayments[loan.id] = {
+        loanId: loan.id,
+        amount: '0',
+        commission: '0',
+        initialCommission,
+        paymentMethod: payments[loan.id]?.paymentMethod || 'CASH',
+        isNoPayment: true,
+      }
+    })
+    setPayments(newPayments)
+    toast({
+      title: 'Sin pago marcado',
+      description: `${filteredLoans.length} préstamo(s) marcado(s) como sin pago.`,
+    })
+  }, [payments, toast])
+
   // Apply global commission
   const handleApplyGlobalCommission = useCallback((globalComm: string) => {
     if (!globalComm) return
@@ -383,6 +408,7 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
     handleToggleNoPayment,
     handleToggleNoPaymentWithShift,
     handleSetAllWeekly,
+    handleSetAllNoPayment,
     handleClearAll,
     handleApplyGlobalCommission,
     resetPayments,

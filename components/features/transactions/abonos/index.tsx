@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { DollarSign, Ban } from 'lucide-react'
+import { useQuery } from '@apollo/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -15,6 +16,7 @@ import {
 import { useTransactionContext } from '../transaction-context'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import { FALCOS_PENDIENTES_QUERY } from '@/graphql/queries/transactions'
 
 // Local imports
 import { useAbonosQueries, usePayments, useTotals } from './hooks'
@@ -28,6 +30,7 @@ import {
   SuccessDialog,
   UserAddedPaymentRow,
   LoanPaymentRow,
+  FalcosPendientesDrawer,
 } from './components'
 import { hasIncompleteAval, hasIncompletePhone } from './utils'
 import type { ActiveLoan } from './types'
@@ -50,11 +53,18 @@ export function AbonosTab() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [savedCount, setSavedCount] = useState(0)
 
+  // Falco state
+  const [falcoEnabled, setFalcoEnabled] = useState(false)
+  const [falcoAmount, setFalcoAmount] = useState('0')
+
   // Multa modal state
   const [showMultaModal, setShowMultaModal] = useState(false)
   const [multaAmount, setMultaAmount] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState<string>('')
   const [isCreatingMulta, setIsCreatingMulta] = useState(false)
+
+  // Falcos drawer state
+  const [showFalcosDrawer, setShowFalcosDrawer] = useState(false)
 
   // Queries
   const {
@@ -76,6 +86,17 @@ export function AbonosTab() {
     selectedDate,
   })
 
+  // Falcos pendientes query
+  const { data: falcosData, loading: falcosLoading, refetch: refetchFalcos } = useQuery(
+    FALCOS_PENDIENTES_QUERY,
+    {
+      variables: { routeId: selectedRouteId },
+      skip: !selectedRouteId,
+    }
+  )
+
+  const falcosPendientes = falcosData?.falcosPendientes || []
+
   // Payments management
   const {
     payments,
@@ -86,6 +107,7 @@ export function AbonosTab() {
     handlePaymentMethodChange,
     handleToggleNoPaymentWithShift,
     handleSetAllWeekly,
+    handleSetAllNoPayment,
     handleClearAll,
     handleApplyGlobalCommission,
     handleStartEditPayment,
@@ -160,6 +182,8 @@ export function AbonosTab() {
     }
 
     setBankTransferAmount('0')
+    setFalcoEnabled(false)
+    setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
@@ -172,7 +196,7 @@ export function AbonosTab() {
       (p) => p.loanId && p.amount && parseFloat(p.amount) > 0
     )
 
-    const allPaymentsToSave = [
+    const newPaymentsToSave = [
       ...validPayments.map((p) => ({
         loanId: p.loanId,
         amount: p.amount,
@@ -187,7 +211,7 @@ export function AbonosTab() {
       })),
     ]
 
-    if (allPaymentsToSave.length === 0) {
+    if (newPaymentsToSave.length === 0) {
       toast({
         title: 'Sin pagos',
         description: 'No hay pagos válidos para guardar.',
@@ -201,26 +225,94 @@ export function AbonosTab() {
 
     try {
       const bankTransferValue = parseFloat(bankTransferAmount || '0')
-      const cashValue = totals.cash - bankTransferValue
+      const falcoValue = falcoEnabled ? parseFloat(falcoAmount || '0') : 0
 
-      await createLeadPaymentReceived({
-        variables: {
-          input: {
-            leadId: selectedLeadId,
-            agentId: selectedLeadId,
-            expectedAmount: totals.total.toString(),
-            paidAmount: totals.total.toString(),
-            cashPaidAmount: cashValue.toString(),
-            bankPaidAmount: (totals.bank + bankTransferValue).toString(),
-            falcoAmount: '0',
-            paymentDate: selectedDate.toISOString(),
-            payments: allPaymentsToSave,
+      // If there's already a LeadPaymentReceived for this day, update it instead of creating a new one
+      if (leadPaymentReceivedId) {
+        // Build the complete list of payments: existing + new
+        const existingPayments = Array.from(registeredPaymentsMap.entries()).map(
+          ([loanId, payment]) => ({
+            paymentId: payment.id,
+            loanId,
+            amount: payment.amount,
+            comission: payment.comission || '0',
+            paymentMethod: payment.paymentMethod,
+            isDeleted: false,
+          })
+        )
+
+        // New payments don't have a paymentId
+        const newPaymentsForUpdate = newPaymentsToSave.map((p) => ({
+          loanId: p.loanId,
+          amount: p.amount,
+          comission: p.comission,
+          paymentMethod: p.paymentMethod,
+        }))
+
+        // Calculate combined totals
+        const existingTotal = Array.from(registeredPaymentsMap.values()).reduce(
+          (sum, p) => sum + parseFloat(p.amount || '0'),
+          0
+        )
+        const newTotal = newPaymentsToSave.reduce(
+          (sum, p) => sum + parseFloat(p.amount || '0'),
+          0
+        )
+        const combinedTotal = existingTotal + newTotal
+
+        // Calculate cash vs bank for new payments
+        let newCash = 0
+        let newBank = 0
+        newPaymentsToSave.forEach((p) => {
+          const amount = parseFloat(p.amount || '0')
+          if (p.paymentMethod === 'CASH') {
+            newCash += amount
+          } else {
+            newBank += amount
+          }
+        })
+
+        // Get existing cash/bank from leadPaymentData
+        const existingCashPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.cashPaidAmount || '0')
+        const existingBankPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.bankPaidAmount || '0')
+
+        const totalCash = existingCashPaid + newCash - bankTransferValue - falcoValue
+        const totalBank = existingBankPaid + newBank + bankTransferValue
+
+        await updateLeadPaymentReceived({
+          variables: {
+            id: leadPaymentReceivedId,
+            input: {
+              paidAmount: combinedTotal.toString(),
+              cashPaidAmount: totalCash.toString(),
+              bankPaidAmount: totalBank.toString(),
+              payments: [...existingPayments, ...newPaymentsForUpdate],
+            },
           },
-        },
-      })
+        })
+      } else {
+        // No existing LeadPaymentReceived, create a new one
+        const cashValue = totals.cash - bankTransferValue - falcoValue
+
+        await createLeadPaymentReceived({
+          variables: {
+            input: {
+              leadId: selectedLeadId,
+              agentId: selectedLeadId,
+              expectedAmount: totals.total.toString(),
+              paidAmount: totals.total.toString(),
+              cashPaidAmount: cashValue.toString(),
+              bankPaidAmount: (totals.bank + bankTransferValue).toString(),
+              falcoAmount: falcoValue.toString(),
+              paymentDate: selectedDate.toISOString(),
+              payments: newPaymentsToSave,
+            },
+          },
+        })
+      }
 
       setSavingProgress({ current: 1, total: 1 })
-      setSavedCount(allPaymentsToSave.length)
+      setSavedCount(newPaymentsToSave.length)
       setShowDistributionModal(false)
       setShowSuccessDialog(true)
       resetPayments()
@@ -231,7 +323,7 @@ export function AbonosTab() {
 
       toast({
         title: 'Abonos guardados',
-        description: `Se guardaron ${allPaymentsToSave.length} abono(s) correctamente.`,
+        description: `Se guardaron ${newPaymentsToSave.length} abono(s) correctamente.`,
       })
     } catch (error) {
       console.error('Error al guardar abonos:', error)
@@ -250,6 +342,8 @@ export function AbonosTab() {
     const editsToSave = Object.values(editedPayments)
     if (editsToSave.length === 0) return
     setBankTransferAmount('0')
+    setFalcoEnabled(false)
+    setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
@@ -454,9 +548,12 @@ export function AbonosTab() {
               onGlobalCommissionChange={setGlobalCommission}
               onApplyGlobalCommission={() => handleApplyGlobalCommission(globalCommission)}
               onSetAllWeekly={() => handleSetAllWeekly(filteredLoans)}
+              onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoans)}
               onClearAll={handleClearAll}
               onAddPayment={handleAddPayment}
               onOpenMultaModal={handleOpenMultaModal}
+              onOpenFalcosDrawer={() => setShowFalcosDrawer(true)}
+              falcosPendientesCount={falcosPendientes.length}
               onSaveAll={handleSaveAll}
               onSaveEditedPayments={handleSaveEditedPayments}
               filteredLoansCount={filteredLoans.length}
@@ -560,6 +657,10 @@ export function AbonosTab() {
         onBankTransferAmountChange={setBankTransferAmount}
         hasEditedPayments={hasEditedPayments}
         onConfirm={hasEditedPayments ? handleConfirmSaveEdits : handleConfirmSave}
+        falcoEnabled={falcoEnabled}
+        falcoAmount={falcoAmount}
+        onFalcoEnabledChange={setFalcoEnabled}
+        onFalcoAmountChange={setFalcoAmount}
       />
 
       <SuccessDialog
@@ -579,6 +680,14 @@ export function AbonosTab() {
         selectedDate={selectedDate}
         isCreating={isCreatingMulta}
         onConfirm={handleCreateMulta}
+      />
+
+      <FalcosPendientesDrawer
+        open={showFalcosDrawer}
+        onOpenChange={setShowFalcosDrawer}
+        falcosPendientes={falcosPendientes}
+        isLoading={falcosLoading}
+        onCompensationCreated={() => refetchFalcos()}
       />
     </div>
   )

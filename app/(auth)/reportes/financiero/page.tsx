@@ -14,6 +14,12 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -79,8 +85,11 @@ interface MonthlyFinancialData {
   cashGasolina: string
   totalGasolina: string
   badDebtAmount: string
+  badDebtCapital: string
+  badDebtProfit: string
   incomes: string
   operationalProfit: string
+  operationalProfitCapitalOnly: string
   profitPercentage: string
   gainPerPayment: string
   activeWeeks: number
@@ -200,7 +209,8 @@ export default function FinancialReportPage() {
       'totalExpenses', 'generalExpenses', 'nomina', 'comissions',
       'nominaInterna', 'salarioExterno', 'viaticos', 'travelExpenses',
       'tokaGasolina', 'cashGasolina', 'totalGasolina', 'badDebtAmount',
-      'incomes', 'operationalProfit', 'loanDisbursements',
+      'badDebtCapital', 'badDebtProfit',
+      'incomes', 'operationalProfit', 'operationalProfitCapitalOnly', 'loanDisbursements',
       'totalIncomingCash', 'capitalReturn', 'profitReturn',
       'operationalCashUsed', 'totalInvestment', 'availableCash'
     ]
@@ -683,14 +693,62 @@ export default function FinancialReportPage() {
                     </td>
                     {report.data.map((monthData, idx) => {
                       const val = parseFloat(monthData.badDebtAmount)
+                      const capital = parseFloat(monthData.badDebtCapital)
+                      const profit = parseFloat(monthData.badDebtProfit)
                       return (
                         <td key={idx} className={cn('text-center px-2 py-2 font-medium border-l', val > 0 ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground')}>
-                          {formatCurrency(monthData.badDebtAmount)}
+                          {val > 0 ? (
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                                  {formatCurrency(monthData.badDebtAmount)}
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white p-3 text-xs">
+                                  <div className="space-y-1">
+                                    <div className="font-semibold border-b border-slate-700 pb-1 mb-1">Desglose Deuda Mala</div>
+                                    <div className="flex justify-between gap-4">
+                                      <span>Capital:</span>
+                                      <span className="font-medium">{formatCurrency(capital)}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span>Interés:</span>
+                                      <span className="font-medium">{formatCurrency(profit)}</span>
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            formatCurrency(monthData.badDebtAmount)
+                          )}
                         </td>
                       )
                     })}
                     <td className="text-center px-2 py-2 font-bold bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-l">
-                      {formatCurrency(annualTotals.badDebtAmount)}
+                      {annualTotals.badDebtAmount > 0 ? (
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                              {formatCurrency(annualTotals.badDebtAmount)}
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white p-3 text-xs">
+                              <div className="space-y-1">
+                                <div className="font-semibold border-b border-slate-700 pb-1 mb-1">Desglose Anual Deuda Mala</div>
+                                <div className="flex justify-between gap-4">
+                                  <span>Capital:</span>
+                                  <span className="font-medium">{formatCurrency(annualTotals.badDebtCapital)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span>Interés:</span>
+                                  <span className="font-medium">{formatCurrency(annualTotals.badDebtProfit)}</span>
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        formatCurrency(annualTotals.badDebtAmount)
+                      )}
                     </td>
                   </tr>
 
@@ -730,14 +788,78 @@ export default function FinancialReportPage() {
                     </td>
                     {report.data.map((monthData, idx) => {
                       const val = parseFloat(monthData.operationalProfit)
+                      const valCapitalOnly = parseFloat(monthData.operationalProfitCapitalOnly)
+                      const badDebt = parseFloat(monthData.badDebtAmount)
+                      const badDebtProfit = parseFloat(monthData.badDebtProfit)
+                      const diff = valCapitalOnly - val
                       return (
                         <td key={idx} className={cn('text-center px-2 py-2.5 font-bold border-l', getValueColor(val))}>
-                          {formatCurrency(val)}
+                          {badDebt > 0 ? (
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                                  {formatCurrency(val)}
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white p-3 text-xs">
+                                  <div className="space-y-1.5">
+                                    <div className="font-semibold border-b border-slate-700 pb-1 mb-1">Comparativa Ganancias</div>
+                                    <div className="flex justify-between gap-4">
+                                      <span>Con deuda total:</span>
+                                      <span className={cn('font-medium', getValueColor(val))}>{formatCurrency(val)}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span>Solo con capital:</span>
+                                      <span className={cn('font-medium', getValueColor(valCapitalOnly))}>{formatCurrency(valCapitalOnly)}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4 border-t border-slate-700 pt-1 mt-1">
+                                      <span>Diferencia:</span>
+                                      <span className="font-medium text-green-400">+{formatCurrency(diff)}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-700">
+                                      Interés no cobrado: {formatCurrency(badDebtProfit)}
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            formatCurrency(val)
+                          )}
                         </td>
                       )
                     })}
                     <td className="text-center px-2 py-2.5 font-bold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-l">
-                      {formatCurrency(annualTotals.operationalProfit)}
+                      {annualTotals.badDebtAmount > 0 ? (
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                              {formatCurrency(annualTotals.operationalProfit)}
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white p-3 text-xs">
+                              <div className="space-y-1.5">
+                                <div className="font-semibold border-b border-slate-700 pb-1 mb-1">Comparativa Anual</div>
+                                <div className="flex justify-between gap-4">
+                                  <span>Con deuda total:</span>
+                                  <span className={cn('font-medium', getValueColor(annualTotals.operationalProfit))}>{formatCurrency(annualTotals.operationalProfit)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span>Solo con capital:</span>
+                                  <span className={cn('font-medium', getValueColor(annualTotals.operationalProfitCapitalOnly))}>{formatCurrency(annualTotals.operationalProfitCapitalOnly)}</span>
+                                </div>
+                                <div className="flex justify-between gap-4 border-t border-slate-700 pt-1 mt-1">
+                                  <span>Diferencia:</span>
+                                  <span className="font-medium text-green-400">+{formatCurrency(annualTotals.operationalProfitCapitalOnly - annualTotals.operationalProfit)}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-700">
+                                  Interés no cobrado anual: {formatCurrency(annualTotals.badDebtProfit)}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        formatCurrency(annualTotals.operationalProfit)
+                      )}
                     </td>
                   </tr>
 
@@ -783,7 +905,31 @@ export default function FinancialReportPage() {
                   {/* SECTION: GANANCIA SEMANAL */}
                   <tr className="bg-blue-100 dark:bg-blue-950/50">
                     <td colSpan={14} className="px-4 py-3 text-center font-bold text-blue-800 dark:text-blue-400 text-sm tracking-wide">
-                      GANANCIA SEMANAL (Promedio por Semanas Activas)
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger className="cursor-help inline-flex items-center gap-1.5">
+                            💵 GANANCIA SEMANAL (Promedio)
+                            <span className="text-blue-500 dark:text-blue-300 text-xs font-normal">(ℹ)</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white p-4 text-xs max-w-sm">
+                            <div className="space-y-2">
+                              <div className="font-semibold border-b border-slate-700 pb-1">¿Cómo se calcula?</div>
+                              <p className="text-slate-300">
+                                Solo se incluyen <strong>semanas completas</strong> (Lun-Dom con al menos 5 días laborales dentro del mes).
+                              </p>
+                              <div className="font-semibold border-b border-slate-700 pb-1 pt-2">¿Qué se excluye?</div>
+                              <ul className="text-slate-300 list-disc list-inside space-y-1">
+                                <li>Días de semanas incompletas al inicio del mes</li>
+                                <li>Días de semanas incompletas al final del mes</li>
+                                <li>Semana actual si aún no termina (domingo)</li>
+                              </ul>
+                              <p className="text-slate-400 text-[10px] pt-2 border-t border-slate-700">
+                                Nota: Los totales mensuales SÍ incluyen todos los días, pero los promedios semanales no.
+                              </p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </td>
                   </tr>
 

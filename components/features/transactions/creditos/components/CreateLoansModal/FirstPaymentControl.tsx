@@ -22,12 +22,13 @@ export function FirstPaymentControl({
   onAmountChange,
 }: FirstPaymentControlProps) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <Switch
         checked={includeFirstPayment}
         onCheckedChange={onIncludeChange}
+        className="scale-90"
       />
-      <Label className="text-sm flex-shrink-0">Primer pago</Label>
+      <Label className="text-xs flex-shrink-0">Primer pago</Label>
       {includeFirstPayment && (
         <Input
           type="number"
@@ -35,7 +36,7 @@ export function FirstPaymentControl({
           value={firstPaymentAmount}
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="Monto"
-          className={cn('h-9 flex-1', noSpinnerClass)}
+          className={cn('h-8 text-sm flex-1', noSpinnerClass)}
         />
       )}
     </div>

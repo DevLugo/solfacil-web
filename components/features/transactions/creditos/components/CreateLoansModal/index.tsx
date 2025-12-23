@@ -122,6 +122,14 @@ export function CreateLoansModal({
     }
   }, [selectedLoanType, editingLoanId])
 
+  // Handler for first payment toggle - pre-fill with weekly payment
+  const handleFirstPaymentToggle = (enabled: boolean) => {
+    setIncludeFirstPayment(enabled)
+    if (enabled && calculatedWeeklyPayment > 0) {
+      setFirstPaymentAmount(Math.round(calculatedWeeklyPayment).toString())
+    }
+  }
+
   // Account balance and validation - use accountBalance (computed) if available
   const accountBalance = parseFloat(defaultAccount?.accountBalance || defaultAccount?.amount || '0')
   const hasInsufficientFunds = accountBalance < totals.totalAmount
@@ -505,19 +513,19 @@ export function CreateLoansModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 md:px-6 pt-4 md:pt-6 pb-2 shrink-0">
-          <DialogTitle className="text-lg md:text-xl">Registrar Créditos</DialogTitle>
-          <DialogDescription className="text-sm md:text-base">
+        <DialogHeader className="px-4 pt-4 pb-1 shrink-0">
+          <DialogTitle className="text-base">Registrar Créditos</DialogTitle>
+          <DialogDescription className="text-xs">
             Agrega los créditos a otorgar y guárdalos todos de una vez
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <div className="flex-1 overflow-y-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Left side: Form to add loans */}
-          <div className="space-y-4 md:space-y-5">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-base md:text-lg">
+              <h3 className="font-semibold text-sm">
                 {editingLoanId ? 'Editar crédito' : 'Agregar crédito'}
               </h3>
               {editingLoanId && (
@@ -532,9 +540,20 @@ export function CreateLoansModal({
               )}
             </div>
 
+            {/* Calculation summary - at top for immediate visibility */}
+            {requestedAmount && calculatedWeeklyPayment > 0 && (
+              <LoanCalculationSummary
+                isRenewal={isRenewal}
+                renewalPendingAmount={renewalPendingAmount}
+                calculatedAmountGived={calculatedAmountGived}
+                calculatedWeeklyPayment={calculatedWeeklyPayment}
+                requestedAmount={parseFloat(requestedAmount) || 0}
+              />
+            )}
+
             {/* Client selector */}
-            <div className="space-y-2">
-              <Label>Cliente</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Cliente</Label>
               <UnifiedClientAutocomplete
                 mode="borrower"
                 value={selectedBorrower}
@@ -574,20 +593,9 @@ export function CreateLoansModal({
               onComissionChange={setComissionAmount}
             />
 
-            {/* Calculation summary */}
-            {requestedAmount && calculatedWeeklyPayment > 0 && (
-              <LoanCalculationSummary
-                isRenewal={isRenewal}
-                renewalPendingAmount={renewalPendingAmount}
-                calculatedAmountGived={calculatedAmountGived}
-                calculatedWeeklyPayment={calculatedWeeklyPayment}
-                requestedAmount={parseFloat(requestedAmount) || 0}
-              />
-            )}
-
             {/* Aval selector */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Aval (opcional)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Aval (opcional)</Label>
               <UnifiedClientAutocomplete
                 mode="aval"
                 value={selectedAval}
@@ -609,33 +617,19 @@ export function CreateLoansModal({
             {/* First payment */}
             <FirstPaymentControl
               includeFirstPayment={includeFirstPayment}
-              onIncludeChange={setIncludeFirstPayment}
+              onIncludeChange={handleFirstPaymentToggle}
               firstPaymentAmount={firstPaymentAmount}
               onAmountChange={setFirstPaymentAmount}
             />
-
-            <Button onClick={handleAddLoan} className="w-full h-11">
-              {editingLoanId ? (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Actualizar crédito
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar al listado
-                </>
-              )}
-            </Button>
           </div>
 
           {/* Right side: Pending loans list */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-base md:text-lg">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold text-sm">
                 Créditos pendientes ({pendingLoans.length})
               </h3>
-              <Badge variant="secondary" className="text-base md:text-lg py-1 px-3">
+              <Badge variant="secondary" className="text-sm py-0.5 px-2">
                 Total: {formatCurrency(totals.totalAmount)}
               </Badge>
             </div>
@@ -648,10 +642,10 @@ export function CreateLoansModal({
               onApply={handleApplyGlobalCommission}
             />
 
-            <ScrollArea className="h-[250px] md:h-[300px]">
-              <div className="space-y-2 p-0.5">
+            <ScrollArea className="h-[220px] md:h-[260px]">
+              <div className="space-y-1.5 pr-2">
                 {pendingLoans.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-6 text-muted-foreground text-sm">
                     No hay créditos pendientes
                   </div>
                 ) : (
@@ -674,6 +668,21 @@ export function CreateLoansModal({
               totalAmount={totals.totalAmount}
               hasInsufficientFunds={hasInsufficientFunds}
             />
+
+            {/* Add loan button */}
+            <Button onClick={handleAddLoan} className="w-full h-9 text-sm">
+              {editingLoanId ? (
+                <>
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  Actualizar crédito
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Agregar al listado
+                </>
+              )}
+            </Button>
           </div>
           {/* End of right side */}
         </div>
@@ -681,21 +690,21 @@ export function CreateLoansModal({
       </div>
       {/* End of scrollable content */}
 
-      <DialogFooter className="flex-col sm:flex-row gap-2 px-4 md:px-6 py-4 border-t shrink-0 bg-background">
+      <DialogFooter className="flex-col sm:flex-row gap-2 px-4 py-3 border-t shrink-0 bg-background">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="w-full sm:w-auto h-11 md:h-12 text-base"
+            className="w-full sm:w-auto h-9 text-sm"
           >
             Cancelar
           </Button>
           <Button
             onClick={handleSaveAll}
             disabled={saving || pendingLoans.length === 0 || hasInsufficientFunds}
-            className="w-full sm:w-auto h-11 md:h-12 text-base"
+            className="w-full sm:w-auto h-9 text-sm"
           >
-            {saving && <Loader2 className="h-5 w-5 mr-2 animate-spin" />}
-            <Save className="h-5 w-5 mr-2" />
+            {saving && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+            <Save className="h-4 w-4 mr-1.5" />
             Guardar Todos ({pendingLoans.length})
           </Button>
         </DialogFooter>

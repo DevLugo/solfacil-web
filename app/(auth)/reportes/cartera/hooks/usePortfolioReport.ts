@@ -52,6 +52,7 @@ export interface PeriodComparison {
 }
 
 export interface PortfolioSummary {
+  clientesActivosInicio?: number
   totalClientesActivos: number
   clientesAlCorriente: number
   clientesEnCV: number

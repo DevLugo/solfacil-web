@@ -4,6 +4,7 @@ import { Loader2, Save, Wallet, Building2, AlertTriangle, Pencil } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,11 @@ interface DistributionModalProps {
   onBankTransferAmountChange: (value: string) => void
   hasEditedPayments: boolean
   onConfirm: () => void
+  // Falco props
+  falcoEnabled: boolean
+  falcoAmount: string
+  onFalcoEnabledChange: (enabled: boolean) => void
+  onFalcoAmountChange: (value: string) => void
 }
 
 export function DistributionModal({
@@ -40,10 +46,18 @@ export function DistributionModal({
   onBankTransferAmountChange,
   hasEditedPayments,
   onConfirm,
+  falcoEnabled,
+  falcoAmount,
+  onFalcoEnabledChange,
+  onFalcoAmountChange,
 }: DistributionModalProps) {
   const isSaving = isSubmitting || isSavingEdits
   const bankTransferValue = parseFloat(bankTransferAmount || '0')
+  const falcoValue = falcoEnabled ? parseFloat(falcoAmount || '0') : 0
   const exceedsCash = bankTransferValue > modalTotals.cash
+  const falcoExceedsCash = falcoValue > modalTotals.cash
+  const combinedExceedsCash = (bankTransferValue + falcoValue) > modalTotals.cash
+  const hasValidationError = exceedsCash || falcoExceedsCash || combinedExceedsCash
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isSaving && onOpenChange(o)}>
@@ -154,12 +168,54 @@ export function DistributionModal({
             </div>
           </div>
 
-          {/* Error if transfer exceeds cash */}
-          {exceedsCash && (
+          {/* Falco Section */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="falco-toggle"
+                checked={falcoEnabled}
+                onCheckedChange={(checked) => onFalcoEnabledChange(checked === true)}
+              />
+              <Label htmlFor="falco-toggle" className="text-sm cursor-pointer">
+                Registrar falco
+              </Label>
+            </div>
+
+            {falcoEnabled && (
+              <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-3 rounded-md">
+                <Label htmlFor="falco-amount" className="text-sm font-medium">Monto Falco:</Label>
+                <Input
+                  id="falco-amount"
+                  type="number"
+                  min="0"
+                  max={modalTotals.cash}
+                  value={falcoAmount}
+                  onChange={(e) => {
+                    const value = Math.max(0, parseFloat(e.target.value) || 0)
+                    onFalcoAmountChange(value.toString())
+                  }}
+                  className={cn(
+                    "mt-1",
+                    (falcoExceedsCash || combinedExceedsCash) && "border-red-500 border-2"
+                  )}
+                  onWheel={(e) => e.currentTarget.blur()}
+                />
+                <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                  Este monto se restará del balance de efectivo
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Error if amounts exceed cash */}
+          {hasValidationError && (
             <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md text-center">
               <p className="text-sm text-red-600 dark:text-red-400 flex items-center justify-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                El monto de transferencia no puede ser mayor al efectivo real disponible ({formatCurrency(modalTotals.cash)})
+                {combinedExceedsCash && !exceedsCash && !falcoExceedsCash
+                  ? `La suma de transferencia y falco (${formatCurrency(bankTransferValue + falcoValue)}) excede el efectivo disponible (${formatCurrency(modalTotals.cash)})`
+                  : `El monto no puede ser mayor al efectivo real disponible (${formatCurrency(modalTotals.cash)})`
+                }
               </p>
             </div>
           )}
@@ -192,6 +248,12 @@ export function DistributionModal({
                   <span className="font-medium text-red-600">{modalTotals.noPayment}</span>
                 </div>
               )}
+              {falcoEnabled && falcoValue > 0 && (
+                <div className="flex justify-between">
+                  <span>Falco:</span>
+                  <span className="font-medium text-orange-600">{formatCurrency(falcoValue)}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -206,7 +268,7 @@ export function DistributionModal({
           </Button>
           <Button
             onClick={onConfirm}
-            disabled={isSaving || exceedsCash}
+            disabled={isSaving || hasValidationError}
             className="gap-2"
           >
             {isSaving ? (

@@ -868,3 +868,29 @@ export const ACTIVE_LOANS_FOR_RENEWAL_QUERY = gql`
     }
   }
 `
+
+// ============================================================
+// FALCOS PENDIENTES - Para Modal de Compensación
+// ============================================================
+
+export const FALCOS_PENDIENTES_QUERY = gql`
+  query FalcosPendientes($routeId: ID, $leadId: ID) {
+    falcosPendientes(routeId: $routeId, leadId: $leadId) {
+      id
+      falcoAmount
+      createdAt
+      lead {
+        id
+        personalData {
+          id
+          fullName
+        }
+      }
+      falcoCompensatoryPayments {
+        id
+        amount
+        createdAt
+      }
+    }
+  }
+`

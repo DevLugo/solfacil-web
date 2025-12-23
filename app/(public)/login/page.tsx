@@ -149,15 +149,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Contraseña</Label>
-                <Link
-                  href="#"
-                  className="text-xs text-primary hover:underline"
-                >
-                  ¿Olvidaste tu contraseña?
-                </Link>
-              </div>
+              <Label htmlFor="password">Contraseña</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -204,13 +196,9 @@ export default function LoginPage() {
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Al ingresar, aceptas nuestros{' '}
-              <Link href="#" className="text-primary hover:underline">
-                Términos de Servicio
-              </Link>{' '}
-              y{' '}
-              <Link href="#" className="text-primary hover:underline">
-                Política de Privacidad
+              Al ingresar, aceptas los{' '}
+              <Link href="/terminos" className="text-primary hover:underline">
+                Terminos y Condiciones
               </Link>
             </p>
           </CardFooter>

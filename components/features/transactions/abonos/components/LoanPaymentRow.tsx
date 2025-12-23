@@ -239,7 +239,10 @@ export function LoanPaymentRow({
             placeholder="0"
             value={payment?.amount || ''}
             onChange={(e) => onPaymentChange(e.target.value)}
-            className={cn("w-[90px]", isNoPayment && "opacity-50")}
+            className={cn(
+              "w-[90px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
+              isNoPayment && "opacity-50"
+            )}
             disabled={!!isNoPayment}
           />
         )}
@@ -268,7 +271,10 @@ export function LoanPaymentRow({
             placeholder="0"
             value={payment?.commission || ''}
             onChange={(e) => onCommissionChange(e.target.value)}
-            className={cn("w-[70px]", isNoPayment && "opacity-50")}
+            className={cn(
+              "w-[70px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
+              isNoPayment && "opacity-50"
+            )}
             disabled={!!isNoPayment}
           />
         )}

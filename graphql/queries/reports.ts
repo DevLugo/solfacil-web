@@ -23,8 +23,11 @@ export const GET_FINANCIAL_REPORT_ANNUAL = gql`
         cashGasolina
         totalGasolina
         badDebtAmount
+        badDebtCapital
+        badDebtProfit
         incomes
         operationalProfit
+        operationalProfitCapitalOnly
         profitPercentage
         gainPerPayment
         activeWeeks

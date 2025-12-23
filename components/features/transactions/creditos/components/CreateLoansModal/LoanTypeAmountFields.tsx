@@ -76,28 +76,41 @@ export function LoanTypeAmountFields({
   }
 
   return (
-    <div className="space-y-3">
-      {/* Loan type selector */}
-      <div className="space-y-1.5">
-        <Label className="text-sm">Tipo de préstamo</Label>
-        <Select value={selectedLoanTypeId} onValueChange={onLoanTypeChange}>
-          <SelectTrigger className="h-10">
-            <SelectValue placeholder="Seleccionar..." />
-          </SelectTrigger>
-          <SelectContent>
-            {loanTypes.map((lt) => (
-              <SelectItem key={lt.id} value={lt.id} className="py-2">
-                {lt.name} ({lt.weekDuration}sem, {lt.rate}%)
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-2">
+      {/* Loan type and commission on same row */}
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Tipo de préstamo</Label>
+          <Select value={selectedLoanTypeId} onValueChange={onLoanTypeChange}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Seleccionar..." />
+            </SelectTrigger>
+            <SelectContent>
+              {loanTypes.map((lt) => (
+                <SelectItem key={lt.id} value={lt.id} className="py-1.5 text-sm">
+                  {lt.name} ({lt.weekDuration}sem, {lt.rate}%)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-20 space-y-1">
+          <Label className="text-xs">Comisión</Label>
+          <Input
+            type="number"
+            inputMode="decimal"
+            value={comissionAmount}
+            onChange={(e) => onComissionChange(e.target.value)}
+            placeholder="0"
+            className={cn('h-8 text-sm', noSpinnerClass)}
+          />
+        </div>
       </div>
 
       {/* Amount selection with presets */}
-      <div className="space-y-1.5">
-        <Label className="text-sm">Monto solicitado</Label>
-        <div className="flex flex-wrap gap-2">
+      <div className="space-y-1">
+        <Label className="text-xs">Monto solicitado</Label>
+        <div className="flex flex-wrap gap-1.5">
           {/* Preset amount buttons */}
           {PRESET_AMOUNTS.map((amount) => (
             <Button
@@ -107,7 +120,7 @@ export function LoanTypeAmountFields({
               size="sm"
               onClick={() => handlePresetSelect(amount)}
               className={cn(
-                'h-10 px-4 font-medium min-w-[70px]',
+                'h-8 px-3 text-xs font-medium min-w-[60px]',
                 currentAmount === amount && !isCustomMode && 'ring-2 ring-primary ring-offset-1'
               )}
             >
@@ -122,7 +135,7 @@ export function LoanTypeAmountFields({
             size="sm"
             onClick={handleCustomSelect}
             className={cn(
-              'h-10 px-4 font-medium',
+              'h-8 px-3 text-xs font-medium',
               isCustomMode && 'ring-2 ring-primary ring-offset-1'
             )}
           >
@@ -132,16 +145,16 @@ export function LoanTypeAmountFields({
 
         {/* Custom amount controls */}
         {isCustomMode && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-1.5 mt-1.5">
             <Button
               type="button"
               variant="outline"
               size="icon"
               onClick={handleDecrement}
               disabled={currentAmount <= AMOUNT_STEP}
-              className="h-10 w-10 shrink-0"
+              className="h-8 w-8 shrink-0"
             >
-              <Minus className="h-4 w-4" />
+              <Minus className="h-3.5 w-3.5" />
             </Button>
             <Input
               type="number"
@@ -149,39 +162,26 @@ export function LoanTypeAmountFields({
               value={requestedAmount}
               onChange={(e) => onRequestedAmountChange(e.target.value)}
               placeholder="0.00"
-              className={cn('h-10 text-center font-medium', noSpinnerClass)}
+              className={cn('h-8 text-center text-sm font-medium', noSpinnerClass)}
             />
             <Button
               type="button"
               variant="outline"
               size="icon"
               onClick={handleIncrement}
-              className="h-10 w-10 shrink-0"
+              className="h-8 w-8 shrink-0"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
         {/* Show selected amount if preset */}
         {!isCustomMode && currentAmount > 0 && (
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Monto: <span className="font-medium text-foreground">${currentAmount.toLocaleString()}</span>
           </p>
         )}
-      </div>
-
-      {/* Commission field */}
-      <div className="space-y-1.5">
-        <Label className="text-sm">Comisión</Label>
-        <Input
-          type="number"
-          inputMode="decimal"
-          value={comissionAmount}
-          onChange={(e) => onComissionChange(e.target.value)}
-          placeholder="0"
-          className={cn('h-10', noSpinnerClass)}
-        />
       </div>
     </div>
   )

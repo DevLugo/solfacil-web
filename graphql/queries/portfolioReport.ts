@@ -37,6 +37,7 @@ const LOCATION_BREAKDOWN_FRAGMENT = gql`
 // Fragment for PortfolioSummary
 const PORTFOLIO_SUMMARY_FRAGMENT = gql`
   fragment PortfolioSummaryFields on PortfolioSummary {
+    clientesActivosInicio
     totalClientesActivos
     clientesAlCorriente
     clientesEnCV

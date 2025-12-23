@@ -9,9 +9,12 @@ import {
   Plus,
   Gavel,
   Pencil,
+  AlertTriangle,
+  Ban,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 // Button style constants for action buttons
@@ -19,6 +22,7 @@ const actionButtonStyles = {
   addPayment: 'text-info border-info/30 hover:bg-info/10 hover:text-info',
   multa: 'text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-700 dark:hover:text-orange-300',
   saveEdits: 'bg-warning hover:bg-warning/90',
+  falcos: 'text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30',
 }
 
 interface ActionBarProps {
@@ -28,9 +32,12 @@ interface ActionBarProps {
   onGlobalCommissionChange: (value: string) => void
   onApplyGlobalCommission: () => void
   onSetAllWeekly: () => void
+  onSetAllNoPayment: () => void
   onClearAll: () => void
   onAddPayment: () => void
   onOpenMultaModal: () => void
+  onOpenFalcosDrawer: () => void
+  falcosPendientesCount: number
   onSaveAll: () => void
   onSaveEditedPayments: () => void
   filteredLoansCount: number
@@ -51,9 +58,12 @@ export function ActionBar({
   onGlobalCommissionChange,
   onApplyGlobalCommission,
   onSetAllWeekly,
+  onSetAllNoPayment,
   onClearAll,
   onAddPayment,
   onOpenMultaModal,
+  onOpenFalcosDrawer,
+  falcosPendientesCount,
   onSaveAll,
   onSaveEditedPayments,
   filteredLoansCount,
@@ -119,6 +129,16 @@ export function ActionBar({
         <Button
           size="sm"
           variant="outline"
+          onClick={onSetAllNoPayment}
+          disabled={filteredLoansCount === 0}
+          className="h-8 px-2"
+          title="Marcar todos como sin pago"
+        >
+          <Ban className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={onClearAll}
           disabled={totalsCount === 0 && totalsNoPayment === 0 && userAddedPaymentsCount === 0}
           className="h-8 px-2"
@@ -145,6 +165,21 @@ export function ActionBar({
         >
           <Gavel className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Multa</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onOpenFalcosDrawer}
+          className={cn('h-8 px-2 gap-1.5', actionButtonStyles.falcos)}
+          title="Ver falcos pendientes"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Falcos</span>
+          {falcosPendientesCount > 0 && (
+            <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+              {falcosPendientesCount}
+            </Badge>
+          )}
         </Button>
 
         {totalsCount > 0 && !hasEditedPayments && (

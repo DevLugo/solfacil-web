@@ -437,50 +437,49 @@ export function UnifiedClientAutocomplete({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'w-full justify-between h-11 md:h-12 px-3 md:px-4 font-normal text-base touch-manipulation',
+            'w-full justify-between h-8 px-2.5 font-normal text-sm touch-manipulation',
             className
           )}
           disabled={disabled}
         >
-          <span className="flex items-center gap-2 text-muted-foreground">
-            <User className="h-5 w-5" />
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <User className="h-3.5 w-3.5" />
             {placeholder || defaultPlaceholder}
           </span>
-          <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-1.5 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         className="p-0"
         align="start"
-        style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '340px' }}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '300px' }}
       >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Escribe para buscar..."
             value={searchTerm}
             onValueChange={setSearchTerm}
-            className="h-12 text-base"
+            className="h-9 text-sm"
           />
-          <CommandList className="max-h-[50vh] md:max-h-[60vh]">
+          <CommandList className="max-h-[45vh]">
             {loading && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
+              <div className="py-4 text-center text-xs text-muted-foreground">
                 Buscando...
               </div>
             )}
 
             {!loading && searchTerm.length >= 2 && results.length === 0 && (
               <CommandEmpty>
-                <div className="flex flex-col items-center gap-3 py-6">
-                  <span className="text-base">No se encontraron resultados</span>
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <span className="text-sm">No se encontraron resultados</span>
                   {allowCreate && (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleCreateNew}
-                      className="text-blue-600 border-blue-300 hover:bg-blue-50 h-11 md:h-12 px-4 text-base touch-manipulation"
+                      className="text-blue-600 border-blue-300 hover:bg-blue-50 h-8 px-3 text-sm touch-manipulation"
                     >
-                      <Plus className="h-5 w-5 mr-2" />
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
                       Crear nuevo {mode === 'borrower' ? 'cliente' : 'aval'}
                     </Button>
                   )}
@@ -489,7 +488,7 @@ export function UnifiedClientAutocomplete({
             )}
 
             {!loading && searchTerm.length < 2 && defaultActiveLoansOptions.length === 0 && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
+              <div className="py-4 text-center text-xs text-muted-foreground">
                 Escribe al menos 2 caracteres
               </div>
             )}
@@ -548,9 +547,9 @@ export function UnifiedClientAutocomplete({
                 <CommandGroup>
                   <CommandItem
                     onSelect={handleCreateNew}
-                    className="text-blue-600 py-3 md:py-4 px-3 text-base data-[selected=true]:bg-blue-50 data-[selected=true]:text-blue-700 dark:data-[selected=true]:bg-blue-950/50 touch-manipulation"
+                    className="text-blue-600 py-2 px-2 text-sm data-[selected=true]:bg-blue-50 data-[selected=true]:text-blue-700 dark:data-[selected=true]:bg-blue-950/50 touch-manipulation"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
                     Crear nuevo {mode === 'borrower' ? 'cliente' : 'aval'}: &quot;{searchTerm}&quot;
                   </CommandItem>
                 </CommandGroup>
