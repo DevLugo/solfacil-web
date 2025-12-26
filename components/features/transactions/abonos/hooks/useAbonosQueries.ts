@@ -84,23 +84,46 @@ export function useAbonosQueries({
     const rawLoans =
       loansData?.loans?.edges?.map((edge: { node: ActiveLoan }) => edge.node) || []
 
+    // Filter loans:
+    // - ACTIVE loans: always show (can receive new payments)
+    // - FINISHED/RENEWED loans: only show if they have a payment on the selected date
+    const filteredLoans = rawLoans.filter((loan: ActiveLoan) => {
+      if (loan.status === 'ACTIVE') {
+        return true
+      }
+      // For FINISHED or RENOVATED loans, check if there's a payment on the selected date
+      // This handles cases where a loan was renovated but had a payment registered that same day
+      if (loan.status === 'FINISHED' || loan.status === 'RENOVATED') {
+        const hasPaymentOnDate = loan.payments?.some((payment) =>
+          isSameDay(new Date(payment.receivedAt), selectedDate)
+        )
+        return hasPaymentOnDate
+      }
+      // Other statuses (CANCELLED) - don't show
+      return false
+    })
+
     // Sort by sign date (oldest first)
-    return rawLoans.sort((a: ActiveLoan, b: ActiveLoan) => {
+    return filteredLoans.sort((a: ActiveLoan, b: ActiveLoan) => {
       const dateA = new Date(a.signDate || '1970-01-01').getTime()
       const dateB = new Date(b.signDate || '1970-01-01').getTime()
       return dateA - dateB
     })
-  }, [loansData])
+  }, [loansData, selectedDate])
 
-  // Map of loanId -> payment registered today
+  // Map of loanId -> payments registered today (supports multiple payments per loan per day)
   const registeredPaymentsMap = useMemo(() => {
-    const map = new Map<string, LoanPayment>()
+    const map = new Map<string, LoanPayment[]>()
     loans.forEach((loan) => {
-      const paymentToday = loan.payments?.find((payment) =>
+      const paymentsToday = loan.payments?.filter((payment) =>
         isSameDay(new Date(payment.receivedAt), selectedDate)
-      )
-      if (paymentToday) {
-        map.set(loan.id, paymentToday)
+      ) || []
+      if (paymentsToday.length > 0) {
+        // Sort by receivedAt to maintain chronological order
+        const sorted = [...paymentsToday].sort((a, b) =>
+          new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
+        )
+        map.set(loan.id, sorted)
       }
     })
     return map

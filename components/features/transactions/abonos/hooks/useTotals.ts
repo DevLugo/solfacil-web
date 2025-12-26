@@ -16,7 +16,7 @@ interface UseTotalsParams {
   payments: Record<string, PaymentEntry>
   editedPayments: Record<string, EditedPayment>
   userAddedPayments: UserAddedPayment[]
-  registeredPaymentsMap: Map<string, LoanPayment>
+  registeredPaymentsMap: Map<string, LoanPayment[]>
 }
 
 export function useTotals({
@@ -88,27 +88,35 @@ export function useTotals({
     let deletedCount = 0
     let commissionTotal = 0
 
-    registeredPaymentsMap.forEach((payment, loanId) => {
+    registeredPaymentsMap.forEach((paymentsArray, loanId) => {
       const edited = editedPayments[loanId]
 
-      if (edited?.isDeleted) {
-        deletedCount++
-        return
-      }
+      // For now, editing only applies to the first payment of a loan
+      // Additional payments are shown as read-only
+      paymentsArray.forEach((payment, paymentIndex) => {
+        // Only apply edits to the first payment
+        const isFirstPayment = paymentIndex === 0
+        const shouldApplyEdit = isFirstPayment && edited
 
-      const amount = edited ? parseFloat(edited.amount || '0') : parseFloat(payment.amount || '0')
-      const commission = edited ? parseFloat(edited.comission || '0') : parseFloat(payment.comission || '0')
-      const method = edited ? edited.paymentMethod : payment.paymentMethod
-
-      if (amount > 0) {
-        paymentsCount++
-        commissionTotal += commission
-        if (method === 'CASH') {
-          cashTotal += amount
-        } else {
-          bankTotal += amount
+        if (shouldApplyEdit && edited.isDeleted) {
+          deletedCount++
+          return
         }
-      }
+
+        const amount = shouldApplyEdit ? parseFloat(edited.amount || '0') : parseFloat(payment.amount || '0')
+        const commission = shouldApplyEdit ? parseFloat(edited.comission || '0') : parseFloat(payment.comission || '0')
+        const method = shouldApplyEdit ? edited.paymentMethod : payment.paymentMethod
+
+        if (amount > 0) {
+          paymentsCount++
+          commissionTotal += commission
+          if (method === 'CASH') {
+            cashTotal += amount
+          } else {
+            bankTotal += amount
+          }
+        }
+      })
     })
 
     return {

@@ -5,53 +5,6 @@ export interface Route {
   name: string
 }
 
-// Transaction from GraphQL query
-export interface TransactionNode {
-  id: string
-  amount: string
-  date: string
-  type: 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'INVESTMENT'
-  incomeSource?: string
-  expenseSource?: string
-  profitAmount?: string
-  returnToCapital?: string
-  loan?: {
-    id: string
-    amountGived?: string
-    borrower?: {
-      personalData?: {
-        fullName?: string
-      }
-    }
-  }
-  loanPayment?: {
-    id: string
-    amount: string
-    comission?: string
-    paymentMethod: 'CASH' | 'MONEY_TRANSFER'
-  }
-  sourceAccount?: {
-    id: string
-    name: string
-    type: string
-  }
-  route?: {
-    id: string
-    name: string
-  }
-  lead?: {
-    id: string
-    personalData?: {
-      fullName?: string
-    }
-    location?: {
-      id: string
-      name: string
-    }
-  }
-  createdAt: string
-}
-
 // Grouped payment for display
 export interface PaymentSummary {
   id: string
@@ -79,12 +32,10 @@ export interface LoanGrantedSummary {
   date: string
 }
 
-// Locality summary with payments
+// Locality summary with payments (server-calculated)
 export interface LocalitySummary {
   locationKey: string
   localityName: string
-  municipalityName: string
-  stateName: string
   leaderName: string
   leaderId: string
   // Payments (abonos)
@@ -92,6 +43,12 @@ export interface LocalitySummary {
   totalPayments: number
   cashPayments: number
   bankPayments: number
+  // Commissions breakdown
+  // Comisiones por cobrar abonos (pago a líder por cobranza)
+  totalPaymentCommissions: number
+  // Comisiones por otorgar préstamos (pago a líder por colocación)
+  totalLoansGrantedCommissions: number
+  // Total de comisiones (suma de ambos tipos)
   totalCommissions: number
   paymentCount: number
   // Expenses
@@ -101,15 +58,23 @@ export interface LocalitySummary {
   loansGranted: LoanGrantedSummary[]
   totalLoansGranted: number
   loansGrantedCount: number
-  // Calculated balance
+  // Calculated balances (from API)
+  // balanceEfectivo = cashPayments - totalCommissions - totalLoansGranted - totalExpenses
+  balanceEfectivo: number
+  // balanceBanco = bankPayments
+  balanceBanco: number
+  // balance = balanceEfectivo + balanceBanco (total)
   balance: number
 }
 
-// Executive summary totals
+// Executive summary totals (server-calculated)
 export interface ExecutiveSummaryData {
   totalPaymentsReceived: number
   totalCashPayments: number
   totalBankPayments: number
+  // Commissions breakdown
+  totalPaymentCommissions: number
+  totalLoansGrantedCommissions: number
   totalCommissions: number
   totalExpenses: number
   totalLoansGranted: number

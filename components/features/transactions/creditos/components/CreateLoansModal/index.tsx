@@ -153,6 +153,26 @@ export function CreateLoansModal({
     setRequestedAmount(loan.requestedAmount)
     setComissionAmount(loan.comissionAmount)
 
+    // If this is a renewal, find the original loan to reconstruct activeLoan data
+    let activeLoanData = undefined
+    if (loan.previousLoanId && loansForRenewal) {
+      const originalLoan = loansForRenewal.find(l => l.id === loan.previousLoanId)
+      if (originalLoan) {
+        const leadLocation = originalLoan.lead?.personalData?.addresses?.[0]?.location
+        activeLoanData = {
+          id: originalLoan.id,
+          requestedAmount: originalLoan.requestedAmount,
+          amountGived: originalLoan.amountGived,
+          pendingAmountStored: originalLoan.pendingAmountStored,
+          expectedWeeklyPayment: originalLoan.expectedWeeklyPayment,
+          totalPaid: originalLoan.totalPaid,
+          loantype: originalLoan.loantype,
+          collaterals: originalLoan.collaterals,
+          leadLocationName: leadLocation?.name,
+        }
+      }
+    }
+
     // Reconstruct borrower from loan data
     if (loan.borrowerId) {
       setSelectedBorrower({
@@ -162,6 +182,8 @@ export function CreateLoansModal({
         fullName: loan.borrowerName,
         phone: loan.borrowerPhone,
         isFromCurrentLocation: !loan.isFromDifferentLocation,
+        hasActiveLoans: !!activeLoanData,
+        activeLoan: activeLoanData,
         clientState: 'existing',
         action: 'connect',
       })
@@ -170,6 +192,8 @@ export function CreateLoansModal({
         fullName: loan.newBorrower.personalData.fullName,
         phone: loan.newBorrower.personalData.phones?.[0]?.number,
         isFromCurrentLocation: !loan.isFromDifferentLocation,
+        hasActiveLoans: !!activeLoanData,
+        activeLoan: activeLoanData,
         clientState: 'new',
         action: 'create',
       })
@@ -211,40 +235,49 @@ export function CreateLoansModal({
 
   // Handle selecting a borrower - auto-fill if they have an active loan
   const handleBorrowerChange = (borrower: UnifiedClientValue | null) => {
-    if (editingLoanId) {
+    // Detect if this is an edit of the same client (not a new selection)
+    // An edit is when clientState is 'edited' OR when it's the same client ID
+    const isClientEdit = borrower?.clientState === 'edited' ||
+      (selectedBorrower?.id && borrower?.id && selectedBorrower.id === borrower.id)
+
+    if (editingLoanId && !isClientEdit) {
       setEditingLoanId(null)
     }
 
     setSelectedBorrower(borrower)
 
-    if (borrower?.activeLoan) {
-      const activeLoan = borrower.activeLoan
-      if (activeLoan.loantype?.id) {
-        setSelectedLoanTypeId(activeLoan.loantype.id)
-        const loantype = loanTypes.find(lt => lt.id === activeLoan.loantype?.id)
-        if (loantype) {
-          setComissionAmount(loantype.loanGrantedComission || '0')
+    // Only auto-fill/clear values when it's a NEW selection, not when editing the same client
+    // This preserves user-modified values (like requestedAmount) when editing client name/phone
+    if (!isClientEdit) {
+      if (borrower?.activeLoan) {
+        const activeLoan = borrower.activeLoan
+        if (activeLoan.loantype?.id) {
+          setSelectedLoanTypeId(activeLoan.loantype.id)
+          const loantype = loanTypes.find(lt => lt.id === activeLoan.loantype?.id)
+          if (loantype) {
+            setComissionAmount(loantype.loanGrantedComission || '0')
+          }
         }
+        setRequestedAmount(activeLoan.requestedAmount)
+        if (activeLoan.collaterals && activeLoan.collaterals.length > 0) {
+          const collateral = activeLoan.collaterals[0]
+          setSelectedAval({
+            id: collateral.id,
+            personalDataId: collateral.id,
+            phoneId: collateral.phones?.[0]?.id,
+            fullName: collateral.fullName,
+            phone: collateral.phones?.[0]?.number,
+            isFromCurrentLocation: true,
+            clientState: 'existing',
+            action: 'connect',
+          })
+        }
+      } else {
+        setSelectedLoanTypeId('')
+        setRequestedAmount('')
+        setComissionAmount('')
+        setSelectedAval(null)
       }
-      setRequestedAmount(activeLoan.requestedAmount)
-      if (activeLoan.collaterals && activeLoan.collaterals.length > 0) {
-        const collateral = activeLoan.collaterals[0]
-        setSelectedAval({
-          id: collateral.id,
-          personalDataId: collateral.id,
-          phoneId: collateral.phones?.[0]?.id,
-          fullName: collateral.fullName,
-          phone: collateral.phones?.[0]?.number,
-          isFromCurrentLocation: true,
-          clientState: 'existing',
-          action: 'connect',
-        })
-      }
-    } else {
-      setSelectedLoanTypeId('')
-      setRequestedAmount('')
-      setComissionAmount('')
-      setSelectedAval(null)
     }
   }
 

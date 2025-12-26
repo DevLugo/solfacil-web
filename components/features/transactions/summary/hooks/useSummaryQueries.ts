@@ -4,11 +4,84 @@ import { useMemo } from 'react'
 import { useQuery } from '@apollo/client'
 import {
   ROUTES_QUERY,
-  ALL_TRANSACTIONS_BY_DATE_QUERY,
+  TRANSACTIONS_SUMMARY_BY_LOCATION_QUERY,
 } from '@/graphql/queries/transactions'
 import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import { createDateRange } from '../utils'
-import type { Route, TransactionNode } from '../types'
+import type { Route } from '../types'
+
+/**
+ * Types for the server-calculated summary response
+ */
+export interface PaymentSummary {
+  id: string
+  borrowerName: string
+  amount: string
+  commission: string
+  paymentMethod: 'CASH' | 'MONEY_TRANSFER'
+  date: string
+}
+
+export interface ExpenseSummary {
+  id: string
+  source: string
+  sourceLabel: string
+  amount: string
+  date: string
+}
+
+export interface LoanGrantedSummary {
+  id: string
+  borrowerName: string
+  amount: string
+  date: string
+}
+
+export interface LocalitySummary {
+  locationKey: string
+  localityName: string
+  leaderName: string
+  leaderId: string
+  payments: PaymentSummary[]
+  totalPayments: string
+  cashPayments: string
+  bankPayments: string
+  paymentCount: number
+  // Commissions breakdown
+  totalPaymentCommissions: string
+  totalLoansGrantedCommissions: string
+  totalCommissions: string
+  expenses: ExpenseSummary[]
+  totalExpenses: string
+  loansGranted: LoanGrantedSummary[]
+  totalLoansGranted: string
+  loansGrantedCount: number
+  // Calculated balances from API
+  balanceEfectivo: string
+  balanceBanco: string
+  balance: string
+}
+
+export interface ExecutiveSummary {
+  totalPaymentsReceived: string
+  totalCashPayments: string
+  totalBankPayments: string
+  // Commissions breakdown
+  totalPaymentCommissions: string
+  totalLoansGrantedCommissions: string
+  totalCommissions: string
+  totalExpenses: string
+  totalLoansGranted: string
+  paymentCount: number
+  expenseCount: number
+  loansGrantedCount: number
+  netBalance: string
+}
+
+export interface TransactionSummaryResponse {
+  localities: LocalitySummary[]
+  executiveSummary: ExecutiveSummary
+}
 
 interface UseSummaryQueriesParams {
   selectedDate: Date
@@ -17,8 +90,7 @@ interface UseSummaryQueriesParams {
 }
 
 interface UseSummaryQueriesReturn {
-  transactions: TransactionNode[]
-  totalCount: number
+  summaryData: TransactionSummaryResponse | null
   loading: boolean
   error: Error | undefined
   refetch: () => void
@@ -35,10 +107,10 @@ export function useSummaryQueries({
     loading: loadingRaw,
     error,
     refetch,
-  } = useQuery(ALL_TRANSACTIONS_BY_DATE_QUERY, {
+  } = useQuery(TRANSACTIONS_SUMMARY_BY_LOCATION_QUERY, {
     variables: {
-      fromDate: dateRange.startDate,
-      toDate: dateRange.endDate,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
       routeId: selectedRoute?.id,
     },
     skip: !selectedDate || !selectedRoute,
@@ -56,23 +128,15 @@ export function useSummaryQueries({
   // Combine loading states
   const loading = loadingRaw || isRefetching
 
-  const { transactions, totalCount } = useMemo(() => {
-    if (!data?.transactions?.edges) {
-      return { transactions: [], totalCount: 0 }
+  const summaryData = useMemo<TransactionSummaryResponse | null>(() => {
+    if (!data?.transactionsSummaryByLocation) {
+      return null
     }
-
-    const txList = data.transactions.edges.map(
-      (edge: { node: TransactionNode }) => edge.node
-    )
-    return {
-      transactions: txList,
-      totalCount: data.transactions.totalCount || txList.length,
-    }
+    return data.transactionsSummaryByLocation
   }, [data])
 
   return {
-    transactions,
-    totalCount,
+    summaryData,
     loading,
     error: error as Error | undefined,
     refetch,

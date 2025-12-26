@@ -351,6 +351,7 @@ export const LEAD_PAYMENT_RECEIVED_BY_DATE_QUERY = gql`
       paidAmount
       cashPaidAmount
       bankPaidAmount
+      falcoAmount
       paymentStatus
     }
   }
@@ -391,7 +392,7 @@ export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
 
 export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
   query ActiveLoansByLead($leadId: ID!) {
-    loans(leadId: $leadId, status: ACTIVE, limit: 100) {
+    loans(leadId: $leadId, statuses: [ACTIVE, FINISHED, RENOVATED], limit: 100) {
       edges {
         node {
           id
@@ -890,6 +891,71 @@ export const FALCOS_PENDIENTES_QUERY = gql`
         id
         amount
         createdAt
+      }
+    }
+  }
+`
+
+// ============================================================
+// TRANSACTION SUMMARY - Summary Tab (server-side calculations)
+// ============================================================
+
+export const TRANSACTIONS_SUMMARY_BY_LOCATION_QUERY = gql`
+  query TransactionsSummaryByLocation($routeId: ID!, $startDate: DateTime!, $endDate: DateTime!) {
+    transactionsSummaryByLocation(routeId: $routeId, startDate: $startDate, endDate: $endDate) {
+      localities {
+        locationKey
+        localityName
+        leaderName
+        leaderId
+        payments {
+          id
+          borrowerName
+          amount
+          commission
+          paymentMethod
+          date
+        }
+        totalPayments
+        cashPayments
+        bankPayments
+        paymentCount
+        totalPaymentCommissions
+        totalLoansGrantedCommissions
+        totalCommissions
+        expenses {
+          id
+          source
+          sourceLabel
+          amount
+          date
+        }
+        totalExpenses
+        loansGranted {
+          id
+          borrowerName
+          amount
+          date
+        }
+        totalLoansGranted
+        loansGrantedCount
+        balanceEfectivo
+        balanceBanco
+        balance
+      }
+      executiveSummary {
+        totalPaymentsReceived
+        totalCashPayments
+        totalBankPayments
+        totalPaymentCommissions
+        totalLoansGrantedCommissions
+        totalCommissions
+        totalExpenses
+        totalLoansGranted
+        paymentCount
+        expenseCount
+        loansGrantedCount
+        netBalance
       }
     }
   }

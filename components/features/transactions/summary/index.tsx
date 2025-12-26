@@ -16,9 +16,10 @@ import { ExecutiveSummary, LocalityCard, BankIncomeModal } from './components'
 
 // Hooks
 import { useSummaryQueries, useBankIncomeQuery } from './hooks'
-
-// Utils
-import { processTransactionsByLocality, calculateExecutiveSummary } from './utils'
+import type {
+  LocalitySummary as ServerLocalitySummary,
+  ExecutiveSummary as ServerExecutiveSummary,
+} from './hooks/useSummaryQueries'
 
 // Types
 import type { Route, LocalitySummary, ExecutiveSummaryData } from './types'
@@ -27,6 +28,74 @@ export interface SummaryTabProps {
   selectedDate: Date
   selectedRoute: Route | null
   refreshKey?: number
+}
+
+/**
+ * Converts server-side summary data (with string decimals) to client types (with numbers)
+ */
+function convertToClientLocality(serverLocality: ServerLocalitySummary): LocalitySummary {
+  return {
+    locationKey: serverLocality.locationKey,
+    localityName: serverLocality.localityName,
+    leaderName: serverLocality.leaderName,
+    leaderId: serverLocality.leaderId,
+    payments: serverLocality.payments.map((p) => ({
+      id: p.id,
+      borrowerName: p.borrowerName,
+      amount: parseFloat(p.amount) || 0,
+      commission: parseFloat(p.commission) || 0,
+      paymentMethod: p.paymentMethod,
+      date: p.date,
+    })),
+    totalPayments: parseFloat(serverLocality.totalPayments) || 0,
+    cashPayments: parseFloat(serverLocality.cashPayments) || 0,
+    bankPayments: parseFloat(serverLocality.bankPayments) || 0,
+    // Commissions breakdown
+    totalPaymentCommissions: parseFloat(serverLocality.totalPaymentCommissions) || 0,
+    totalLoansGrantedCommissions: parseFloat(serverLocality.totalLoansGrantedCommissions) || 0,
+    totalCommissions: parseFloat(serverLocality.totalCommissions) || 0,
+    paymentCount: serverLocality.paymentCount,
+    expenses: serverLocality.expenses.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceLabel: e.sourceLabel,
+      amount: parseFloat(e.amount) || 0,
+      date: e.date,
+    })),
+    totalExpenses: parseFloat(serverLocality.totalExpenses) || 0,
+    loansGranted: serverLocality.loansGranted.map((l) => ({
+      id: l.id,
+      borrowerName: l.borrowerName,
+      amount: parseFloat(l.amount) || 0,
+      date: l.date,
+    })),
+    totalLoansGranted: parseFloat(serverLocality.totalLoansGranted) || 0,
+    loansGrantedCount: serverLocality.loansGrantedCount,
+    // Calculated balances from API
+    balanceEfectivo: parseFloat(serverLocality.balanceEfectivo) || 0,
+    balanceBanco: parseFloat(serverLocality.balanceBanco) || 0,
+    balance: parseFloat(serverLocality.balance) || 0,
+  }
+}
+
+function convertToClientExecutiveSummary(
+  serverSummary: ServerExecutiveSummary
+): ExecutiveSummaryData {
+  return {
+    totalPaymentsReceived: parseFloat(serverSummary.totalPaymentsReceived) || 0,
+    totalCashPayments: parseFloat(serverSummary.totalCashPayments) || 0,
+    totalBankPayments: parseFloat(serverSummary.totalBankPayments) || 0,
+    // Commissions breakdown
+    totalPaymentCommissions: parseFloat(serverSummary.totalPaymentCommissions) || 0,
+    totalLoansGrantedCommissions: parseFloat(serverSummary.totalLoansGrantedCommissions) || 0,
+    totalCommissions: parseFloat(serverSummary.totalCommissions) || 0,
+    totalExpenses: parseFloat(serverSummary.totalExpenses) || 0,
+    totalLoansGranted: parseFloat(serverSummary.totalLoansGranted) || 0,
+    paymentCount: serverSummary.paymentCount,
+    expenseCount: serverSummary.expenseCount,
+    loansGrantedCount: serverSummary.loansGrantedCount,
+    netBalance: parseFloat(serverSummary.netBalance) || 0,
+  }
 }
 
 export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: SummaryTabProps) {
@@ -69,17 +138,18 @@ export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: Summ
     skip: !bankIncomeModalOpen,
   })
 
-  // Query for all transactions
-  const { transactions, totalCount, loading, error, refetch } = useSummaryQueries({
+  // Query for transaction summary (server-side calculations)
+  const { summaryData, loading, error, refetch } = useSummaryQueries({
     selectedDate,
     selectedRoute,
     refreshKey,
   })
 
-  // Process transactions into localities
+  // Convert server data to client types
   const localities: LocalitySummary[] = useMemo(() => {
-    return processTransactionsByLocality(transactions)
-  }, [transactions])
+    if (!summaryData?.localities) return []
+    return summaryData.localities.map(convertToClientLocality)
+  }, [summaryData])
 
   // Filter localities by search term
   const filteredLocalities = useMemo(() => {
@@ -93,10 +163,26 @@ export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: Summ
     )
   }, [localities, searchTerm])
 
-  // Calculate executive summary (from all localities, not filtered)
+  // Convert executive summary (server-calculated)
   const executiveSummary: ExecutiveSummaryData = useMemo(() => {
-    return calculateExecutiveSummary(localities)
-  }, [localities])
+    if (!summaryData?.executiveSummary) {
+      return {
+        totalPaymentsReceived: 0,
+        totalCashPayments: 0,
+        totalBankPayments: 0,
+        totalPaymentCommissions: 0,
+        totalLoansGrantedCommissions: 0,
+        totalCommissions: 0,
+        totalExpenses: 0,
+        totalLoansGranted: 0,
+        paymentCount: 0,
+        expenseCount: 0,
+        loansGrantedCount: 0,
+        netBalance: 0,
+      }
+    }
+    return convertToClientExecutiveSummary(summaryData.executiveSummary)
+  }, [summaryData])
 
   // Refetch on refreshKey change
   useEffect(() => {

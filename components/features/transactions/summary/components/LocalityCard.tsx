@@ -186,12 +186,8 @@ export function LocalityCard({ locality }: LocalityCardProps) {
     [locality.loansGranted]
   )
 
-  // Calculate balances
-  // Balance Efectivo = Cobranza(cash) + Comisiones - Colocado - Gastos
-  const balanceEfectivo = locality.cashPayments + locality.totalCommissions - locality.totalLoansGranted - locality.totalExpenses
-
-  // Balance Banco = Abonos banco (no bank expenses tracked separately for now)
-  const balanceBanco = locality.bankPayments
+  // Use balances from API (no calculations in UI)
+  const { balanceEfectivo, balanceBanco } = locality
 
   if (!hasData) {
     return null
@@ -285,8 +281,8 @@ export function LocalityCard({ locality }: LocalityCardProps) {
                   <span className="text-green-600 font-medium">{formatCurrency(locality.cashPayments)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">+ Comisión</span>
-                  <span className="text-green-600 font-medium">{formatCurrency(locality.totalCommissions)}</span>
+                  <span className="text-muted-foreground">- Comisión</span>
+                  <span className="text-red-600 font-medium">-{formatCurrency(locality.totalCommissions)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">- Colocado</span>
@@ -378,16 +374,38 @@ export function LocalityCard({ locality }: LocalityCardProps) {
               </div>
             )}
 
-            {/* Commissions */}
+            {/* Commissions - Total + Breakdown */}
             {locality.totalCommissions > 0 && (
-              <div className="flex items-center justify-between pt-2 border-t text-sm">
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <DollarSign className="h-3 w-3" />
-                  Comisiones totales
-                </span>
-                <span className="font-semibold text-green-600">
-                  +{formatCurrency(locality.totalCommissions)}
-                </span>
+              <div className="pt-2 border-t">
+                {/* Total de comisiones */}
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="flex items-center gap-1 font-medium">
+                    <DollarSign className="h-3 w-3 text-red-500" />
+                    Total Comisiones (pago a líder)
+                  </span>
+                  <span className="font-bold text-red-600">
+                    -{formatCurrency(locality.totalCommissions)}
+                  </span>
+                </div>
+                {/* Desglose de comisiones */}
+                <div className="bg-background rounded-lg px-3 py-1 space-y-1">
+                  {locality.totalPaymentCommissions > 0 && (
+                    <div className="flex items-center justify-between py-1 text-xs border-b last:border-0">
+                      <span className="text-muted-foreground">Por cobrar abonos</span>
+                      <span className="font-medium text-red-600">
+                        -{formatCurrency(locality.totalPaymentCommissions)}
+                      </span>
+                    </div>
+                  )}
+                  {locality.totalLoansGrantedCommissions > 0 && (
+                    <div className="flex items-center justify-between py-1 text-xs border-b last:border-0">
+                      <span className="text-muted-foreground">Por otorgar préstamos</span>
+                      <span className="font-medium text-red-600">
+                        -{formatCurrency(locality.totalLoansGrantedCommissions)}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

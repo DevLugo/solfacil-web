@@ -11,7 +11,7 @@ interface UsePaymentsParams {
   selectedDate: Date
   globalCommission: string
   leadPaymentReceivedId: string | null
-  registeredPaymentsMap: Map<string, LoanPayment>
+  registeredPaymentsMap: Map<string, LoanPayment[]>
 }
 
 export function usePayments({
@@ -264,7 +264,7 @@ export function usePayments({
   // Set all to no payment (handles both registered and non-registered)
   const handleSetAllNoPayment = useCallback((
     filteredLoans: ActiveLoan[],
-    registeredPaymentsMap: Map<string, LoanPayment>
+    registeredPaymentsMap: Map<string, LoanPayment[]>
   ) => {
     const newPayments: Record<string, PaymentEntry> = {}
     const newEditedPayments: Record<string, EditedPayment> = { ...editedPayments }
@@ -273,16 +273,20 @@ export function usePayments({
 
     // Primero: marcar TODOS los pagos registrados para eliminación
     // (incluyendo los que no están en filteredLoans, ej: préstamos terminados)
-    registeredPaymentsMap.forEach((registeredPayment, loanId) => {
-      newEditedPayments[loanId] = {
-        paymentId: registeredPayment.id,
-        loanId,
-        amount: registeredPayment.amount,
-        comission: registeredPayment.comission,
-        paymentMethod: registeredPayment.paymentMethod,
-        isDeleted: true,
+    // Note: only marks the first payment for deletion, additional payments are not editable yet
+    registeredPaymentsMap.forEach((paymentsArray, loanId) => {
+      const registeredPayment = paymentsArray[0]
+      if (registeredPayment) {
+        newEditedPayments[loanId] = {
+          paymentId: registeredPayment.id,
+          loanId,
+          amount: registeredPayment.amount,
+          comission: registeredPayment.comission,
+          paymentMethod: registeredPayment.paymentMethod,
+          isDeleted: true,
+        }
+        registeredCount++
       }
-      registeredCount++
     })
 
     // Segundo: marcar préstamos sin pago registrado como "sin pago"

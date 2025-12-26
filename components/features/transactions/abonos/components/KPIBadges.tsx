@@ -19,6 +19,13 @@ import { formatCurrency, cn } from '@/lib/utils'
 import type { CombinedTotals, PaymentTotals } from '../types'
 import { badgeStyles } from '../../shared/theme'
 
+interface LeadPaymentDistribution {
+  cashPaidAmount: string
+  bankPaidAmount: string
+  falcoAmount: string
+  paidAmount: string
+}
+
 interface KPIBadgesProps {
   filteredLoansCount: number
   registeredCount: number
@@ -27,6 +34,7 @@ interface KPIBadgesProps {
   incompleteCount: number
   showOnlyIncomplete: boolean
   onToggleIncomplete: () => void
+  leadPaymentDistribution?: LeadPaymentDistribution | null
 }
 
 // Base badge class for all KPI badges
@@ -40,7 +48,14 @@ export function KPIBadges({
   incompleteCount,
   showOnlyIncomplete,
   onToggleIncomplete,
+  leadPaymentDistribution,
 }: KPIBadgesProps) {
+  // Parse distribution values
+  const distributionCash = parseFloat(leadPaymentDistribution?.cashPaidAmount || '0')
+  const distributionBank = parseFloat(leadPaymentDistribution?.bankPaidAmount || '0')
+  const distributionFalco = parseFloat(leadPaymentDistribution?.falcoAmount || '0')
+  const distributionTotal = parseFloat(leadPaymentDistribution?.paidAmount || '0')
+  const hasDistribution = !!leadPaymentDistribution
   return (
     <TooltipProvider delayDuration={100}>
       <div className="flex flex-wrap items-center gap-1.5 justify-end">
@@ -119,10 +134,25 @@ export function KPIBadges({
           <TooltipTrigger asChild>
             <Badge variant="outline" className={cn(kpiBadgeBase, badgeStyles.success)}>
               <Wallet className="h-3 w-3 mr-1" />
-              {formatCurrency(combinedTotals.cash)}
+              {formatCurrency(hasDistribution ? distributionCash : combinedTotals.cash)}
             </Badge>
           </TooltipTrigger>
-          <TooltipContent><p>Cobrado en efectivo</p></TooltipContent>
+          <TooltipContent>
+            {hasDistribution ? (
+              <div className="space-y-1 text-xs">
+                <p className="font-semibold">Distribución de Efectivo</p>
+                <p>Total cobrado: {formatCurrency(distributionTotal)}</p>
+                <hr className="border-border/50 my-1" />
+                <p>Efectivo: {formatCurrency(distributionCash)}</p>
+                <p>Transferencia: {formatCurrency(distributionBank)}</p>
+                {distributionFalco > 0 && (
+                  <p className="text-orange-400">Falco: {formatCurrency(distributionFalco)}</p>
+                )}
+              </div>
+            ) : (
+              <p>Cobrado en efectivo</p>
+            )}
+          </TooltipContent>
         </Tooltip>
 
         {/* Bank transfer */}
@@ -130,7 +160,7 @@ export function KPIBadges({
           <TooltipTrigger asChild>
             <Badge variant="outline" className={cn(kpiBadgeBase, badgeStyles.info)}>
               <Building2 className="h-3 w-3 mr-1" />
-              {formatCurrency(combinedTotals.bank)}
+              {formatCurrency(hasDistribution ? distributionBank : combinedTotals.bank)}
             </Badge>
           </TooltipTrigger>
           <TooltipContent><p>Cobrado por transferencia</p></TooltipContent>

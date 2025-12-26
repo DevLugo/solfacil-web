@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { DollarSign, Ban } from 'lucide-react'
@@ -158,20 +158,10 @@ export function AbonosTab() {
       filtered = filtered.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan))
     }
 
-    // If day is captured, no need to sort - all are captured
-    // Otherwise, sort: pending loans first, registered loans last
-    const isDayCaptured = !!leadPaymentReceivedId
-    if (isDayCaptured) {
-      return filtered // All are captured, keep original order
-    }
-
-    return filtered.sort((a, b) => {
-      const aIsRegistered = registeredPaymentsMap.has(a.id)
-      const bIsRegistered = registeredPaymentsMap.has(b.id)
-      if (aIsRegistered === bIsRegistered) return 0
-      return aIsRegistered ? 1 : -1
-    })
-  }, [loans, searchTerm, showOnlyIncomplete, registeredPaymentsMap, leadPaymentReceivedId])
+    // Keep original order (by signDate) always - don't group by registered/pending
+    // This allows comparing against manual PDFs from workers
+    return filtered
+  }, [loans, searchTerm, showOnlyIncomplete])
 
   // Separate loans into pending and captured for rendering
   // A loan is "captured" if:
@@ -200,7 +190,14 @@ export function AbonosTab() {
     return loans.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan)).length
   }, [loans])
 
-  const registeredCount = registeredPaymentsMap.size
+  // Count total registered payments (not just loans with payments)
+  const registeredCount = useMemo(() => {
+    let count = 0
+    registeredPaymentsMap.forEach((payments) => {
+      count += payments.length
+    })
+    return count
+  }, [registeredPaymentsMap])
   const hasEditedPayments = Object.keys(editedPayments).length > 0
   const editedCount = Object.values(editedPayments).filter((p) => !p.isDeleted).length
   const deletedCount = Object.values(editedPayments).filter((p) => p.isDeleted).length
@@ -269,15 +266,16 @@ export function AbonosTab() {
       // If there's already a LeadPaymentReceived for this day, update it instead of creating a new one
       if (leadPaymentReceivedId) {
         // Build the complete list of payments: existing + new
-        const existingPayments = Array.from(registeredPaymentsMap.entries()).map(
-          ([loanId, payment]) => ({
+        // Flatten the array since registeredPaymentsMap now stores LoanPayment[] per loan
+        const existingPayments = Array.from(registeredPaymentsMap.entries()).flatMap(
+          ([loanId, payments]) => payments.map(payment => ({
             paymentId: payment.id,
             loanId,
             amount: payment.amount,
             comission: payment.comission || '0',
             paymentMethod: payment.paymentMethod,
             isDeleted: false,
-          })
+          }))
         )
 
         // New payments don't have a paymentId
@@ -288,9 +286,9 @@ export function AbonosTab() {
           paymentMethod: p.paymentMethod,
         }))
 
-        // Calculate combined totals
+        // Calculate combined totals (flatten payments arrays)
         const existingTotal = Array.from(registeredPaymentsMap.values()).reduce(
-          (sum, p) => sum + parseFloat(p.amount || '0'),
+          (sum, payments) => sum + payments.reduce((s, p) => s + parseFloat(p.amount || '0'), 0),
           0
         )
         const newTotal = newPaymentsToSave.reduce(
@@ -419,15 +417,18 @@ export function AbonosTab() {
         })
       })
 
-      registeredPaymentsMap.forEach((payment, loanId) => {
+      registeredPaymentsMap.forEach((payments, loanId) => {
         if (!editedPayments[loanId]) {
-          paymentsToUpdate.push({
-            paymentId: payment.id,
-            loanId,
-            amount: payment.amount,
-            comission: payment.comission,
-            paymentMethod: payment.paymentMethod,
-            isDeleted: false,
+          // Add all payments for this loan (supports multiple payments per day)
+          payments.forEach(payment => {
+            paymentsToUpdate.push({
+              paymentId: payment.id,
+              loanId,
+              amount: payment.amount,
+              comission: payment.comission,
+              paymentMethod: payment.paymentMethod,
+              isDeleted: false,
+            })
           })
         }
       })
@@ -600,6 +601,7 @@ export function AbonosTab() {
                 incompleteCount={incompleteCount}
                 showOnlyIncomplete={showOnlyIncomplete}
                 onToggleIncomplete={() => setShowOnlyIncomplete(!showOnlyIncomplete)}
+                leadPaymentDistribution={leadPaymentData?.leadPaymentReceivedByLeadAndDate}
               />
             </div>
 
@@ -684,6 +686,8 @@ export function AbonosTab() {
                 {/* Pending loan rows (not yet registered) */}
                 {pendingLoans.map((loan, index) => {
                   const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
+                  const loanPayments = registeredPaymentsMap.get(loan.id) || []
+                  const firstPayment = loanPayments[0]
                   return (
                     <LoanPaymentRow
                       key={loan.id}
@@ -691,7 +695,7 @@ export function AbonosTab() {
                       index={globalIndex}
                       displayIndex={index + 1}
                       payment={payments[loan.id]}
-                      registeredPayment={registeredPaymentsMap.get(loan.id)}
+                      registeredPayment={firstPayment}
                       editedPayment={editedPayments[loan.id]}
                       leadPaymentReceivedId={leadPaymentReceivedId}
                       isAdmin={isAdmin}
@@ -699,7 +703,7 @@ export function AbonosTab() {
                       onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
                       onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
                       onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                      onStartEdit={() => handleStartEditPayment(loan.id, registeredPaymentsMap.get(loan.id)!)}
+                      onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
                       onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
                       onToggleDelete={() => handleToggleDeletePayment(loan.id)}
                       onCancelEdit={() => handleCancelEditPayment(loan.id)}
@@ -718,26 +722,55 @@ export function AbonosTab() {
                 {/* Captured loan rows (already registered or marked as falta) */}
                 {capturedLoans.map((loan, index) => {
                   const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
+                  const loanPayments = registeredPaymentsMap.get(loan.id) || []
+                  const firstPayment = loanPayments[0]
+                  const additionalPayments = loanPayments.slice(1)
+
                   return (
-                    <LoanPaymentRow
-                      key={loan.id}
-                      loan={loan}
-                      index={globalIndex}
-                      displayIndex={pendingLoans.length + index + 1}
-                      payment={payments[loan.id]}
-                      registeredPayment={registeredPaymentsMap.get(loan.id)}
-                      editedPayment={editedPayments[loan.id]}
-                      leadPaymentReceivedId={leadPaymentReceivedId}
-                      isAdmin={isAdmin}
-                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
-                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
-                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
-                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                      onStartEdit={() => handleStartEditPayment(loan.id, registeredPaymentsMap.get(loan.id)!)}
-                      onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
-                      onToggleDelete={() => handleToggleDeletePayment(loan.id)}
-                      onCancelEdit={() => handleCancelEditPayment(loan.id)}
-                    />
+                    <React.Fragment key={loan.id}>
+                      {/* Main row with first payment */}
+                      <LoanPaymentRow
+                        loan={loan}
+                        index={globalIndex}
+                        displayIndex={pendingLoans.length + index + 1}
+                        payment={payments[loan.id]}
+                        registeredPayment={firstPayment}
+                        editedPayment={editedPayments[loan.id]}
+                        leadPaymentReceivedId={leadPaymentReceivedId}
+                        isAdmin={isAdmin}
+                        onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
+                        onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
+                        onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
+                        onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
+                        onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
+                        onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
+                        onToggleDelete={() => handleToggleDeletePayment(loan.id)}
+                        onCancelEdit={() => handleCancelEditPayment(loan.id)}
+                      />
+                      {/* Additional payment rows for the same loan */}
+                      {additionalPayments.map((payment, paymentIndex) => (
+                        <LoanPaymentRow
+                          key={`${loan.id}-payment-${paymentIndex + 1}`}
+                          loan={loan}
+                          index={globalIndex}
+                          displayIndex={pendingLoans.length + index + 1}
+                          payment={undefined}
+                          registeredPayment={payment}
+                          editedPayment={undefined}
+                          leadPaymentReceivedId={leadPaymentReceivedId}
+                          isAdmin={isAdmin}
+                          isAdditionalPayment={true}
+                          onPaymentChange={() => {}}
+                          onCommissionChange={() => {}}
+                          onPaymentMethodChange={() => {}}
+                          onToggleNoPayment={() => {}}
+                          onStartEdit={() => handleStartEditPayment(loan.id, payment)}
+                          onEditChange={() => {}}
+                          onToggleDelete={() => {}}
+                          onCancelEdit={() => {}}
+                        />
+                      ))}
+                    </React.Fragment>
                   )
                 })}
               </TableBody>
