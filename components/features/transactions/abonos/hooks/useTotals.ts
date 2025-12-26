@@ -88,24 +88,20 @@ export function useTotals({
     let deletedCount = 0
     let commissionTotal = 0
 
-    registeredPaymentsMap.forEach((paymentsArray, loanId) => {
-      const edited = editedPayments[loanId]
+    registeredPaymentsMap.forEach((paymentsArray) => {
+      // Now we support editing any payment (including additional payments)
+      // Edits are keyed by paymentId
+      paymentsArray.forEach((payment) => {
+        const edited = editedPayments[payment.id]
 
-      // For now, editing only applies to the first payment of a loan
-      // Additional payments are shown as read-only
-      paymentsArray.forEach((payment, paymentIndex) => {
-        // Only apply edits to the first payment
-        const isFirstPayment = paymentIndex === 0
-        const shouldApplyEdit = isFirstPayment && edited
-
-        if (shouldApplyEdit && edited.isDeleted) {
+        if (edited?.isDeleted) {
           deletedCount++
           return
         }
 
-        const amount = shouldApplyEdit ? parseFloat(edited.amount || '0') : parseFloat(payment.amount || '0')
-        const commission = shouldApplyEdit ? parseFloat(edited.comission || '0') : parseFloat(payment.comission || '0')
-        const method = shouldApplyEdit ? edited.paymentMethod : payment.paymentMethod
+        const amount = edited ? parseFloat(edited.amount || '0') : parseFloat(payment.amount || '0')
+        const commission = edited ? parseFloat(edited.comission || '0') : parseFloat(payment.comission || '0')
+        const method = edited ? edited.paymentMethod : payment.paymentMethod
 
         if (amount > 0) {
           paymentsCount++

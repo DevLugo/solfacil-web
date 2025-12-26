@@ -397,6 +397,8 @@ export function AbonosTab() {
     setIsSavingEdits(true)
 
     try {
+      // ONLY send edited payments to the backend
+      // The backend will handle updating only these payments without affecting others
       const paymentsToUpdate: {
         paymentId?: string
         loanId: string
@@ -406,6 +408,7 @@ export function AbonosTab() {
         isDeleted?: boolean
       }[] = []
 
+      // Only add payments that were actually edited
       Object.values(editedPayments).forEach((edit) => {
         paymentsToUpdate.push({
           paymentId: edit.paymentId,
@@ -417,48 +420,52 @@ export function AbonosTab() {
         })
       })
 
-      registeredPaymentsMap.forEach((payments, loanId) => {
-        if (!editedPayments[loanId]) {
-          // Add all payments for this loan (supports multiple payments per day)
-          payments.forEach(payment => {
-            paymentsToUpdate.push({
-              paymentId: payment.id,
-              loanId,
-              amount: payment.amount,
-              comission: payment.comission,
-              paymentMethod: payment.paymentMethod,
-              isDeleted: false,
-            })
-          })
-        }
+      // Calculate the NEW totals after applying edits
+      // IMPORTANT: cashPaidAmount and bankPaidAmount represent how the LEADER distributes money,
+      // NOT how individual clients paid. We only update paidAmount based on payment edits.
+      // Distribution (cash vs bank) only changes if user explicitly adjusts in the modal.
+      const existingCashPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.cashPaidAmount || '0')
+      const existingBankPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.bankPaidAmount || '0')
+      const existingTotal = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.paidAmount || '0')
+
+      // Calculate total delta from all edits (amount changes only)
+      let totalDelta = 0
+
+      Object.values(editedPayments).forEach((edit) => {
+        // Find the original payment to calculate delta
+        let originalPayment: { amount: string } | undefined
+        registeredPaymentsMap.forEach((payments) => {
+          const found = payments.find(p => p.id === edit.paymentId)
+          if (found) originalPayment = found
+        })
+
+        if (!originalPayment) return
+
+        const oldAmount = parseFloat(originalPayment.amount || '0')
+        const newAmount = edit.isDeleted ? 0 : parseFloat(edit.amount || '0')
+        totalDelta += (newAmount - oldAmount)
       })
 
+      // New total = existing + delta
+      const newTotalPaid = existingTotal + totalDelta
+
+      // For cash/bank distribution:
+      // - If user didn't request a bank transfer, maintain the existing distribution proportionally
+      // - If totalDelta > 0, add to cash (leader collects more cash)
+      // - If totalDelta < 0, subtract from cash (leader collected less)
+      // - bankTransferAmount allows user to explicitly move cash to bank
       const bankTransferValue = parseFloat(bankTransferAmount || '0')
-      let cashTotal = 0
-      let bankTotal = 0
-
-      paymentsToUpdate.forEach((p) => {
-        if (p.isDeleted) return
-        const amount = parseFloat(p.amount || '0')
-        if (p.paymentMethod === 'CASH') {
-          cashTotal += amount
-        } else {
-          bankTotal += amount
-        }
-      })
-
-      const cashValue = cashTotal - bankTransferValue
-      const totalPaid = cashTotal + bankTotal
+      const newCashPaid = existingCashPaid + totalDelta - bankTransferValue
+      const newBankPaid = existingBankPaid + bankTransferValue
 
       console.log('[AbonosTab] Sending updateLeadPaymentReceived with:', {
         id: leadPaymentReceivedId,
-        totalPaid: totalPaid.toString(),
-        cashPaidAmount: cashValue.toString(),
-        bankPaidAmount: (bankTotal + bankTransferValue).toString(),
+        existing: { total: existingTotal, cash: existingCashPaid, bank: existingBankPaid },
+        totalDelta,
         bankTransferValue,
-        totalPayments: paymentsToUpdate.length,
+        new: { total: newTotalPaid, cash: newCashPaid, bank: newBankPaid },
+        editedPaymentsCount: paymentsToUpdate.length,
         deletedPayments: paymentsToUpdate.filter(p => p.isDeleted).length,
-        updatedPayments: paymentsToUpdate.filter(p => !p.isDeleted).length,
         payments: paymentsToUpdate.map(p => ({
           paymentId: p.paymentId,
           loanId: p.loanId,
@@ -473,9 +480,9 @@ export function AbonosTab() {
         variables: {
           id: leadPaymentReceivedId,
           input: {
-            paidAmount: totalPaid.toString(),
-            cashPaidAmount: cashValue.toString(),
-            bankPaidAmount: (bankTotal + bankTransferValue).toString(),
+            paidAmount: newTotalPaid.toString(),
+            cashPaidAmount: newCashPaid.toString(),
+            bankPaidAmount: newBankPaid.toString(),
             payments: paymentsToUpdate,
           },
         },
@@ -696,7 +703,7 @@ export function AbonosTab() {
                       displayIndex={index + 1}
                       payment={payments[loan.id]}
                       registeredPayment={firstPayment}
-                      editedPayment={editedPayments[loan.id]}
+                      editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
                       leadPaymentReceivedId={leadPaymentReceivedId}
                       isAdmin={isAdmin}
                       onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
@@ -704,9 +711,9 @@ export function AbonosTab() {
                       onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
                       onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
                       onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
-                      onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
-                      onToggleDelete={() => handleToggleDeletePayment(loan.id)}
-                      onCancelEdit={() => handleCancelEditPayment(loan.id)}
+                      onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
+                      onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
+                      onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
                     />
                   )
                 })}
@@ -735,7 +742,7 @@ export function AbonosTab() {
                         displayIndex={pendingLoans.length + index + 1}
                         payment={payments[loan.id]}
                         registeredPayment={firstPayment}
-                        editedPayment={editedPayments[loan.id]}
+                        editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
                         leadPaymentReceivedId={leadPaymentReceivedId}
                         isAdmin={isAdmin}
                         onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
@@ -743,9 +750,9 @@ export function AbonosTab() {
                         onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
                         onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
                         onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
-                        onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
-                        onToggleDelete={() => handleToggleDeletePayment(loan.id)}
-                        onCancelEdit={() => handleCancelEditPayment(loan.id)}
+                        onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
+                        onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
+                        onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
                       />
                       {/* Additional payment rows for the same loan */}
                       {additionalPayments.map((payment, paymentIndex) => (
@@ -756,7 +763,7 @@ export function AbonosTab() {
                           displayIndex={pendingLoans.length + index + 1}
                           payment={undefined}
                           registeredPayment={payment}
-                          editedPayment={undefined}
+                          editedPayment={editedPayments[payment.id]}
                           leadPaymentReceivedId={leadPaymentReceivedId}
                           isAdmin={isAdmin}
                           isAdditionalPayment={true}
@@ -765,9 +772,9 @@ export function AbonosTab() {
                           onPaymentMethodChange={() => {}}
                           onToggleNoPayment={() => {}}
                           onStartEdit={() => handleStartEditPayment(loan.id, payment)}
-                          onEditChange={() => {}}
-                          onToggleDelete={() => {}}
-                          onCancelEdit={() => {}}
+                          onEditChange={(field, value) => handleEditPaymentChange(payment.id, field, value)}
+                          onToggleDelete={() => handleToggleDeletePayment(payment.id)}
+                          onCancelEdit={() => handleCancelEditPayment(payment.id)}
                         />
                       ))}
                     </React.Fragment>

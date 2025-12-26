@@ -10,9 +10,12 @@ import {
   Wallet,
   Building2,
   CheckCircle2,
+  Pencil,
+  X,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TableRow, TableCell } from '@/components/ui/table'
 import {
@@ -136,13 +139,12 @@ export function LoanPaymentRow({
     e.stopPropagation()
 
     if (isRegistered) {
-      // For registered payments, toggle delete in edit mode
+      // For registered payments, just enter edit mode on click
+      // User can explicitly use the checkbox to mark for deletion
       if (!isEditing) {
         onStartEdit()
-        setTimeout(() => onToggleDelete(), 0)
-      } else {
-        onToggleDelete()
       }
+      // If already editing, clicking row does nothing (user must use checkbox or cancel button)
     } else {
       // For pending rows OR faltas (captured but no payment record)
       // Toggle no payment - this allows adding a payment to a falta
@@ -191,7 +193,7 @@ export function LoanPaymentRow({
         showAsNoPayment && !isAdditionalPayment && 'line-through opacity-80',
         isAdditionalPayment && 'bg-emerald-50/50 dark:bg-emerald-950/30'
       )}
-      onClick={isAdditionalPayment ? undefined : handleRowClick}
+      onClick={handleRowClick}
     >
       {/* Checkbox - same behavior as row click */}
       <TableCell className="cursor-pointer">
@@ -432,28 +434,56 @@ export function LoanPaymentRow({
         )}
       </TableCell>
 
-      {/* Status Badge */}
-      <TableCell>
-        {isCaptured ? (
-          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            {showAsNoPayment ? 'Falta' : 'Capturado'}
-          </Badge>
-        ) : showAsNoPayment ? (
-          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
-            <Ban className="h-3 w-3 mr-1" />
-            Sin pago
-          </Badge>
-        ) : hasPayment ? (
-          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
-            <Check className="h-3 w-3 mr-1" />
-            {payment?.paymentMethod === 'MONEY_TRANSFER' ? 'Banco' : 'Efectivo'}
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-xs text-muted-foreground">
-            Pendiente
-          </Badge>
-        )}
+      {/* Status Badge + Edit Button */}
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
+          {isCaptured ? (
+            <>
+              <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                {showAsNoPayment ? 'Falta' : isEditing ? 'Editando' : 'Capturado'}
+              </Badge>
+              {/* Edit/Cancel button for registered payments (including additional payments) */}
+              {isRegistered && (
+                isEditing ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={onCancelEdit}
+                    title="Cancelar edición"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={onStartEdit}
+                    title="Editar pago"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )
+              )}
+            </>
+          ) : showAsNoPayment ? (
+            <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
+              <Ban className="h-3 w-3 mr-1" />
+              Sin pago
+            </Badge>
+          ) : hasPayment ? (
+            <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
+              <Check className="h-3 w-3 mr-1" />
+              {payment?.paymentMethod === 'MONEY_TRANSFER' ? 'Banco' : 'Efectivo'}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              Pendiente
+            </Badge>
+          )}
+        </div>
       </TableCell>
 
       {/* Admin-only columns */}

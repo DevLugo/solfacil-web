@@ -273,11 +273,10 @@ export function usePayments({
 
     // Primero: marcar TODOS los pagos registrados para eliminación
     // (incluyendo los que no están en filteredLoans, ej: préstamos terminados)
-    // Note: only marks the first payment for deletion, additional payments are not editable yet
+    // Now marks ALL payments for deletion (including additional payments)
     registeredPaymentsMap.forEach((paymentsArray, loanId) => {
-      const registeredPayment = paymentsArray[0]
-      if (registeredPayment) {
-        newEditedPayments[loanId] = {
+      paymentsArray.forEach((registeredPayment) => {
+        newEditedPayments[registeredPayment.id] = {
           paymentId: registeredPayment.id,
           loanId,
           amount: registeredPayment.amount,
@@ -286,7 +285,7 @@ export function usePayments({
           isDeleted: true,
         }
         registeredCount++
-      }
+      })
     })
 
     // Segundo: marcar préstamos sin pago registrado como "sin pago"
@@ -360,10 +359,11 @@ export function usePayments({
   }, [toast])
 
   // === Edited Payments ===
+  // Key by paymentId to support editing any payment (including multiple payments per loan)
   const handleStartEditPayment = useCallback((loanId: string, registeredPayment: LoanPayment) => {
     setEditedPayments((prev) => ({
       ...prev,
-      [loanId]: {
+      [registeredPayment.id]: {
         paymentId: registeredPayment.id,
         loanId,
         amount: registeredPayment.amount,
@@ -375,33 +375,33 @@ export function usePayments({
   }, [])
 
   const handleEditPaymentChange = useCallback((
-    loanId: string,
+    paymentId: string,
     field: keyof EditedPayment,
     value: string | boolean
   ) => {
     setEditedPayments((prev) => ({
       ...prev,
-      [loanId]: {
-        ...prev[loanId],
+      [paymentId]: {
+        ...prev[paymentId],
         [field]: value,
       },
     }))
   }, [])
 
-  const handleToggleDeletePayment = useCallback((loanId: string) => {
+  const handleToggleDeletePayment = useCallback((paymentId: string) => {
     setEditedPayments((prev) => ({
       ...prev,
-      [loanId]: {
-        ...prev[loanId],
-        isDeleted: !prev[loanId]?.isDeleted,
+      [paymentId]: {
+        ...prev[paymentId],
+        isDeleted: !prev[paymentId]?.isDeleted,
       },
     }))
   }, [])
 
-  const handleCancelEditPayment = useCallback((loanId: string) => {
+  const handleCancelEditPayment = useCallback((paymentId: string) => {
     setEditedPayments((prev) => {
       const updated = { ...prev }
-      delete updated[loanId]
+      delete updated[paymentId]
       return updated
     })
   }, [])
