@@ -174,6 +174,7 @@ export function DistributeMoneyModal({ open, onOpenChange, onSuccess }: Distribu
           className="w-28"
           value={variableAmounts.get(route.id) || ''}
           onChange={(e) => handleVariableAmountChange(route.id, e.target.value)}
+          onWheel={(e) => e.currentTarget.blur()}
         />
       )
     }
@@ -242,6 +243,7 @@ export function DistributeMoneyModal({ open, onOpenChange, onSuccess }: Distribu
                       placeholder="0.00"
                       value={fixedAmount}
                       onChange={(e) => setFixedAmount(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
                     />
                   </div>
                 </TabsContent>

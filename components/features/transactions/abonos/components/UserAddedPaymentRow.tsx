@@ -117,6 +117,7 @@ export function UserAddedPaymentRow({
           placeholder="0"
           value={payment.amount}
           onChange={(e) => onAmountChange(e.target.value)}
+          onWheel={(e) => e.currentTarget.blur()}
           className="w-[90px]"
         />
       </TableCell>
@@ -128,6 +129,7 @@ export function UserAddedPaymentRow({
           placeholder="0"
           value={payment.commission}
           onChange={(e) => onCommissionChange(e.target.value)}
+          onWheel={(e) => e.currentTarget.blur()}
           className="w-[70px]"
         />
       </TableCell>

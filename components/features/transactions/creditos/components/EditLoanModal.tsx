@@ -237,6 +237,7 @@ export function EditLoanModal({
               inputMode="decimal"
               value={requestedAmount}
               onChange={(e) => setRequestedAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0"
             />
           </div>
@@ -269,6 +270,7 @@ export function EditLoanModal({
               inputMode="decimal"
               value={comissionAmount}
               onChange={(e) => setComissionAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0"
             />
           </div>

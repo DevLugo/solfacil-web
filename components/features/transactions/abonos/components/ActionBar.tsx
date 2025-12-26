@@ -100,6 +100,7 @@ export function ActionBar({
               placeholder="0"
               value={globalCommission}
               onChange={(e) => onGlobalCommissionChange(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               className="w-[60px] h-7 text-sm pl-5 pr-1"
             />
           </div>

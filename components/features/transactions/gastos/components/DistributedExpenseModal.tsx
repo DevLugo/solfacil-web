@@ -178,6 +178,7 @@ export function DistributedExpenseModal({
               type="number"
               value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
             />
           </div>

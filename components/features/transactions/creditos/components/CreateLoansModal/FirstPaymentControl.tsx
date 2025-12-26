@@ -35,6 +35,7 @@ export function FirstPaymentControl({
           inputMode="decimal"
           value={firstPaymentAmount}
           onChange={(e) => onAmountChange(e.target.value)}
+          onWheel={(e) => e.currentTarget.blur()}
           placeholder="Monto"
           className={cn('h-8 text-sm flex-1', noSpinnerClass)}
         />

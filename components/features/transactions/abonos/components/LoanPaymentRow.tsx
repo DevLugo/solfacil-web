@@ -9,12 +9,8 @@ import {
   Ban,
   Wallet,
   Building2,
-  Pencil,
-  Trash2,
-  RotateCcw,
-  X,
+  CheckCircle2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -29,12 +25,13 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { ActiveLoan, PaymentEntry, EditedPayment, LoanPayment } from '../types'
-import { getRowClassName, hasIncompleteAval, hasIncompletePhone } from '../utils'
-import { textStyles, actionButtonStyles, statusBadgeStyles } from '../../shared/theme'
+import { hasIncompleteAval, hasIncompletePhone } from '../utils'
+import { textStyles } from '../../shared/theme'
 
 interface LoanPaymentRowProps {
   loan: ActiveLoan
   index: number
+  displayIndex: number
   payment: PaymentEntry | undefined
   registeredPayment: LoanPayment | undefined
   editedPayment: EditedPayment | undefined
@@ -53,6 +50,7 @@ interface LoanPaymentRowProps {
 export function LoanPaymentRow({
   loan,
   index,
+  displayIndex,
   payment,
   registeredPayment,
   editedPayment,
@@ -67,99 +65,155 @@ export function LoanPaymentRow({
   onToggleDelete,
   onCancelEdit,
 }: LoanPaymentRowProps) {
+  // === STATE DETECTION ===
   const isRegistered = !!registeredPayment
   const isEditing = !!editedPayment
   const isMarkedForDeletion = editedPayment?.isDeleted
-  const isNoPayment = payment?.isNoPayment || (leadPaymentReceivedId && !isRegistered)
-  const hasPayment = payment && payment.amount && parseFloat(payment.amount) > 0 && !payment?.isNoPayment
-  const isTransfer = payment?.paymentMethod === 'MONEY_TRANSFER'
-  const isCash = payment?.paymentMethod === 'CASH' || !payment?.paymentMethod
-  const hasZeroCommission = hasPayment && parseFloat(payment?.commission || '0') === 0
+  const isDayCaptured = !!leadPaymentReceivedId
+  const isCapturedAsNoPayment = isDayCaptured && !isRegistered
+
+  // Determine if this row represents "no payment" from the payments state
+  const isNoPayment = !!payment?.isNoPayment
+  const hasPaymentAmount = payment && parseFloat(payment.amount || '0') > 0 && !isNoPayment
+
+  // For registered rows, determine original payment state
+  const registeredHasPayment = isRegistered && parseFloat(registeredPayment?.amount || '0') > 0
+
+  // Determine if user is adding a payment to a falta
+  // A falta becomes "adding payment" when isNoPayment is explicitly set to false
+  const isAddingPaymentToFalta = isCapturedAsNoPayment && payment && payment.isNoPayment === false
+
+  // Final state: does this row show as "no payment"?
+  // - For registered payments being edited: check if marked for deletion
+  // - For registered payments not editing: check if original amount is 0
+  // - For faltas: check if user is adding a payment (isNoPayment === false means they're adding)
+  // - For pending: check isNoPayment state
+  const showAsNoPayment = isRegistered
+    ? (isEditing ? isMarkedForDeletion : !registeredHasPayment)
+    : isCapturedAsNoPayment
+      ? !isAddingPaymentToFalta // Falta shows as no payment unless user is adding
+      : isNoPayment
+
+  // Does this row have a payment to show?
+  const hasPayment = isRegistered
+    ? (isEditing ? !isMarkedForDeletion && parseFloat(editedPayment?.amount || '0') > 0 : registeredHasPayment)
+    : hasPaymentAmount || isAddingPaymentToFalta
+
+  // Is this row in "captured" visual state? (muted colors)
+  const isCaptured = isDayCaptured || isRegistered
+
   const aval = loan.collaterals?.[0]
   const isIncompleteAval = hasIncompleteAval(loan)
   const isIncompletePhone = hasIncompletePhone(loan)
-  const isIncomplete = isIncompleteAval || isIncompletePhone
 
-  const rowClassName = getRowClassName({
-    isMarkedForDeletion: !!isMarkedForDeletion,
-    isEditing,
-    isRegistered,
-    isNoPayment: !!isNoPayment,
-    isIncomplete,
-    hasPayment: !!hasPayment,
-    hasZeroCommission: !!hasZeroCommission,
-    isTransfer: !!isTransfer,
-    isCash: !!isCash,
-  })
+  // === ROW STYLING ===
+  // Simple 2-color scheme: green (has payment) or red (no payment)
+  // Captured = muted colors, Pending = vivid colors
+  const getRowStyle = () => {
+    if (isCaptured) {
+      // Captured rows - muted colors
+      if (showAsNoPayment) {
+        return 'bg-rose-50/70 dark:bg-rose-950/50 border-l-4 border-l-rose-400/70 dark:border-l-rose-500/60'
+      }
+      return 'bg-emerald-50/70 dark:bg-emerald-950/50 border-l-4 border-l-emerald-400/70 dark:border-l-emerald-500/60'
+    } else {
+      // Pending rows - vivid colors
+      if (showAsNoPayment) {
+        return 'bg-red-100/80 dark:bg-red-950/60 border-l-4 border-l-red-500 dark:border-l-red-400'
+      }
+      if (hasPayment) {
+        return 'bg-green-100/80 dark:bg-green-950/60 border-l-4 border-l-green-500 dark:border-l-green-400'
+      }
+      return ''
+    }
+  }
+
+  // === CLICK HANDLING ===
+  // Unified: toggle between payment and no payment
+  const handleToggle = (e: React.MouseEvent, shiftKey: boolean = false) => {
+    e.stopPropagation()
+
+    if (isRegistered) {
+      // For registered payments, toggle delete in edit mode
+      if (!isEditing) {
+        onStartEdit()
+        setTimeout(() => onToggleDelete(), 0)
+      } else {
+        onToggleDelete()
+      }
+    } else {
+      // For pending rows OR faltas (captured but no payment record)
+      // Toggle no payment - this allows adding a payment to a falta
+      onToggleNoPayment(shiftKey)
+    }
+  }
 
   const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
     const target = e.target as HTMLElement
     const selection = window.getSelection()
     if (selection && selection.toString().length > 0) return
 
+    // Don't handle clicks on interactive elements
     const isInput = target.closest('input, select, textarea')
     const isButton = target.closest('button')
     const isCheckbox = target.closest('[role="checkbox"]')
     if (isInput || isButton || isCheckbox) return
 
-    if (isRegistered && registeredPayment) {
-      if (isEditing) {
-        onToggleDelete()
-      } else {
-        onStartEdit()
-        setTimeout(() => onToggleDelete(), 0)
-      }
-      return
-    }
-
-    onToggleNoPayment(e.shiftKey)
+    handleToggle(e, e.shiftKey)
   }
 
-  const handleCheckboxClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (isRegistered && registeredPayment) {
-      if (isEditing) {
-        onToggleDelete()
-      } else {
-        onStartEdit()
-        setTimeout(() => onToggleDelete(), 0)
+  // === BADGE STYLING ===
+  const getBadgeStyle = () => {
+    if (isCaptured) {
+      if (showAsNoPayment) {
+        return 'bg-rose-600/90 dark:bg-rose-500/90 text-white hover:bg-rose-600 dark:hover:bg-rose-500'
       }
+      return 'bg-emerald-600/90 dark:bg-emerald-500/90 text-white hover:bg-emerald-600 dark:hover:bg-emerald-500'
     } else {
-      onToggleNoPayment(e.shiftKey)
+      if (showAsNoPayment) {
+        return 'bg-red-600 dark:bg-red-500 text-white hover:bg-red-700 dark:hover:bg-red-600'
+      }
+      if (hasPayment) {
+        return 'bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600'
+      }
+      return ''
     }
   }
 
+  // === RENDER ===
   return (
     <TableRow
       className={cn(
         'transition-colors select-none cursor-pointer',
-        rowClassName,
-        isNoPayment && 'line-through opacity-70'
+        getRowStyle(),
+        showAsNoPayment && 'line-through opacity-80'
       )}
       onClick={handleRowClick}
     >
-      {/* Checkbox */}
-      <TableCell
-        onClick={handleCheckboxClick}
-        className="cursor-pointer"
-        title={isRegistered ? 'Click para marcar sin pago (strikethrough)' : 'Click para marcar sin pago'}
-      >
+      {/* Checkbox - same behavior as row click */}
+      <TableCell className="cursor-pointer">
         <Checkbox
-          checked={isMarkedForDeletion || !!isNoPayment}
-          onCheckedChange={() => handleCheckboxClick({ stopPropagation: () => {} } as React.MouseEvent)}
+          checked={showAsNoPayment}
+          onCheckedChange={() => {
+            if (isRegistered) {
+              // For registered payments, toggle delete in edit mode
+              if (!isEditing) {
+                onStartEdit()
+                setTimeout(() => onToggleDelete(), 0)
+              } else {
+                onToggleDelete()
+              }
+            } else {
+              // For pending rows OR faltas, toggle no payment
+              onToggleNoPayment(false)
+            }
+          }}
         />
       </TableCell>
 
       {/* Index */}
-      <TableCell
-        className="font-medium text-muted-foreground cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleNoPayment(e.shiftKey)
-        }}
-        title="Click para marcar sin pago"
-      >
-        {index + 1}
+      <TableCell className="font-medium text-muted-foreground">
+        {displayIndex}
       </TableCell>
 
       {/* Client */}
@@ -219,31 +273,37 @@ export function LoanPaymentRow({
       {/* Amount */}
       <TableCell onClick={(e) => e.stopPropagation()}>
         {isRegistered ? (
-          isEditing ? (
+          // Registered payment - show input when editing, otherwise show value
+          isEditing && !isMarkedForDeletion ? (
             <Input
               type="number"
               placeholder="0"
-              value={editedPayment.amount}
+              value={editedPayment?.amount || ''}
               onChange={(e) => onEditChange('amount', e.target.value)}
-              className={cn("w-[90px]", isMarkedForDeletion && "opacity-50")}
-              disabled={isMarkedForDeletion}
+              onWheel={(e) => e.currentTarget.blur()}
+              className="w-[90px]"
             />
           ) : (
-            <div className={cn('w-[90px] h-9 px-3 flex items-center text-sm font-medium', textStyles.muted)}>
-              {formatCurrency(parseFloat(registeredPayment.amount))}
+            <div className={cn(
+              'w-[90px] h-9 px-3 flex items-center text-sm font-medium',
+              showAsNoPayment ? 'text-muted-foreground' : textStyles.muted
+            )}>
+              {showAsNoPayment ? '-' : formatCurrency(parseFloat(registeredPayment?.amount || '0'))}
             </div>
           )
         ) : (
+          // Pending or falta - show input (enabled when adding payment)
           <Input
             type="number"
             placeholder="0"
             value={payment?.amount || ''}
             onChange={(e) => onPaymentChange(e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             className={cn(
               "w-[90px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
-              isNoPayment && "opacity-50"
+              showAsNoPayment && "opacity-50"
             )}
-            disabled={!!isNoPayment}
+            disabled={showAsNoPayment}
           />
         )}
       </TableCell>
@@ -251,31 +311,37 @@ export function LoanPaymentRow({
       {/* Commission */}
       <TableCell onClick={(e) => e.stopPropagation()}>
         {isRegistered ? (
-          isEditing ? (
+          // Registered payment - show input when editing, otherwise show value
+          isEditing && !isMarkedForDeletion ? (
             <Input
               type="number"
               placeholder="0"
-              value={editedPayment.comission}
+              value={editedPayment?.comission || ''}
               onChange={(e) => onEditChange('comission', e.target.value)}
-              className={cn("w-[70px]", isMarkedForDeletion && "opacity-50")}
-              disabled={isMarkedForDeletion}
+              onWheel={(e) => e.currentTarget.blur()}
+              className="w-[70px]"
             />
           ) : (
-            <div className={cn('w-[70px] h-9 px-3 flex items-center text-sm', textStyles.muted)}>
-              {formatCurrency(parseFloat(registeredPayment.comission || '0'))}
+            <div className={cn(
+              'w-[70px] h-9 px-3 flex items-center text-sm',
+              showAsNoPayment ? 'text-muted-foreground' : textStyles.muted
+            )}>
+              {showAsNoPayment ? '-' : formatCurrency(parseFloat(registeredPayment?.comission || '0'))}
             </div>
           )
         ) : (
+          // Pending or falta - show input (enabled when adding payment)
           <Input
             type="number"
             placeholder="0"
             value={payment?.commission || ''}
             onChange={(e) => onCommissionChange(e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             className={cn(
               "w-[70px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
-              isNoPayment && "opacity-50"
+              showAsNoPayment && "opacity-50"
             )}
-            disabled={!!isNoPayment}
+            disabled={showAsNoPayment}
           />
         )}
       </TableCell>
@@ -283,13 +349,13 @@ export function LoanPaymentRow({
       {/* Payment method */}
       <TableCell onClick={(e) => e.stopPropagation()}>
         {isRegistered ? (
-          isEditing ? (
+          // Registered payment - show select when editing, otherwise show value
+          isEditing && !isMarkedForDeletion ? (
             <Select
-              value={editedPayment.paymentMethod}
+              value={editedPayment?.paymentMethod || 'CASH'}
               onValueChange={(value) => onEditChange('paymentMethod', value)}
-              disabled={isMarkedForDeletion}
             >
-              <SelectTrigger className={cn("w-[110px]", isMarkedForDeletion && "opacity-50")}>
+              <SelectTrigger className="w-[110px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -308,8 +374,13 @@ export function LoanPaymentRow({
               </SelectContent>
             </Select>
           ) : (
-            <div className={cn('w-[110px] h-9 px-3 flex items-center gap-2 text-sm', textStyles.muted)}>
-              {registeredPayment.paymentMethod === 'MONEY_TRANSFER' ? (
+            <div className={cn(
+              'w-[110px] h-9 px-3 flex items-center gap-2 text-sm',
+              showAsNoPayment ? 'text-muted-foreground' : textStyles.muted
+            )}>
+              {showAsNoPayment ? (
+                '-'
+              ) : registeredPayment?.paymentMethod === 'MONEY_TRANSFER' ? (
                 <>
                   <Building2 className="h-4 w-4" />
                   Banco
@@ -323,12 +394,13 @@ export function LoanPaymentRow({
             </div>
           )
         ) : (
+          // Pending or falta - show select (enabled when adding payment)
           <Select
             value={payment?.paymentMethod || 'CASH'}
             onValueChange={(value) => onPaymentMethodChange(value as 'CASH' | 'MONEY_TRANSFER')}
-            disabled={!!isNoPayment}
+            disabled={showAsNoPayment}
           >
-            <SelectTrigger className={cn("w-[110px]", isNoPayment && "opacity-50")}>
+            <SelectTrigger className={cn("w-[110px]", showAsNoPayment && "opacity-50")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -349,108 +421,31 @@ export function LoanPaymentRow({
         )}
       </TableCell>
 
-      {/* Status */}
-      <TableCell
-        className={isRegistered && !isEditing ? 'cursor-default' : 'cursor-pointer'}
-        onClick={(e) => {
-          e.stopPropagation()
-          if (!isRegistered) {
-            onToggleNoPayment(e.shiftKey)
-          }
-        }}
-        title={isRegistered && !isEditing ? 'Pago ya registrado - click en Editar para modificar' : !isRegistered ? 'Click para marcar sin pago' : ''}
-      >
-        {isRegistered ? (
-          isEditing ? (
-            <div className="flex items-center gap-1">
-              {isMarkedForDeletion ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleDelete()
-                  }}
-                  className={cn('h-7 px-2', actionButtonStyles.restore)}
-                  title="Restaurar pago"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleDelete()
-                  }}
-                  className={cn('h-7 px-2', actionButtonStyles.delete)}
-                  title="Eliminar pago"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCancelEdit()
-                }}
-                className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                title="Cancelar edición"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <Badge className={cn('text-xs font-semibold', statusBadgeStyles.registered)}>
-                <Check className="h-3 w-3 mr-1" />
-                Registrado
-              </Badge>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onStartEdit()
-                }}
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                title="Editar pago"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-            </div>
-          )
-        ) : isNoPayment ? (
-          <Badge variant="destructive" className="text-xs cursor-pointer font-semibold">
+      {/* Status Badge */}
+      <TableCell>
+        {isCaptured ? (
+          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            {showAsNoPayment ? 'Falta' : 'Capturado'}
+          </Badge>
+        ) : showAsNoPayment ? (
+          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
             <Ban className="h-3 w-3 mr-1" />
             Sin pago
           </Badge>
-        ) : hasPayment && isTransfer ? (
-          <Badge className={cn('text-xs cursor-pointer font-semibold', statusBadgeStyles.transfer)}>
-            <Building2 className="h-3 w-3 mr-1" />
-            Banco
-          </Badge>
         ) : hasPayment ? (
-          <Badge className={cn('text-xs cursor-pointer font-semibold', statusBadgeStyles.cash)}>
-            <Wallet className="h-3 w-3 mr-1" />
-            Efectivo
+          <Badge className={cn('text-xs font-semibold shadow-sm', getBadgeStyle())}>
+            <Check className="h-3 w-3 mr-1" />
+            {payment?.paymentMethod === 'MONEY_TRANSFER' ? 'Banco' : 'Efectivo'}
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-xs text-muted-foreground cursor-pointer">
+          <Badge variant="outline" className="text-xs text-muted-foreground">
             Pendiente
-          </Badge>
-        )}
-        {hasZeroCommission && !isRegistered && (
-          <Badge variant="outline" className={cn('text-xs ml-1', statusBadgeStyles.zeroCommission)}>
-            $0
           </Badge>
         )}
       </TableCell>
 
-      {/* Admin-only columns: Profit and Return to Capital */}
+      {/* Admin-only columns */}
       {isAdmin && (
         <>
           <TableCell className="text-right bg-muted/50">

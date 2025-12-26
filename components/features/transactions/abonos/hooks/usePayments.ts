@@ -8,10 +8,20 @@ import { formatCurrency } from '@/lib/utils'
 interface UsePaymentsParams {
   loans: ActiveLoan[]
   selectedLeadId: string | null
+  selectedDate: Date
   globalCommission: string
+  leadPaymentReceivedId: string | null
+  registeredPaymentsMap: Map<string, LoanPayment>
 }
 
-export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaymentsParams) {
+export function usePayments({
+  loans,
+  selectedLeadId,
+  selectedDate,
+  globalCommission,
+  leadPaymentReceivedId,
+  registeredPaymentsMap,
+}: UsePaymentsParams) {
   const { toast } = useToast()
   const [payments, setPayments] = useState<Record<string, PaymentEntry>>({})
   const [editedPayments, setEditedPayments] = useState<Record<string, EditedPayment>>({})
@@ -19,10 +29,23 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
 
   // Initialize payments when loans are loaded
+  // IMPORTANT: Only initialize for PENDING loans (not captured or registered)
+  // Faltas (captured day + no registered payment) should NOT be initialized
   useEffect(() => {
     if (loans.length > 0 && Object.keys(payments).length === 0) {
+      const isDayCaptured = !!leadPaymentReceivedId
       const initialPayments: Record<string, PaymentEntry> = {}
+
       loans.forEach((loan) => {
+        const hasRegisteredPayment = registeredPaymentsMap.has(loan.id)
+        const isFalta = isDayCaptured && !hasRegisteredPayment
+
+        // Skip initialization for registered payments and faltas
+        // They don't need payment state because they're already "captured"
+        if (hasRegisteredPayment || isFalta) {
+          return
+        }
+
         const defaultCommission = loan.loantype?.loanPaymentComission
           ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
           : '0'
@@ -38,15 +61,15 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
       })
       setPayments(initialPayments)
     }
-  }, [loans])
+  }, [loans, leadPaymentReceivedId, registeredPaymentsMap])
 
-  // Reset when lead changes
+  // Reset when lead or date changes
   useEffect(() => {
     setPayments({})
     setLastSelectedIndex(null)
     setUserAddedPayments([])
     setEditedPayments({})
-  }, [selectedLeadId])
+  }, [selectedLeadId, selectedDate])
 
   // Payment change handler
   const handlePaymentChange = useCallback((loanId: string, amount: string) => {
@@ -108,7 +131,29 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
   const handleToggleNoPayment = useCallback((loanId: string) => {
     setPayments((prev) => {
       const current = prev[loanId]
-      const isCurrentlyNoPayment = current?.isNoPayment
+
+      // Special case: for faltas (no payment state exists yet)
+      // First click means "add a payment" (isNoPayment: false)
+      if (!current) {
+        const loan = loans.find((l) => l.id === loanId)
+        const defaultCommission = loan?.loantype?.loanPaymentComission
+          ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
+          : '0'
+
+        return {
+          ...prev,
+          [loanId]: {
+            loanId,
+            amount: loan?.expectedWeeklyPayment || '0',
+            commission: defaultCommission,
+            initialCommission: defaultCommission,
+            paymentMethod: 'CASH',
+            isNoPayment: false, // Adding a payment to the falta
+          },
+        }
+      }
+
+      const isCurrentlyNoPayment = current.isNoPayment
 
       if (isCurrentlyNoPayment) {
         const loan = loans.find((l) => l.id === loanId)
@@ -122,8 +167,8 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
             loanId,
             amount: loan?.expectedWeeklyPayment || '0',
             commission: defaultCommission,
-            initialCommission: current?.initialCommission || defaultCommission,
-            paymentMethod: current?.paymentMethod || 'CASH',
+            initialCommission: current.initialCommission || defaultCommission,
+            paymentMethod: current.paymentMethod || 'CASH',
             isNoPayment: false,
           },
         }
@@ -216,30 +261,62 @@ export function usePayments({ loans, selectedLeadId, globalCommission }: UsePaym
     setLastSelectedIndex(null)
   }, [])
 
-  // Set all to no payment
-  const handleSetAllNoPayment = useCallback((filteredLoans: ActiveLoan[]) => {
+  // Set all to no payment (handles both registered and non-registered)
+  const handleSetAllNoPayment = useCallback((
+    filteredLoans: ActiveLoan[],
+    registeredPaymentsMap: Map<string, LoanPayment>
+  ) => {
     const newPayments: Record<string, PaymentEntry> = {}
-    filteredLoans.forEach((loan) => {
-      const initialCommission = payments[loan.id]?.initialCommission ||
-        (loan.loantype?.loanPaymentComission
-          ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
-          : '0')
+    const newEditedPayments: Record<string, EditedPayment> = { ...editedPayments }
+    let registeredCount = 0
+    let newCount = 0
 
-      newPayments[loan.id] = {
-        loanId: loan.id,
-        amount: '0',
-        commission: '0',
-        initialCommission,
-        paymentMethod: payments[loan.id]?.paymentMethod || 'CASH',
-        isNoPayment: true,
+    // Primero: marcar TODOS los pagos registrados para eliminación
+    // (incluyendo los que no están en filteredLoans, ej: préstamos terminados)
+    registeredPaymentsMap.forEach((registeredPayment, loanId) => {
+      newEditedPayments[loanId] = {
+        paymentId: registeredPayment.id,
+        loanId,
+        amount: registeredPayment.amount,
+        comission: registeredPayment.comission,
+        paymentMethod: registeredPayment.paymentMethod,
+        isDeleted: true,
+      }
+      registeredCount++
+    })
+
+    // Segundo: marcar préstamos sin pago registrado como "sin pago"
+    filteredLoans.forEach((loan) => {
+      if (!registeredPaymentsMap.has(loan.id)) {
+        const initialCommission = payments[loan.id]?.initialCommission ||
+          (loan.loantype?.loanPaymentComission
+            ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
+            : '0')
+
+        newPayments[loan.id] = {
+          loanId: loan.id,
+          amount: '0',
+          commission: '0',
+          initialCommission,
+          paymentMethod: payments[loan.id]?.paymentMethod || 'CASH',
+          isNoPayment: true,
+        }
+        newCount++
       }
     })
+
     setPayments(newPayments)
+    setEditedPayments(newEditedPayments)
+
+    const description = registeredCount > 0
+      ? `${registeredCount} pago(s) marcado(s) para eliminar, ${newCount} sin pago.`
+      : `${newCount} préstamo(s) marcado(s) como sin pago.`
+
     toast({
       title: 'Sin pago marcado',
-      description: `${filteredLoans.length} préstamo(s) marcado(s) como sin pago.`,
+      description,
     })
-  }, [payments, toast])
+  }, [payments, editedPayments, toast])
 
   // Apply global commission
   const handleApplyGlobalCommission = useCallback((globalComm: string) => {

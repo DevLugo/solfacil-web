@@ -31,6 +31,7 @@ import {
   UserAddedPaymentRow,
   LoanPaymentRow,
   FalcosPendientesDrawer,
+  RegisteredSectionHeader,
 } from './components'
 import { hasIncompleteAval, hasIncompletePhone } from './utils'
 import type { ActiveLoan } from './types'
@@ -125,7 +126,10 @@ export function AbonosTab() {
   } = usePayments({
     loans,
     selectedLeadId,
+    selectedDate,
     globalCommission,
+    leadPaymentReceivedId,
+    registeredPaymentsMap,
   })
 
   // Totals calculation
@@ -136,7 +140,8 @@ export function AbonosTab() {
     registeredPaymentsMap,
   })
 
-  // Filter loans
+  // Filter and sort loans - pending (not captured) first, captured last
+  // If the day is captured (leadPaymentReceivedId exists), ALL loans are captured
   const filteredLoans = useMemo(() => {
     let filtered = loans
 
@@ -153,8 +158,42 @@ export function AbonosTab() {
       filtered = filtered.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan))
     }
 
-    return filtered
-  }, [loans, searchTerm, showOnlyIncomplete])
+    // If day is captured, no need to sort - all are captured
+    // Otherwise, sort: pending loans first, registered loans last
+    const isDayCaptured = !!leadPaymentReceivedId
+    if (isDayCaptured) {
+      return filtered // All are captured, keep original order
+    }
+
+    return filtered.sort((a, b) => {
+      const aIsRegistered = registeredPaymentsMap.has(a.id)
+      const bIsRegistered = registeredPaymentsMap.has(b.id)
+      if (aIsRegistered === bIsRegistered) return 0
+      return aIsRegistered ? 1 : -1
+    })
+  }, [loans, searchTerm, showOnlyIncomplete, registeredPaymentsMap, leadPaymentReceivedId])
+
+  // Separate loans into pending and captured for rendering
+  // A loan is "captured" if:
+  // 1. It has a registered payment, OR
+  // 2. The day was captured (leadPaymentReceivedId exists) but no payment for this loan (it was a "falta")
+  const { pendingLoans, capturedLoans } = useMemo(() => {
+    const pending: ActiveLoan[] = []
+    const captured: ActiveLoan[] = []
+    const isDayCaptured = !!leadPaymentReceivedId
+
+    filteredLoans.forEach((loan) => {
+      const hasRegisteredPayment = registeredPaymentsMap.has(loan.id)
+      // If day is captured, ALL loans are considered captured (either with payment or as "falta")
+      if (hasRegisteredPayment || isDayCaptured) {
+        captured.push(loan)
+      } else {
+        pending.push(loan)
+      }
+    })
+
+    return { pendingLoans: pending, capturedLoans: captured }
+  }, [filteredLoans, registeredPaymentsMap, leadPaymentReceivedId])
 
   // Counts
   const incompleteCount = useMemo(() => {
@@ -410,7 +449,26 @@ export function AbonosTab() {
       const cashValue = cashTotal - bankTransferValue
       const totalPaid = cashTotal + bankTotal
 
-      await updateLeadPaymentReceived({
+      console.log('[AbonosTab] Sending updateLeadPaymentReceived with:', {
+        id: leadPaymentReceivedId,
+        totalPaid: totalPaid.toString(),
+        cashPaidAmount: cashValue.toString(),
+        bankPaidAmount: (bankTotal + bankTransferValue).toString(),
+        bankTransferValue,
+        totalPayments: paymentsToUpdate.length,
+        deletedPayments: paymentsToUpdate.filter(p => p.isDeleted).length,
+        updatedPayments: paymentsToUpdate.filter(p => !p.isDeleted).length,
+        payments: paymentsToUpdate.map(p => ({
+          paymentId: p.paymentId,
+          loanId: p.loanId,
+          amount: p.amount,
+          comission: p.comission,
+          method: p.paymentMethod,
+          isDeleted: p.isDeleted,
+        })),
+      })
+
+      const result = await updateLeadPaymentReceived({
         variables: {
           id: leadPaymentReceivedId,
           input: {
@@ -422,9 +480,14 @@ export function AbonosTab() {
         },
       })
 
+      // Si se eliminaron todos los pagos, el resultado es null
+      const allDeleted = result.data?.updateLeadPaymentReceived === null
+
       toast({
-        title: 'Cambios guardados',
-        description: `Se actualizaron ${editedCount} pago(s)${deletedCount > 0 ? ` y eliminaron ${deletedCount}` : ''}.`,
+        title: allDeleted ? 'Pagos eliminados' : 'Cambios guardados',
+        description: allDeleted
+          ? `Se eliminaron ${deletedCount} pago(s) del día.`
+          : `Se actualizaron ${editedCount} pago(s)${deletedCount > 0 ? ` y eliminaron ${deletedCount}` : ''}.`,
       })
 
       clearEditedPayments()
@@ -548,7 +611,7 @@ export function AbonosTab() {
               onGlobalCommissionChange={setGlobalCommission}
               onApplyGlobalCommission={() => handleApplyGlobalCommission(globalCommission)}
               onSetAllWeekly={() => handleSetAllWeekly(filteredLoans)}
-              onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoans)}
+              onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoans, registeredPaymentsMap)}
               onClearAll={handleClearAll}
               onAddPayment={handleAddPayment}
               onOpenMultaModal={handleOpenMultaModal}
@@ -618,27 +681,65 @@ export function AbonosTab() {
                   />
                 ))}
 
-                {/* Loan rows */}
-                {filteredLoans.map((loan, index) => (
-                  <LoanPaymentRow
-                    key={loan.id}
-                    loan={loan}
-                    index={index}
-                    payment={payments[loan.id]}
-                    registeredPayment={registeredPaymentsMap.get(loan.id)}
-                    editedPayment={editedPayments[loan.id]}
-                    leadPaymentReceivedId={leadPaymentReceivedId}
+                {/* Pending loan rows (not yet registered) */}
+                {pendingLoans.map((loan, index) => {
+                  const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
+                  return (
+                    <LoanPaymentRow
+                      key={loan.id}
+                      loan={loan}
+                      index={globalIndex}
+                      displayIndex={index + 1}
+                      payment={payments[loan.id]}
+                      registeredPayment={registeredPaymentsMap.get(loan.id)}
+                      editedPayment={editedPayments[loan.id]}
+                      leadPaymentReceivedId={leadPaymentReceivedId}
+                      isAdmin={isAdmin}
+                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
+                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
+                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
+                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
+                      onStartEdit={() => handleStartEditPayment(loan.id, registeredPaymentsMap.get(loan.id)!)}
+                      onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
+                      onToggleDelete={() => handleToggleDeletePayment(loan.id)}
+                      onCancelEdit={() => handleCancelEditPayment(loan.id)}
+                    />
+                  )
+                })}
+
+                {/* Section header for captured payments */}
+                {capturedLoans.length > 0 && (
+                  <RegisteredSectionHeader
+                    registeredCount={capturedLoans.length}
                     isAdmin={isAdmin}
-                    onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
-                    onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
-                    onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
-                    onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, index, shiftKey, filteredLoans)}
-                    onStartEdit={() => handleStartEditPayment(loan.id, registeredPaymentsMap.get(loan.id)!)}
-                    onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
-                    onToggleDelete={() => handleToggleDeletePayment(loan.id)}
-                    onCancelEdit={() => handleCancelEditPayment(loan.id)}
                   />
-                ))}
+                )}
+
+                {/* Captured loan rows (already registered or marked as falta) */}
+                {capturedLoans.map((loan, index) => {
+                  const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
+                  return (
+                    <LoanPaymentRow
+                      key={loan.id}
+                      loan={loan}
+                      index={globalIndex}
+                      displayIndex={pendingLoans.length + index + 1}
+                      payment={payments[loan.id]}
+                      registeredPayment={registeredPaymentsMap.get(loan.id)}
+                      editedPayment={editedPayments[loan.id]}
+                      leadPaymentReceivedId={leadPaymentReceivedId}
+                      isAdmin={isAdmin}
+                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
+                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
+                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
+                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
+                      onStartEdit={() => handleStartEditPayment(loan.id, registeredPaymentsMap.get(loan.id)!)}
+                      onEditChange={(field, value) => handleEditPaymentChange(loan.id, field, value)}
+                      onToggleDelete={() => handleToggleDeletePayment(loan.id)}
+                      onCancelEdit={() => handleCancelEditPayment(loan.id)}
+                    />
+                  )
+                })}
               </TableBody>
             </Table>
           )}

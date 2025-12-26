@@ -32,6 +32,7 @@ export function GlobalCommissionControl({
         inputMode="decimal"
         value={globalComissionAmount}
         onChange={(e) => onGlobalComissionChange(e.target.value)}
+        onWheel={(e) => e.currentTarget.blur()}
         placeholder="0"
         className={cn('h-8 w-20 text-sm', noSpinnerClass)}
       />

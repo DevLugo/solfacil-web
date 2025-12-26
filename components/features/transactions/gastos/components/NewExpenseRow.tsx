@@ -68,6 +68,7 @@ export function NewExpenseRow({
           placeholder="0"
           value={expense.amount}
           onChange={(e) => onUpdate(index, 'amount', e.target.value)}
+          onWheel={(e) => e.currentTarget.blur()}
           className="w-[120px]"
         />
       </TableCell>

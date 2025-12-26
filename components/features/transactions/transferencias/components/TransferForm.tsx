@@ -154,6 +154,7 @@ export function TransferForm({
               placeholder="0"
               value={amount}
               onChange={(e) => onAmountChange(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               disabled={
                 (!sourceAccountId && !isCapitalInvestment) || !destinationAccountId || isSubmitting
               }

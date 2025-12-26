@@ -500,10 +500,22 @@ export function CreateLoansModal({
       clearPendingLoans()
       onSuccess()
       onOpenChange(false)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'No se pudieron guardar los créditos'
+    } catch (error: unknown) {
+      // Extract GraphQL error message if available
+      let errorMessage = 'No se pudieron guardar los créditos'
+
+      if (error && typeof error === 'object') {
+        // Apollo GraphQL errors
+        const apolloError = error as { graphQLErrors?: Array<{ message: string }> }
+        if (apolloError.graphQLErrors && apolloError.graphQLErrors.length > 0) {
+          errorMessage = apolloError.graphQLErrors[0].message
+        } else if ('message' in error && typeof error.message === 'string') {
+          errorMessage = error.message
+        }
+      }
+
       toast({
-        title: 'Error',
+        title: 'Error al guardar créditos',
         description: errorMessage,
         variant: 'destructive',
       })

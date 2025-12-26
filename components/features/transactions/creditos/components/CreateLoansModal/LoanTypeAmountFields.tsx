@@ -101,6 +101,7 @@ export function LoanTypeAmountFields({
             inputMode="decimal"
             value={comissionAmount}
             onChange={(e) => onComissionChange(e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder="0"
             className={cn('h-8 text-sm', noSpinnerClass)}
           />
@@ -161,6 +162,7 @@ export function LoanTypeAmountFields({
               inputMode="decimal"
               value={requestedAmount}
               onChange={(e) => onRequestedAmountChange(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
               className={cn('h-8 text-center text-sm font-medium', noSpinnerClass)}
             />

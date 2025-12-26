@@ -301,6 +301,42 @@ export const statusBadgeStyles = {
   cash: 'bg-success hover:bg-success/90',
   pending: '', // Uses variant="outline"
   zeroCommission: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
+  // Registered variants - more muted/faded versions for already-captured payments
+  registeredPayment: 'bg-emerald-700/80 dark:bg-emerald-600/80 text-white',
+  registeredNoPayment: 'bg-rose-700/80 dark:bg-rose-600/80 text-white',
+} as const
+
+// ============================================================
+// REGISTERED ROW STYLES - Distinct visual for captured payments
+// ============================================================
+
+/**
+ * Styles for registered/captured payment rows
+ * Uses muted, desaturated colors with visual indicators
+ */
+export const registeredRowStyles = {
+  // Container for the entire registered section
+  container: 'relative bg-slate-50/50 dark:bg-slate-900/30 rounded-lg border border-dashed border-slate-300 dark:border-slate-700',
+  // Header for the registered section
+  header: 'flex items-center gap-2 px-4 py-2 bg-slate-100/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 rounded-t-lg',
+  headerText: 'text-sm font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide',
+  headerIcon: 'h-4 w-4 text-slate-500 dark:text-slate-400',
+  // Row styles for registered payments
+  paymentRow: 'bg-emerald-50/60 dark:bg-emerald-950/40 border-l-4 border-l-emerald-500/60 dark:border-l-emerald-400/50',
+  noPaymentRow: 'bg-rose-50/60 dark:bg-rose-950/40 border-l-4 border-l-rose-500/60 dark:border-l-rose-400/50',
+  editingRow: 'bg-amber-50 dark:bg-amber-950/50 border-l-4 border-l-amber-500',
+  deletedRow: 'bg-red-100/80 dark:bg-red-950/60 border-l-4 border-l-red-600',
+} as const
+
+/**
+ * Check icon overlay styles for registered rows
+ * Small visual indicator showing the row is captured
+ */
+export const registeredIndicatorStyles = {
+  wrapper: 'absolute -left-1 top-1/2 -translate-y-1/2 z-10',
+  icon: 'h-5 w-5 p-0.5 rounded-full',
+  paymentIcon: 'bg-emerald-500 text-white dark:bg-emerald-400',
+  noPaymentIcon: 'bg-rose-500 text-white dark:bg-rose-400',
 } as const
 
 // ============================================================

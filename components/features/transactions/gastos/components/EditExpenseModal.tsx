@@ -112,6 +112,7 @@ export function EditExpenseModal({
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
             />
           </div>

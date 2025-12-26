@@ -85,13 +85,18 @@ export function useCreditosQueries({
   const allLoansFromRoute: PreviousLoan[] =
     renewalLoansData?.loans?.edges?.map((edge: { node: PreviousLoan }) => edge.node) || []
 
-  // Para cada cliente, solo mostrar su préstamo MÁS RECIENTE con deuda pendiente
+  // Para cada cliente, solo mostrar su préstamo MÁS RECIENTE que sea ACTIVO y con deuda pendiente
   // Esto garantiza que si aparece en el autocomplete, es renovable
   const loansForRenewal: PreviousLoan[] = (() => {
+    // Primero filtrar solo préstamos ACTIVOS (no renovados, no terminados, no cancelados)
+    const activeLoans = allLoansFromRoute.filter(
+      loan => loan.status === 'ACTIVE' && parseFloat(loan.pendingAmountStored || '0') > 0
+    )
+
     // Agrupar préstamos por borrower
     const loansByBorrower = new Map<string, PreviousLoan[]>()
 
-    allLoansFromRoute.forEach((loan) => {
+    activeLoans.forEach((loan) => {
       const borrowerId = loan.borrower.id
       if (!loansByBorrower.has(borrowerId)) {
         loansByBorrower.set(borrowerId, [])
@@ -99,7 +104,7 @@ export function useCreditosQueries({
       loansByBorrower.get(borrowerId)!.push(loan)
     })
 
-    // Para cada borrower, obtener solo el préstamo más reciente con deuda
+    // Para cada borrower, obtener solo el préstamo más reciente
     const mostRecentLoans: PreviousLoan[] = []
 
     loansByBorrower.forEach((loans) => {
@@ -108,13 +113,9 @@ export function useCreditosQueries({
         new Date(b.signDate).getTime() - new Date(a.signDate).getTime()
       )
 
-      // Tomar el más reciente con deuda pendiente
-      const mostRecentWithDebt = sortedLoans.find(
-        loan => parseFloat(loan.pendingAmountStored || '0') > 0
-      )
-
-      if (mostRecentWithDebt) {
-        mostRecentLoans.push(mostRecentWithDebt)
+      // Tomar el más reciente (ya están filtrados por ACTIVE y con deuda)
+      if (sortedLoans.length > 0) {
+        mostRecentLoans.push(sortedLoans[0])
       }
     })
 
