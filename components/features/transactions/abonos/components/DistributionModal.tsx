@@ -33,6 +33,8 @@ interface DistributionModalProps {
   falcoAmount: string
   onFalcoEnabledChange: (enabled: boolean) => void
   onFalcoAmountChange: (value: string) => void
+  // Distribution-only edit mode
+  isEditingDistributionOnly?: boolean
 }
 
 export function DistributionModal({
@@ -50,11 +52,20 @@ export function DistributionModal({
   falcoAmount,
   onFalcoEnabledChange,
   onFalcoAmountChange,
+  isEditingDistributionOnly = false,
 }: DistributionModalProps) {
   const isSaving = isSubmitting || isSavingEdits
   const bankTransferValue = parseFloat(bankTransferAmount || '0')
   const falcoValue = falcoEnabled ? parseFloat(falcoAmount || '0') : 0
-  const exceedsCash = bankTransferValue > modalTotals.cash
+
+  // For distribution-only mode, calculate the new values after adjustment
+  const adjustedCash = modalTotals.cash - bankTransferValue
+  const adjustedBank = modalTotals.bank + bankTransferValue
+
+  // Validation: can't transfer more than available cash (positive) or more than available bank (negative)
+  const exceedsCash = isEditingDistributionOnly
+    ? bankTransferValue > modalTotals.cash || bankTransferValue < -modalTotals.bank
+    : bankTransferValue > modalTotals.cash
   const falcoExceedsCash = falcoValue > modalTotals.cash
   const combinedExceedsCash = (bankTransferValue + falcoValue) > modalTotals.cash
   const hasValidationError = exceedsCash || falcoExceedsCash || combinedExceedsCash
@@ -85,10 +96,12 @@ export function DistributionModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5 text-primary" />
-            Distribución de Pagos
+            {isEditingDistributionOnly ? 'Editar Distribución' : 'Distribución de Pagos'}
           </DialogTitle>
           <DialogDescription>
-            Confirma la distribución del efectivo cobrado
+            {isEditingDistributionOnly
+              ? 'Ajusta la distribución sin modificar los abonos'
+              : 'Confirma la distribución del efectivo cobrado'}
           </DialogDescription>
         </DialogHeader>
 
@@ -137,7 +150,7 @@ export function DistributionModal({
             <div>
               <Label className="text-sm">Distribución de Efectivo:</Label>
               <div className="mt-1.5 px-3 py-2 h-10 bg-white dark:bg-slate-800 border rounded-md flex items-center font-medium text-sm">
-                {formatCurrency(modalTotals.cash - bankTransferValue)}
+                {formatCurrency(adjustedCash)}
               </div>
               <p className="text-xs text-muted-foreground italic mt-1.5">
                 Solo puedes distribuir: {formatCurrency(modalTotals.cash)} (efectivo real)
@@ -168,44 +181,46 @@ export function DistributionModal({
             </div>
           </div>
 
-          {/* Falco Section */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="falco-toggle"
-                checked={falcoEnabled}
-                onCheckedChange={(checked) => onFalcoEnabledChange(checked === true)}
-              />
-              <Label htmlFor="falco-toggle" className="text-sm cursor-pointer">
-                Registrar falco
-              </Label>
-            </div>
-
-            {falcoEnabled && (
-              <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-3 rounded-md">
-                <Label htmlFor="falco-amount" className="text-sm font-medium">Monto Falco:</Label>
-                <Input
-                  id="falco-amount"
-                  type="number"
-                  min="0"
-                  max={modalTotals.cash}
-                  value={falcoAmount}
-                  onChange={(e) => {
-                    const value = Math.max(0, parseFloat(e.target.value) || 0)
-                    onFalcoAmountChange(value.toString())
-                  }}
-                  className={cn(
-                    "mt-1",
-                    (falcoExceedsCash || combinedExceedsCash) && "border-red-500 border-2"
-                  )}
-                  onWheel={(e) => e.currentTarget.blur()}
+          {/* Falco Section - Only show when not editing distribution only */}
+          {!isEditingDistributionOnly && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="falco-toggle"
+                  checked={falcoEnabled}
+                  onCheckedChange={(checked) => onFalcoEnabledChange(checked === true)}
                 />
-                <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
-                  Este monto se restará del balance de efectivo
-                </p>
+                <Label htmlFor="falco-toggle" className="text-sm cursor-pointer">
+                  Registrar falco
+                </Label>
               </div>
-            )}
-          </div>
+
+              {falcoEnabled && (
+                <div className="border border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-3 rounded-md">
+                  <Label htmlFor="falco-amount" className="text-sm font-medium">Monto Falco:</Label>
+                  <Input
+                    id="falco-amount"
+                    type="number"
+                    min="0"
+                    max={modalTotals.cash}
+                    value={falcoAmount}
+                    onChange={(e) => {
+                      const value = Math.max(0, parseFloat(e.target.value) || 0)
+                      onFalcoAmountChange(value.toString())
+                    }}
+                    className={cn(
+                      "mt-1",
+                      (falcoExceedsCash || combinedExceedsCash) && "border-red-500 border-2"
+                    )}
+                    onWheel={(e) => e.currentTarget.blur()}
+                  />
+                  <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                    Este monto se restará del balance de efectivo
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Error if amounts exceed cash */}
           {hasValidationError && (
@@ -224,36 +239,49 @@ export function DistributionModal({
           <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
             <p className="text-sm text-muted-foreground mb-2">Resumen de la operación:</p>
             <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>{hasEditedPayments ? 'Abonos activos:' : 'Abonos a registrar:'}</span>
-                <span className="font-medium">{modalTotals.count}</span>
-              </div>
-              {modalTotals.deleted > 0 && (
-                <div className="flex justify-between">
-                  <span>Abonos a eliminar:</span>
-                  <span className="font-medium text-red-600">{modalTotals.deleted}</span>
-                </div>
+              {!isEditingDistributionOnly && (
+                <>
+                  <div className="flex justify-between">
+                    <span>{hasEditedPayments ? 'Abonos activos:' : 'Abonos a registrar:'}</span>
+                    <span className="font-medium">{modalTotals.count}</span>
+                  </div>
+                  {modalTotals.deleted > 0 && (
+                    <div className="flex justify-between">
+                      <span>Abonos a eliminar:</span>
+                      <span className="font-medium text-red-600">{modalTotals.deleted}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Total cobrado:</span>
+                    <span className="font-medium">{formatCurrency(modalTotals.total)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Comisiones:</span>
+                    <span className="font-medium text-purple-600">{formatCurrency(modalTotals.commission)}</span>
+                  </div>
+                  {!hasEditedPayments && modalTotals.noPayment > 0 && (
+                    <div className="flex justify-between">
+                      <span>Sin pago:</span>
+                      <span className="font-medium text-red-600">{modalTotals.noPayment}</span>
+                    </div>
+                  )}
+                  {falcoEnabled && falcoValue > 0 && (
+                    <div className="flex justify-between">
+                      <span>Falco:</span>
+                      <span className="font-medium text-orange-600">{formatCurrency(falcoValue)}</span>
+                    </div>
+                  )}
+                </>
               )}
+              {/* For edit distribution mode, show the final distribution */}
               <div className="flex justify-between">
-                <span>Total cobrado:</span>
-                <span className="font-medium">{formatCurrency(modalTotals.total)}</span>
+                <span>Efectivo final:</span>
+                <span className="font-medium text-green-600">{formatCurrency(adjustedCash)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Comisiones:</span>
-                <span className="font-medium text-purple-600">{formatCurrency(modalTotals.commission)}</span>
+                <span>Banco final:</span>
+                <span className="font-medium text-blue-600">{formatCurrency(adjustedBank)}</span>
               </div>
-              {!hasEditedPayments && modalTotals.noPayment > 0 && (
-                <div className="flex justify-between">
-                  <span>Sin pago:</span>
-                  <span className="font-medium text-red-600">{modalTotals.noPayment}</span>
-                </div>
-              )}
-              {falcoEnabled && falcoValue > 0 && (
-                <div className="flex justify-between">
-                  <span>Falco:</span>
-                  <span className="font-medium text-orange-600">{formatCurrency(falcoValue)}</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -278,8 +306,22 @@ export function DistributionModal({
               </>
             ) : (
               <>
-                {hasEditedPayments ? <Pencil className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-                {hasEditedPayments ? 'Actualizar Pagos' : 'Confirmar y Guardar'}
+                {isEditingDistributionOnly ? (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    Actualizar Distribución
+                  </>
+                ) : hasEditedPayments ? (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    Actualizar Pagos
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Confirmar y Guardar
+                  </>
+                )}
               </>
             )}
           </Button>

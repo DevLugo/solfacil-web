@@ -7,6 +7,7 @@ export interface Expense {
   type: string
   expenseSource: string | null
   incomeSource: string | null
+  description?: string | null
   sourceAccount: {
     id: string
     name: string
@@ -42,6 +43,7 @@ export interface NewExpense {
   expenseSource: string
   description: string
   sourceAccountId: string
+  observaciones?: string // Free-form observations/notes
 }
 
 export interface ExpenseType {

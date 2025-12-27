@@ -90,12 +90,13 @@ export function NewExpenseRow({
         </Select>
       </TableCell>
       <TableCell>
-        <Badge
-          variant="outline"
-          className="bg-amber-100 text-amber-700 border-amber-300"
-        >
-          Pendiente
-        </Badge>
+        <Input
+          type="text"
+          placeholder="Observaciones..."
+          value={expense.observaciones || ''}
+          onChange={(e) => onUpdate(index, 'observaciones', e.target.value)}
+          className="w-full"
+        />
       </TableCell>
       <TableCell>
         <Button

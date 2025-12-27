@@ -357,6 +357,26 @@ export const LEAD_PAYMENT_RECEIVED_BY_DATE_QUERY = gql`
   }
 `
 
+// Query to get LeadPaymentReceived by ID (for edit distribution modal)
+export const LEAD_PAYMENT_RECEIVED_BY_ID_QUERY = gql`
+  query LeadPaymentReceivedById($id: ID!) {
+    leadPaymentReceivedById(id: $id) {
+      id
+      expectedAmount
+      paidAmount
+      cashPaidAmount
+      bankPaidAmount
+      falcoAmount
+      paymentStatus
+      payments {
+        id
+        amount
+        paymentMethod
+      }
+    }
+  }
+`
+
 // Query to get loan payments by lead and date (Keystone approach)
 // Gets payments directly with leadPaymentReceived included
 export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
@@ -470,6 +490,7 @@ export const EXPENSES_BY_DATE_QUERY = gql`
           date
           type
           expenseSource
+          description
           sourceAccount {
             id
             name
@@ -919,6 +940,8 @@ export const TRANSACTIONS_SUMMARY_BY_LOCATION_QUERY = gql`
         totalPayments
         cashPayments
         bankPayments
+        bankPaymentsFromClients
+        leaderCashToBank
         paymentCount
         totalPaymentCommissions
         totalLoansGrantedCommissions

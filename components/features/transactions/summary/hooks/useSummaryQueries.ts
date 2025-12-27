@@ -46,6 +46,9 @@ export interface LocalitySummary {
   totalPayments: string
   cashPayments: string
   bankPayments: string
+  // Breakdown of bank payments
+  bankPaymentsFromClients: string
+  leaderCashToBank: string
   paymentCount: number
   // Commissions breakdown
   totalPaymentCommissions: string

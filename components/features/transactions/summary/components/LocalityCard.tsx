@@ -166,16 +166,6 @@ export function LocalityCard({ locality }: LocalityCardProps) {
     [locality.payments]
   )
 
-  const groupedCashPayments = useMemo(
-    () => groupPaymentsByAmount(locality.payments.filter(p => p.paymentMethod === 'CASH')),
-    [locality.payments]
-  )
-
-  const groupedBankPayments = useMemo(
-    () => groupPaymentsByAmount(locality.payments.filter(p => p.paymentMethod === 'MONEY_TRANSFER')),
-    [locality.payments]
-  )
-
   const groupedExpenses = useMemo(
     () => groupExpensesBySource(locality.expenses),
     [locality.expenses]
@@ -277,7 +267,7 @@ export function LocalityCard({ locality }: LocalityCardProps) {
               </div>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">+ Cobranza</span>
+                  <span className="text-muted-foreground">+ Distribución Efectivo</span>
                   <span className="text-green-600 font-medium">{formatCurrency(locality.cashPayments)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -307,10 +297,24 @@ export function LocalityCard({ locality }: LocalityCardProps) {
                 </span>
               </div>
               <div className="space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">+ Abonos Banco</span>
-                  <span className="text-blue-600 font-medium">{formatCurrency(locality.bankPayments)}</span>
-                </div>
+                {(locality.bankPaymentsFromClients || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">+ Transferencias Clientes</span>
+                    <span className="text-blue-600 font-medium">{formatCurrency(locality.bankPaymentsFromClients)}</span>
+                  </div>
+                )}
+                {(locality.leaderCashToBank || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">+ Transferencia Líder</span>
+                    <span className="text-blue-600 font-medium">{formatCurrency(locality.leaderCashToBank)}</span>
+                  </div>
+                )}
+                {(locality.bankPaymentsFromClients || 0) === 0 && (locality.leaderCashToBank || 0) === 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">+ Distribución Banco</span>
+                    <span className="text-blue-600 font-medium">{formatCurrency(locality.bankPayments)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -344,32 +348,21 @@ export function LocalityCard({ locality }: LocalityCardProps) {
               </div>
             )}
 
-            {/* Cash Payments (Cobranza Efectivo) */}
-            {groupedCashPayments.length > 0 && (
+            {/* All Payments (Total Cobrado) */}
+            {groupedPayments.length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                  <Wallet className="h-3 w-3 text-green-600" />
-                  Cobranza Efectivo
+                  <DollarSign className="h-3 w-3 text-primary" />
+                  Total Cobrado ({locality.paymentCount} abonos)
                 </h4>
                 <div className="bg-background rounded-lg px-3 py-1">
-                  {groupedCashPayments.map((group, idx) => (
+                  {groupedPayments.map((group, idx) => (
                     <GroupedPaymentRow key={idx} group={group} />
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Bank Payments (Cobranza Banco) */}
-            {groupedBankPayments.length > 0 && (
-              <div>
-                <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                  <Building2 className="h-3 w-3 text-blue-600" />
-                  Cobranza Banco
-                </h4>
-                <div className="bg-background rounded-lg px-3 py-1">
-                  {groupedBankPayments.map((group, idx) => (
-                    <GroupedPaymentRow key={idx} group={group} />
-                  ))}
+                <div className="mt-2 text-xs text-muted-foreground italic">
+                  Total: {formatCurrency(locality.totalPayments)}
+                  {' '}→ Distribución: {formatCurrency(locality.cashPayments)} efectivo + {formatCurrency(locality.bankPayments)} banco
                 </div>
               </div>
             )}

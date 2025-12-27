@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useQuery, useMutation } from '@apollo/client'
+import { useQuery, useMutation, useApolloClient } from '@apollo/client'
 import { isSameDay } from 'date-fns'
 import {
   ACTIVE_LOANS_BY_LEAD_QUERY,
   ACCOUNTS_QUERY,
   LEAD_PAYMENT_RECEIVED_BY_DATE_QUERY,
+  LEAD_PAYMENT_RECEIVED_BY_ID_QUERY,
 } from '@/graphql/queries/transactions'
 import {
   CREATE_LEAD_PAYMENT_RECEIVED,
@@ -27,6 +28,8 @@ export function useAbonosQueries({
   selectedLeadId,
   selectedDate,
 }: UseAbonosQueriesParams) {
+  const apolloClient = useApolloClient()
+
   // Calculate UTC date range for the selected date
   const { startDateUTC, endDateUTC } = useMemo(() => {
     const start = new Date(selectedDate)
@@ -144,9 +147,29 @@ export function useAbonosQueries({
     )
   }, [accountsData])
 
-  // Refetch all function
+  // Refetch all function - returns the refetched leadPaymentData for immediate use
+  // Force network-only to ensure we get fresh data from server
   const refetchAll = async () => {
-    await Promise.all([refetchLoans(), refetchLeadPayment(), refetchAccounts()])
+    const [, leadPaymentResult] = await Promise.all([
+      refetchLoans(),
+      refetchLeadPayment({ fetchPolicy: 'network-only' }),
+      refetchAccounts(),
+    ])
+    console.log('[refetchAll] leadPaymentResult:', leadPaymentResult)
+    console.log('[refetchAll] leadPaymentResult.data:', leadPaymentResult.data)
+    return { leadPaymentData: leadPaymentResult.data }
+  }
+
+  // Fetch LeadPaymentReceived by ID - for edit distribution modal
+  // This ensures we get the correct record even if selectedDate changed
+  const fetchLeadPaymentById = async (id: string) => {
+    const result = await apolloClient.query({
+      query: LEAD_PAYMENT_RECEIVED_BY_ID_QUERY,
+      variables: { id },
+      fetchPolicy: 'network-only',
+    })
+    console.log('[fetchLeadPaymentById] result:', result.data)
+    return result.data?.leadPaymentReceivedById
   }
 
   // Handle date change refetch
@@ -176,6 +199,7 @@ export function useAbonosQueries({
     updateLeadPaymentReceived,
     // Refetch
     refetchAll,
+    fetchLeadPaymentById,
     refetchLoans,
     refetchLeadPayment,
     refetchAccounts,

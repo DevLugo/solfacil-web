@@ -139,9 +139,11 @@ export function GastosTab() {
   })
 
   // Filtrar gastos por lider si esta seleccionado
+  // Si hay localidad seleccionada: mostrar solo gastos de esa localidad
+  // Si no hay localidad: mostrar solo gastos generales (sin lider asignado)
   const filteredExpenses = selectedLeadId
     ? expenses.filter((e) => e.lead?.id === selectedLeadId)
-    : expenses
+    : expenses.filter((e) => !e.lead?.id)
 
   // Filter accounts based on toggle
   const filteredAccounts = useMemo(() => {
@@ -226,6 +228,7 @@ export function GastosTab() {
               sourceAccountId: expense.sourceAccountId,
               routeId: selectedRouteId,
               leadId: selectedLeadId || undefined,
+              description: expense.observaciones || undefined,
             },
           },
         })
@@ -423,7 +426,7 @@ export function GastosTab() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Monto</TableHead>
                   <TableHead>Cuenta</TableHead>
-                  <TableHead>Lider</TableHead>
+                  <TableHead>Observaciones</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>

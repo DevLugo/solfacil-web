@@ -50,6 +50,9 @@ function convertToClientLocality(serverLocality: ServerLocalitySummary): Localit
     totalPayments: parseFloat(serverLocality.totalPayments) || 0,
     cashPayments: parseFloat(serverLocality.cashPayments) || 0,
     bankPayments: parseFloat(serverLocality.bankPayments) || 0,
+    // Breakdown of bank payments
+    bankPaymentsFromClients: parseFloat(serverLocality.bankPaymentsFromClients) || 0,
+    leaderCashToBank: parseFloat(serverLocality.leaderCashToBank) || 0,
     // Commissions breakdown
     totalPaymentCommissions: parseFloat(serverLocality.totalPaymentCommissions) || 0,
     totalLoansGrantedCommissions: parseFloat(serverLocality.totalLoansGrantedCommissions) || 0,

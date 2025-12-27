@@ -66,8 +66,8 @@ export function ExpenseRow({ expense, onEdit, onDelete }: ExpenseRowProps) {
           )}
         </div>
       </TableCell>
-      <TableCell className="text-muted-foreground">
-        {expense.lead?.personalData?.fullName || 'Sin lider'}
+      <TableCell className="text-muted-foreground text-sm">
+        {expense.description || '-'}
       </TableCell>
       <TableCell>
         <DropdownMenu>

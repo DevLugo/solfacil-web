@@ -224,6 +224,7 @@ type Transaction {
   type: TransactionType!
   incomeSource: String
   expenseSource: String
+  description: String
   profitAmount: Decimal
   returnToCapital: Decimal
   loan: Loan
@@ -343,6 +344,15 @@ type LeadPaymentReceived {
   lead: Employee!
   agent: Employee!
   payments: [LoanPayment!]!
+  falcoCompensatoryPayments: [FalcoCompensatoryPayment!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type FalcoCompensatoryPayment {
+  id: ID!
+  amount: Decimal!
+  leadPaymentReceived: LeadPaymentReceived!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -585,6 +595,9 @@ type PeriodComparison {
 }
 
 type PortfolioSummary {
+  "Clientes activos al INICIO del período (solo para reportes mensuales)"
+  clientesActivosInicio: Int
+  "Clientes activos al FINAL del período"
   totalClientesActivos: Int!
   clientesAlCorriente: Int!
   clientesEnCV: Int!
@@ -765,10 +778,13 @@ type MonthlyFinancialData {
   cashGasolina: Decimal!
   totalGasolina: Decimal!
   badDebtAmount: Decimal!
+  badDebtCapital: Decimal!
+  badDebtProfit: Decimal!
   # Ingresos
   incomes: Decimal!
   # Resultados
   operationalProfit: Decimal!
+  operationalProfitCapitalOnly: Decimal!
   profitPercentage: Decimal!
   gainPerPayment: Decimal!
   # Semanas
@@ -882,6 +898,10 @@ type Query {
   loanPayments(loanId: ID!, limit: Int, offset: Int): [LoanPayment!]! @auth
   loanPaymentsByLeadAndDate(leadId: ID!, startDate: DateTime!, endDate: DateTime!): [LoanPayment!]! @auth
   leadPaymentReceivedByLeadAndDate(leadId: ID!, startDate: DateTime!, endDate: DateTime!): LeadPaymentReceived @auth
+  leadPaymentReceivedById(id: ID!): LeadPaymentReceived @auth
+
+  # Falcos Pendientes (LeadPaymentReceived with falcoAmount > 0)
+  falcosPendientes(routeId: ID, leadId: ID): [LeadPaymentReceived!]! @auth
 
   # Transactions
   transactions(
@@ -1211,6 +1231,7 @@ input UpdateLeadPaymentReceivedInput {
   cashPaidAmount: Decimal
   bankPaidAmount: Decimal
   falcoAmount: Decimal
+  distributionOnlyChange: Boolean
   payments: [UpdatePaymentForLeadInput!]
 }
 
@@ -1221,6 +1242,11 @@ input UpdatePaymentForLeadInput {
   comission: Decimal
   paymentMethod: PaymentMethod!
   isDeleted: Boolean
+}
+
+input CreateFalcoCompensatoryPaymentInput {
+  leadPaymentReceivedId: ID!
+  amount: Decimal!
 }
 
 input CreateAccountInput {
@@ -1241,6 +1267,7 @@ input CreateTransactionInput {
   type: TransactionType!
   incomeSource: String
   expenseSource: String
+  description: String
   sourceAccountId: ID
   destinationAccountId: ID
   loanId: ID
@@ -1437,7 +1464,10 @@ type Mutation {
   updateLoanPayment(id: ID!, input: UpdateLoanPaymentInput!): LoanPayment! @auth
   deleteLoanPayment(id: ID!): LoanPayment! @auth
   createLeadPaymentReceived(input: CreateLeadPaymentReceivedInput!): LeadPaymentReceived! @auth
-  updateLeadPaymentReceived(id: ID!, input: UpdateLeadPaymentReceivedInput!): LeadPaymentReceived! @auth
+  updateLeadPaymentReceived(id: ID!, input: UpdateLeadPaymentReceivedInput!): LeadPaymentReceived @auth
+
+  # Falco Compensatory Payments
+  createFalcoCompensatoryPayment(input: CreateFalcoCompensatoryPaymentInput!): FalcoCompensatoryPayment! @auth
 
   # Accounts
   createAccount(input: CreateAccountInput!): Account! @requireRole(roles: [ADMIN])
@@ -1829,107 +1859,6 @@ type BatchTransferResult {
   transactions: [Transaction!]!
 }
 
-# ========================================
-# TRANSACTION SUMMARY TYPES (Summary Tab)
-# ========================================
-
-"""
-Individual payment summary in a locality
-"""
-type TransactionPaymentSummary {
-  id: ID!
-  borrowerName: String!
-  amount: Decimal!
-  commission: Decimal!
-  paymentMethod: PaymentMethod!
-  date: DateTime!
-}
-
-"""
-Individual expense summary in a locality
-"""
-type TransactionExpenseSummary {
-  id: ID!
-  source: String!
-  sourceLabel: String!
-  amount: Decimal!
-  date: DateTime!
-}
-
-"""
-Individual loan granted summary in a locality
-"""
-type TransactionLoanGrantedSummary {
-  id: ID!
-  borrowerName: String!
-  amount: Decimal!
-  date: DateTime!
-}
-
-"""
-Locality transaction summary - all calculations done server-side
-"""
-type TransactionLocalitySummary {
-  locationKey: String!
-  localityName: String!
-  leaderName: String!
-  leaderId: String!
-  # Payments
-  payments: [TransactionPaymentSummary!]!
-  totalPayments: Decimal!
-  cashPayments: Decimal!
-  bankPayments: Decimal!
-  paymentCount: Int!
-  # Commissions breakdown
-  # Comisiones por cobrar abonos (pago a líder por cobranza)
-  totalPaymentCommissions: Decimal!
-  # Comisiones por otorgar préstamos (pago a líder por colocación)
-  totalLoansGrantedCommissions: Decimal!
-  # Total de comisiones (suma de ambos tipos)
-  totalCommissions: Decimal!
-  # Expenses (excluding automatic ones)
-  expenses: [TransactionExpenseSummary!]!
-  totalExpenses: Decimal!
-  # Loans granted
-  loansGranted: [TransactionLoanGrantedSummary!]!
-  totalLoansGranted: Decimal!
-  loansGrantedCount: Int!
-  # Calculated balances
-  # balanceEfectivo = cashPayments - totalCommissions - totalLoansGranted - totalExpenses
-  balanceEfectivo: Decimal!
-  # balanceBanco = bankPayments
-  balanceBanco: Decimal!
-  # balance = balanceEfectivo + balanceBanco (total)
-  balance: Decimal!
-}
-
-"""
-Executive summary for all localities
-"""
-type TransactionExecutiveSummary {
-  totalPaymentsReceived: Decimal!
-  totalCashPayments: Decimal!
-  totalBankPayments: Decimal!
-  # Commissions breakdown
-  totalPaymentCommissions: Decimal!
-  totalLoansGrantedCommissions: Decimal!
-  totalCommissions: Decimal!
-  totalExpenses: Decimal!
-  totalLoansGranted: Decimal!
-  paymentCount: Int!
-  expenseCount: Int!
-  loansGrantedCount: Int!
-  netBalance: Decimal!
-}
-
-"""
-Full transaction summary response
-"""
-type TransactionSummaryResponse {
-  localities: [TransactionLocalitySummary!]!
-  executiveSummary: TransactionExecutiveSummary!
-}
-
 # Bulk Date Migration Types
 input BulkDateMigrationInput {
   startCreatedAt: DateTime!
@@ -2029,4 +1958,110 @@ input UpdateTelegramUserInput {
   isActive: Boolean
   isInRecipientsList: Boolean
   notes: String
+}
+
+# ========================================
+# TRANSACTION SUMMARY TYPES (Summary Tab)
+# ========================================
+
+"""
+Individual payment summary in a locality
+"""
+type TransactionPaymentSummary {
+  id: ID!
+  borrowerName: String!
+  amount: Decimal!
+  commission: Decimal!
+  paymentMethod: PaymentMethod!
+  date: DateTime!
+}
+
+"""
+Individual expense summary in a locality
+"""
+type TransactionExpenseSummary {
+  id: ID!
+  source: String!
+  sourceLabel: String!
+  amount: Decimal!
+  date: DateTime!
+}
+
+"""
+Individual loan granted summary in a locality
+"""
+type TransactionLoanGrantedSummary {
+  id: ID!
+  borrowerName: String!
+  amount: Decimal!
+  date: DateTime!
+}
+
+"""
+Locality transaction summary - all calculations done server-side
+"""
+type TransactionLocalitySummary {
+  locationKey: String!
+  localityName: String!
+  leaderName: String!
+  leaderId: String!
+  # Payments
+  payments: [TransactionPaymentSummary!]!
+  totalPayments: Decimal!
+  cashPayments: Decimal!
+  bankPayments: Decimal!
+  # Breakdown of bank payments:
+  # - bankPaymentsFromClients: Pagos que clientes hicieron por transferencia
+  bankPaymentsFromClients: Decimal!
+  # - leaderCashToBank: Efectivo que el líder transfirió al banco
+  leaderCashToBank: Decimal!
+  paymentCount: Int!
+  # Commissions breakdown
+  # Comisiones por cobrar abonos (pago a líder por cobranza)
+  totalPaymentCommissions: Decimal!
+  # Comisiones por otorgar préstamos (pago a líder por colocación)
+  totalLoansGrantedCommissions: Decimal!
+  # Total de comisiones (suma de ambos tipos)
+  totalCommissions: Decimal!
+  # Expenses (excluding automatic ones)
+  expenses: [TransactionExpenseSummary!]!
+  totalExpenses: Decimal!
+  # Loans granted
+  loansGranted: [TransactionLoanGrantedSummary!]!
+  totalLoansGranted: Decimal!
+  loansGrantedCount: Int!
+  # Calculated balances
+  # balanceEfectivo = cashPayments - totalCommissions - totalLoansGranted - totalExpenses
+  balanceEfectivo: Decimal!
+  # balanceBanco = bankPayments
+  balanceBanco: Decimal!
+  # balance = balanceEfectivo + balanceBanco (total)
+  balance: Decimal!
+}
+
+"""
+Executive summary for all localities
+"""
+type TransactionExecutiveSummary {
+  totalPaymentsReceived: Decimal!
+  totalCashPayments: Decimal!
+  totalBankPayments: Decimal!
+  # Commissions breakdown
+  totalPaymentCommissions: Decimal!
+  totalLoansGrantedCommissions: Decimal!
+  totalCommissions: Decimal!
+  totalExpenses: Decimal!
+  totalLoansGranted: Decimal!
+  paymentCount: Int!
+  expenseCount: Int!
+  loansGrantedCount: Int!
+  netBalance: Decimal!
+}
+
+"""
+Full transaction summary response
+"""
+type TransactionSummaryResponse {
+  localities: [TransactionLocalitySummary!]!
+  executiveSummary: TransactionExecutiveSummary!
 }

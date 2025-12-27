@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { DollarSign, Ban } from 'lucide-react'
@@ -47,6 +47,9 @@ export function AbonosTab() {
   const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false)
   const [globalCommission, setGlobalCommission] = useState('')
   const [showDistributionModal, setShowDistributionModal] = useState(false)
+  const [isEditingDistributionOnly, setIsEditingDistributionOnly] = useState(false)
+  // For edit distribution mode: store the original cash (before distribution) and money transfer sum
+  const [editDistributionData, setEditDistributionData] = useState<{ originalCash: number; moneyTransferSum: number } | null>(null)
   const [bankTransferAmount, setBankTransferAmount] = useState('0')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingEdits, setIsSavingEdits] = useState(false)
@@ -81,6 +84,7 @@ export function AbonosTab() {
     createLeadPaymentReceived,
     updateLeadPaymentReceived,
     refetchAll,
+    fetchLeadPaymentById,
   } = useAbonosQueries({
     selectedRouteId,
     selectedLeadId,
@@ -139,6 +143,10 @@ export function AbonosTab() {
     userAddedPayments,
     registeredPaymentsMap,
   })
+
+  // NOTE: We intentionally do NOT auto-cap bankTransferAmount when available cash changes
+  // The modal's validation will show an error if transfer exceeds available cash
+  // This allows the user to see their previous transfer value and decide what to do
 
   // Filter and sort loans - pending (not captured) first, captured last
   // If the day is captured (leadPaymentReceivedId exists), ALL loans are captured
@@ -378,13 +386,285 @@ export function AbonosTab() {
   const handleSaveEditedPayments = () => {
     const editsToSave = Object.values(editedPayments)
     if (editsToSave.length === 0) return
-    setBankTransferAmount('0')
+
+    // Check if changes are ONLY commissions (no amount or payment method changes)
+    let hasAmountOrMethodChanges = false
+    for (const edit of editsToSave) {
+      // Find the original payment
+      let originalPayment: { amount: string; paymentMethod: string } | undefined
+      registeredPaymentsMap.forEach((payments) => {
+        const found = payments.find(p => p.id === edit.paymentId)
+        if (found) originalPayment = found
+      })
+
+      if (!originalPayment) continue
+
+      // Check for amount changes (including deletions)
+      const oldAmount = parseFloat(originalPayment.amount || '0')
+      const newAmount = edit.isDeleted ? 0 : parseFloat(edit.amount || '0')
+      if (oldAmount !== newAmount) {
+        hasAmountOrMethodChanges = true
+        break
+      }
+
+      // Check for payment method changes
+      if (originalPayment.paymentMethod !== edit.paymentMethod) {
+        hasAmountOrMethodChanges = true
+        break
+      }
+    }
+
+    // If ONLY commissions changed, save directly without showing distribution modal
+    if (!hasAmountOrMethodChanges) {
+      handleConfirmSaveEditsDirectly()
+      return
+    }
+
+    // Otherwise, show distribution modal for user to confirm distribution
+    // Pre-load the current cashToBank value from the existing distribution
+    // This preserves the user's previous transfer intention
+    const existingRecord = leadPaymentData?.leadPaymentReceivedByLeadAndDate
+    if (existingRecord) {
+      // Calculate current moneyTransferSum from registered payments
+      let currentMoneyTransferSum = 0
+      registeredPaymentsMap.forEach((payments) => {
+        payments.forEach((payment) => {
+          // Check if this payment has a pending edit
+          const edit = editedPayments[payment.id]
+          // Use the NEW method if edited, otherwise use the original
+          const method = edit ? edit.paymentMethod : payment.paymentMethod
+          const amount = edit?.isDeleted ? 0 : (edit ? parseFloat(edit.amount || '0') : parseFloat(payment.amount || '0'))
+          if (method === 'MONEY_TRANSFER') {
+            currentMoneyTransferSum += amount
+          }
+        })
+      })
+
+      // Current cashToBank = bankPaidAmount - moneyTransferSum (from original, not edited)
+      const existingBankPaid = parseFloat(existingRecord.bankPaidAmount || '0')
+      const existingMoneyTransferSum = Array.from(registeredPaymentsMap.values())
+        .flat()
+        .filter(p => p.paymentMethod === 'MONEY_TRANSFER')
+        .reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0)
+      const existingCashToBank = existingBankPaid - existingMoneyTransferSum
+
+      console.log('[handleSaveEditedPayments] Pre-loading distribution:', {
+        existingBankPaid,
+        existingMoneyTransferSum,
+        existingCashToBank,
+        newMoneyTransferSum: currentMoneyTransferSum,
+      })
+
+      // Pre-load with the existing cashToBank value (what leader previously transferred)
+      setBankTransferAmount(Math.max(0, existingCashToBank).toString())
+    } else {
+      setBankTransferAmount('0')
+    }
+
     setFalcoEnabled(false)
     setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
+  // Direct save when only commissions change (no distribution modal needed)
+  const handleConfirmSaveEditsDirectly = async () => {
+    if (!leadPaymentReceivedId) {
+      toast({
+        title: 'Error',
+        description: 'No se encontró el registro de pagos del día. Recarga la página e intenta de nuevo.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSavingEdits(true)
+
+    try {
+      const paymentsToUpdate = Object.values(editedPayments).map((edit) => ({
+        paymentId: edit.paymentId,
+        loanId: edit.loanId,
+        amount: edit.amount,
+        comission: edit.comission,
+        paymentMethod: edit.paymentMethod,
+        isDeleted: edit.isDeleted,
+      }))
+
+      console.log('[AbonosTab] Saving commission-only changes (no distribution change):', {
+        id: leadPaymentReceivedId,
+        paymentsCount: paymentsToUpdate.length,
+      })
+
+      // Only send payments, NO cashPaidAmount or bankPaidAmount
+      // This tells the backend to only update the payments without changing distribution
+      const result = await updateLeadPaymentReceived({
+        variables: {
+          id: leadPaymentReceivedId,
+          input: {
+            payments: paymentsToUpdate,
+          },
+        },
+      })
+
+      const editedCount = Object.values(editedPayments).filter(e => !e.isDeleted).length
+      toast({
+        title: 'Cambios guardados',
+        description: `Se actualizaron las comisiones de ${editedCount} pago(s).`,
+      })
+
+      clearEditedPayments()
+      await refetchAll()
+    } catch (error) {
+      console.error('Error al guardar cambios:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudieron guardar los cambios. Intenta de nuevo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingEdits(false)
+    }
+  }
+
+  // Open modal to edit ONLY the distribution (without modifying payments)
+  const handleEditDistribution = async () => {
+    if (!leadPaymentReceivedId) {
+      toast({
+        title: 'Error',
+        description: 'No hay pagos registrados para editar la distribución.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // IMPORTANT: Fetch by ID to ensure we get the correct record
+    // This prevents issues when selectedDate changes between saves
+    const freshLeadPaymentData = await fetchLeadPaymentById(leadPaymentReceivedId)
+
+    console.log('[handleEditDistribution] Fresh data received by ID:', {
+      id: leadPaymentReceivedId,
+      freshLeadPaymentData,
+      cashPaidAmount: freshLeadPaymentData?.cashPaidAmount,
+      bankPaidAmount: freshLeadPaymentData?.bankPaidAmount,
+      payments: freshLeadPaymentData?.payments,
+    })
+
+    // Calculate the sum of MONEY_TRANSFER payments FROM THE FETCHED RECORD
+    // This ensures we use the correct payments even if selectedDate changed
+    let moneyTransferSum = 0
+    if (freshLeadPaymentData?.payments) {
+      freshLeadPaymentData.payments.forEach((payment: { paymentMethod: string; amount: string }) => {
+        if (payment.paymentMethod === 'MONEY_TRANSFER') {
+          moneyTransferSum += parseFloat(payment.amount || '0')
+        }
+      })
+    }
+
+    // Get current distribution from the FRESH record
+    const currentBankPaid = parseFloat(freshLeadPaymentData?.bankPaidAmount || '0')
+
+    // Calculate how much of the cash was transferred to bank by the leader
+    // cashToBank = bankPaidAmount - moneyTransferSum
+    const cashToBank = currentBankPaid - moneyTransferSum
+
+    // Get current cash distribution
+    const currentCashPaid = parseFloat(freshLeadPaymentData?.cashPaidAmount || '0')
+
+    // Original cash = what's currently in cash + what was transferred to bank
+    const originalCash = currentCashPaid + cashToBank
+
+    console.log('[handleEditDistribution] Calculated values:', {
+      moneyTransferSum,
+      currentBankPaid,
+      currentCashPaid,
+      cashToBank,
+      originalCash,
+    })
+
+    setIsEditingDistributionOnly(true)
+    // Store the original values for the modal
+    setEditDistributionData({ originalCash, moneyTransferSum })
+    // Pre-load with the current transfer amount (what the leader already transferred from cash)
+    setBankTransferAmount(cashToBank.toString())
+    setFalcoEnabled(false)
+    setFalcoAmount('0')
+    setShowDistributionModal(true)
+  }
+
+  // Save ONLY distribution changes (no payment modifications)
+  const handleConfirmDistributionOnly = async () => {
+    if (!leadPaymentReceivedId || !editDistributionData) {
+      toast({
+        title: 'Error',
+        description: 'No se encontró el registro de pagos del día.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSavingEdits(true)
+
+    try {
+      // bankTransferAmount is the TOTAL amount the leader wants to transfer to bank
+      // NOT an adjustment - it's the absolute value
+      const bankTransferValue = parseFloat(bankTransferAmount || '0')
+
+      // Calculate new distribution based on ORIGINAL values:
+      // - originalCash: total cash received from clients (before any transfer to bank)
+      // - moneyTransferSum: what clients paid by transfer (this is fixed, goes directly to bank)
+      const { originalCash, moneyTransferSum } = editDistributionData
+
+      // New cash = original cash - what the leader transfers to bank
+      const newCashPaid = originalCash - bankTransferValue
+      // New bank = money transfers from clients + what the leader transfers
+      const newBankPaid = moneyTransferSum + bankTransferValue
+
+      console.log('[AbonosTab] Saving distribution-only change:', {
+        id: leadPaymentReceivedId,
+        originalCash,
+        moneyTransferSum,
+        leaderTransfer: bankTransferValue,
+        new: { cash: newCashPaid, bank: newBankPaid },
+      })
+
+      await updateLeadPaymentReceived({
+        variables: {
+          id: leadPaymentReceivedId,
+          input: {
+            cashPaidAmount: newCashPaid.toString(),
+            bankPaidAmount: newBankPaid.toString(),
+            distributionOnlyChange: true,
+          },
+        },
+      })
+
+      toast({
+        title: 'Distribución actualizada',
+        description: `Efectivo: ${newCashPaid.toLocaleString()}, Banco: ${newBankPaid.toLocaleString()}`,
+      })
+
+      setShowDistributionModal(false)
+      setIsEditingDistributionOnly(false)
+      setEditDistributionData(null)
+      await refetchAll()
+    } catch (error) {
+      console.error('Error al actualizar distribución:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la distribución. Intenta de nuevo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingEdits(false)
+    }
+  }
+
   const handleConfirmSaveEdits = async () => {
+    // If we're editing distribution only, use the dedicated function
+    if (isEditingDistributionOnly) {
+      await handleConfirmDistributionOnly()
+      return
+    }
+
     if (!leadPaymentReceivedId) {
       toast({
         title: 'Error',
@@ -428,12 +708,13 @@ export function AbonosTab() {
       const existingBankPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.bankPaidAmount || '0')
       const existingTotal = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.paidAmount || '0')
 
-      // Calculate total delta from all edits (amount changes only)
-      let totalDelta = 0
+      // Calculate delta separately for CASH and BANK payments based on payment method
+      let cashDelta = 0
+      let bankDelta = 0
 
       Object.values(editedPayments).forEach((edit) => {
         // Find the original payment to calculate delta
-        let originalPayment: { amount: string } | undefined
+        let originalPayment: { amount: string; paymentMethod: string } | undefined
         registeredPaymentsMap.forEach((payments) => {
           const found = payments.find(p => p.id === edit.paymentId)
           if (found) originalPayment = found
@@ -443,26 +724,94 @@ export function AbonosTab() {
 
         const oldAmount = parseFloat(originalPayment.amount || '0')
         const newAmount = edit.isDeleted ? 0 : parseFloat(edit.amount || '0')
-        totalDelta += (newAmount - oldAmount)
+        const amountDelta = newAmount - oldAmount
+
+        // Determine where the delta goes based on NEW payment method
+        // (if method changed, the full amount moves between accounts)
+        const oldMethod = originalPayment.paymentMethod
+        const newMethod = edit.paymentMethod
+
+        if (oldMethod === newMethod) {
+          // Same method: delta goes to the same account
+          if (newMethod === 'MONEY_TRANSFER') {
+            bankDelta += amountDelta
+          } else {
+            cashDelta += amountDelta
+          }
+        } else {
+          // Method changed: old amount leaves one account, new amount enters another
+          if (oldMethod === 'MONEY_TRANSFER') {
+            bankDelta -= oldAmount  // Remove from bank
+            cashDelta += newAmount  // Add to cash
+          } else {
+            cashDelta -= oldAmount  // Remove from cash
+            bankDelta += newAmount  // Add to bank
+          }
+        }
       })
+
+      const totalDelta = cashDelta + bankDelta
 
       // New total = existing + delta
       const newTotalPaid = existingTotal + totalDelta
 
+      // IMPORTANT: existingCashPaid and existingBankPaid already have the OLD cashToBank baked in:
+      // - existingCashPaid = (original CASH payments) - oldCashToBank
+      // - existingBankPaid = (original MONEY_TRANSFER payments) + oldCashToBank
+      //
+      // To correctly apply the NEW bankTransferValue, we need to:
+      // 1. Calculate the OLD cashToBank that's already applied
+      // 2. Use the DIFFERENCE between new and old cashToBank
+
+      // Calculate OLD cashToBank from existing distribution
+      const existingMoneyTransferSum = Array.from(registeredPaymentsMap.values())
+        .flat()
+        .filter(p => p.paymentMethod === 'MONEY_TRANSFER')
+        .reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0)
+      const oldCashToBank = existingBankPaid - existingMoneyTransferSum
+
       // For cash/bank distribution:
-      // - If user didn't request a bank transfer, maintain the existing distribution proportionally
-      // - If totalDelta > 0, add to cash (leader collects more cash)
-      // - If totalDelta < 0, subtract from cash (leader collected less)
-      // - bankTransferAmount allows user to explicitly move cash to bank
-      const bankTransferValue = parseFloat(bankTransferAmount || '0')
-      const newCashPaid = existingCashPaid + totalDelta - bankTransferValue
-      const newBankPaid = existingBankPaid + bankTransferValue
+      // - cashDelta goes to cash, bankDelta goes to bank (based on payment methods)
+      // - bankTransferAmount is the NEW total leader transfer (not a delta)
+      let newCashToBank = parseFloat(bankTransferAmount || '0')
+
+      // Calculate the "raw" cash BEFORE any leader transfer
+      // This is the cash that would exist if the leader transferred nothing
+      const rawCashAfterMethodChanges = existingCashPaid + oldCashToBank + cashDelta
+
+      // Safety check: if newCashToBank exceeds available raw cash, adjust and warn
+      if (newCashToBank > rawCashAfterMethodChanges) {
+        const adjustedValue = Math.max(0, rawCashAfterMethodChanges)
+        console.log('[AbonosTab] Auto-adjusting bankTransferValue:', {
+          requested: newCashToBank,
+          availableCash: rawCashAfterMethodChanges,
+          adjusted: adjustedValue,
+        })
+        toast({
+          title: 'Transferencia ajustada',
+          description: `La transferencia se ajustó de ${newCashToBank} a ${adjustedValue} (máximo disponible).`,
+          variant: 'default',
+        })
+        newCashToBank = adjustedValue
+      }
+
+      // Calculate NEW distribution using the transfer delta
+      // cashToBankDelta = how much MORE/LESS to transfer vs before
+      const cashToBankDelta = newCashToBank - oldCashToBank
+      const newCashPaid = existingCashPaid + cashDelta - cashToBankDelta
+      const newBankPaid = existingBankPaid + bankDelta + cashToBankDelta
 
       console.log('[AbonosTab] Sending updateLeadPaymentReceived with:', {
         id: leadPaymentReceivedId,
         existing: { total: existingTotal, cash: existingCashPaid, bank: existingBankPaid },
-        totalDelta,
-        bankTransferValue,
+        deltas: { cash: cashDelta, bank: bankDelta, total: totalDelta },
+        transfer: {
+          existingMoneyTransferSum,
+          oldCashToBank,
+          newCashToBank,
+          cashToBankDelta,
+          rawCashAfterMethodChanges,
+        },
         new: { total: newTotalPaid, cash: newCashPaid, bank: newBankPaid },
         editedPaymentsCount: paymentsToUpdate.length,
         deletedPayments: paymentsToUpdate.filter(p => p.isDeleted).length,
@@ -609,6 +958,7 @@ export function AbonosTab() {
                 showOnlyIncomplete={showOnlyIncomplete}
                 onToggleIncomplete={() => setShowOnlyIncomplete(!showOnlyIncomplete)}
                 leadPaymentDistribution={leadPaymentData?.leadPaymentReceivedByLeadAndDate}
+                onEditDistribution={handleEditDistribution}
               />
             </div>
 
@@ -789,19 +1139,42 @@ export function AbonosTab() {
       {/* Modals */}
       <DistributionModal
         open={showDistributionModal}
-        onOpenChange={setShowDistributionModal}
+        onOpenChange={(open) => {
+          setShowDistributionModal(open)
+          if (!open) {
+            setIsEditingDistributionOnly(false)
+            setEditDistributionData(null)
+          }
+        }}
         isSubmitting={isSubmitting}
         isSavingEdits={isSavingEdits}
         savingProgress={savingProgress}
-        modalTotals={modalTotals}
+        modalTotals={isEditingDistributionOnly && editDistributionData ? {
+          // When editing distribution only:
+          // - cash: the ORIGINAL cash received (before any was transferred to bank)
+          // - bank: only MONEY_TRANSFER payments (what clients paid by transfer - not editable)
+          // - total: total of all payments
+          total: parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.paidAmount || '0'),
+          cash: editDistributionData.originalCash,
+          bank: editDistributionData.moneyTransferSum,
+          commission: 0,
+          count: 0,
+          noPayment: 0,
+          deleted: 0,
+        } : modalTotals}
         bankTransferAmount={bankTransferAmount}
         onBankTransferAmountChange={setBankTransferAmount}
-        hasEditedPayments={hasEditedPayments}
-        onConfirm={hasEditedPayments ? handleConfirmSaveEdits : handleConfirmSave}
+        hasEditedPayments={hasEditedPayments || isEditingDistributionOnly}
+        onConfirm={
+          isEditingDistributionOnly
+            ? handleConfirmDistributionOnly
+            : (hasEditedPayments ? handleConfirmSaveEdits : handleConfirmSave)
+        }
         falcoEnabled={falcoEnabled}
         falcoAmount={falcoAmount}
         onFalcoEnabledChange={setFalcoEnabled}
         onFalcoAmountChange={setFalcoAmount}
+        isEditingDistributionOnly={isEditingDistributionOnly}
       />
 
       <SuccessDialog

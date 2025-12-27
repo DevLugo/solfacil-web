@@ -43,6 +43,11 @@ export interface LocalitySummary {
   totalPayments: number
   cashPayments: number
   bankPayments: number
+  // Breakdown of bank payments:
+  // - bankPaymentsFromClients: Pagos que clientes hicieron por transferencia
+  bankPaymentsFromClients: number
+  // - leaderCashToBank: Efectivo que el líder transfirió al banco
+  leaderCashToBank: number
   // Commissions breakdown
   // Comisiones por cobrar abonos (pago a líder por cobranza)
   totalPaymentCommissions: number

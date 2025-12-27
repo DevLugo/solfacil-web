@@ -7,6 +7,7 @@ import {
   Wallet,
   Building2,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -35,6 +36,7 @@ interface KPIBadgesProps {
   showOnlyIncomplete: boolean
   onToggleIncomplete: () => void
   leadPaymentDistribution?: LeadPaymentDistribution | null
+  onEditDistribution?: () => void
 }
 
 // Base badge class for all KPI badges
@@ -49,6 +51,7 @@ export function KPIBadges({
   showOnlyIncomplete,
   onToggleIncomplete,
   leadPaymentDistribution,
+  onEditDistribution,
 }: KPIBadgesProps) {
   // Parse distribution values
   const distributionCash = parseFloat(leadPaymentDistribution?.cashPaidAmount || '0')
@@ -165,6 +168,22 @@ export function KPIBadges({
           </TooltipTrigger>
           <TooltipContent><p>Cobrado por transferencia</p></TooltipContent>
         </Tooltip>
+
+        {/* Edit distribution button - only show when there's an existing distribution */}
+        {hasDistribution && onEditDistribution && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={cn(kpiBadgeBase, 'cursor-pointer hover:bg-primary/10 transition-colors')}
+                onClick={onEditDistribution}
+              >
+                <Pencil className="h-3 w-3" />
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent><p>Editar distribución (efectivo/banco)</p></TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Total */}
         <Tooltip>

@@ -2,7 +2,9 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-export const typeDefs = readFileSync(join(__dirname, 'schema.graphql'), 'utf-8')
+// Use __dirname equivalent for CommonJS in ESM
+const schemaPath = join(__dirname || process.cwd(), 'schema.graphql')
+export const typeDefs = readFileSync(schemaPath, 'utf-8')
 
 // Export scalars
 export { scalars, DecimalScalar } from './scalars'
