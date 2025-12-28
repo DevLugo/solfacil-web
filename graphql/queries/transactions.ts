@@ -831,6 +831,9 @@ export const ACTIVE_LOANS_FOR_RENEWAL_QUERY = gql`
           expectedWeeklyPayment
           totalPaid
           status
+          renewedBy {
+            id
+          }
           loantype {
             id
             name

@@ -85,13 +85,24 @@ export function useCreditosQueries({
   const allLoansFromRoute: PreviousLoan[] =
     renewalLoansData?.loans?.edges?.map((edge: { node: PreviousLoan }) => edge.node) || []
 
-  // Para cada cliente, solo mostrar su préstamo MÁS RECIENTE que sea ACTIVO y con deuda pendiente
-  // Esto garantiza que si aparece en el autocomplete, es renovable
+  // Para cada cliente, solo mostrar su préstamo MÁS RECIENTE que sea ACTIVO y renovable
+  // Incluye préstamos con 0 deuda (ya pagados) porque aún se pueden renovar
   const loansForRenewal: PreviousLoan[] = (() => {
-    // Primero filtrar solo préstamos ACTIVOS (no renovados, no terminados, no cancelados)
+    // DEBUG: Ver todos los préstamos que llegan del query
+    console.log('[useCreditosQueries] allLoansFromRoute count:', allLoansFromRoute.length)
+    allLoansFromRoute.forEach((loan, i) => {
+      console.log(`[useCreditosQueries] Loan ${i}: borrower=${loan.borrower?.personalData?.fullName}, status=${loan.status}, pending=${loan.pendingAmountStored}, renewedBy=${JSON.stringify(loan.renewedBy)}`)
+    })
+
+    // Filtrar préstamos que son renovables:
+    // - ACTIVE (no RENOVATED, FINISHED, etc.)
+    // - Sin renewedBy (no han sido renovados por otro préstamo)
+    // Nota: Incluimos préstamos con 0 deuda porque aún se pueden renovar
     const activeLoans = allLoansFromRoute.filter(
-      loan => loan.status === 'ACTIVE' && parseFloat(loan.pendingAmountStored || '0') > 0
+      loan => loan.status === 'ACTIVE' && !loan.renewedBy
     )
+
+    console.log('[useCreditosQueries] activeLoans after filter:', activeLoans.length)
 
     // Agrupar préstamos por borrower
     const loansByBorrower = new Map<string, PreviousLoan[]>()

@@ -133,6 +133,7 @@ export interface PreviousLoan {
   expectedWeeklyPayment: string
   totalPaid: string
   status: string
+  renewedBy?: { id: string } | null  // Préstamo que renovó este (si existe, ya fue renovado)
   loantype: LoanType
   borrower: Borrower
   collaterals: PersonalData[]
