@@ -389,17 +389,9 @@ export default function PortfolioReportPage() {
       tasaRenovacion: safeNumber(report.renovationKPIs.tasaRenovacion),
     }
 
-    // Override with locality report averages if available (with NaN protection)
-    if (localityReport?.totals) {
-      const alCorriente = localityReport.totals.alCorrientePromedio
-      const cv = localityReport.totals.cvPromedio
-      if (alCorriente !== undefined && !Number.isNaN(alCorriente)) {
-        currentMonth.alCorrientePromedio = alCorriente
-      }
-      if (cv !== undefined && !Number.isNaN(cv)) {
-        currentMonth.cvPromedio = cv
-      }
-    }
+    // NOTA: Se usa directamente el valor de getMonthlyReport.summary.promedioCV
+    // El override con localityReport.totals.cvPromedio causaba valores incorrectos
+    // debido a diferencias en cómo se calculan los campos en getLocalityReport
 
     // Previous month data
     const previousMonth = previousReport
