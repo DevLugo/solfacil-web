@@ -87,7 +87,7 @@ export interface LoanHistoryDetail {
   clientDui: string | null
 }
 
-export type LoanStatus = 'ACTIVE' | 'FINISHED' | 'RENOVATED' | 'CANCELLED'
+export type LoanStatus = 'ACTIVE' | 'FINISHED' | 'CANCELLED'
 
 export interface LoanPaymentDetail {
   id: string

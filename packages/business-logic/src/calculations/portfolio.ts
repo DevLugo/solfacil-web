@@ -242,10 +242,9 @@ export function isNewClient(loan: LoanForPortfolio): boolean {
 /**
  * Checks if a loan represents a client who finished without renewing
  *
- * Uses both renewedDate and status to determine if the loan was renewed.
  * A loan finished without renewal if:
  * - finishedDate is in the period AND
- * - renewedDate is null AND status is NOT 'RENOVATED'
+ * - renewedDate is null
  *
  * @param loan - Loan to check
  * @param periodStart - Start of the period to check
@@ -264,8 +263,8 @@ export function isFinishedWithoutRenewal(
   const finishedInPeriod =
     loan.finishedDate >= periodStart && loan.finishedDate <= periodEnd
 
-  // Check both renewedDate and status to determine if it was renewed
-  const wasRenewed = loan.renewedDate !== null || loan.status === 'RENOVATED'
+  // Check renewedDate to determine if it was renewed
+  const wasRenewed = loan.renewedDate !== null
 
   return finishedInPeriod && !wasRenewed
 }
@@ -273,8 +272,7 @@ export function isFinishedWithoutRenewal(
 /**
  * Checks if a loan represents a renewal in the period
  *
- * Uses renewedDate as primary indicator. If renewedDate is null but
- * status is 'RENOVATED', uses finishedDate as fallback date.
+ * Uses renewedDate to determine if it was renewed in the period.
  *
  * @param loan - Loan to check
  * @param periodStart - Start of the period to check
@@ -286,17 +284,11 @@ export function isRenewalInPeriod(
   periodStart: Date,
   periodEnd: Date
 ): boolean {
-  // Primary: use renewedDate if available
-  if (loan.renewedDate !== null) {
-    return loan.renewedDate >= periodStart && loan.renewedDate <= periodEnd
+  if (loan.renewedDate === null) {
+    return false
   }
 
-  // Fallback: if status is RENOVATED but renewedDate is null, use finishedDate
-  if (loan.status === 'RENOVATED' && loan.finishedDate !== null) {
-    return loan.finishedDate >= periodStart && loan.finishedDate <= periodEnd
-  }
-
-  return false
+  return loan.renewedDate >= periodStart && loan.renewedDate <= periodEnd
 }
 
 /**

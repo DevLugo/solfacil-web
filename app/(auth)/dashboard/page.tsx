@@ -348,7 +348,7 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Cartera Vencida"
-              value={portfolioStats?.clientesEnCV ?? stats?.activeLoansBreakdown?.carteraVencida ?? 0}
+              value={portfolioStats?.promedioCV ?? portfolioStats?.clientesEnCV ?? stats?.activeLoansBreakdown?.carteraVencida ?? 0}
               icon={UserX}
               variant="danger"
               change={portfolioStats?.comparison?.cvChange}

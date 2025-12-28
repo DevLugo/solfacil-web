@@ -20,9 +20,10 @@ export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
     ? Math.round((loan.totalPaid / loan.totalAmountDue) * 100)
     : 0
 
-  // Use centralized status logic from constants
-  const effectiveStatus = mapApiStatus(loan.status, loan.wasRenewed)
-  const isActive = effectiveStatus === 'active'
+  // Determine status and renewal separately
+  const effectiveStatus = mapApiStatus(loan.status)
+  const isActive = loan.status === 'ACTIVE'
+  const wasRenewed = loan.wasRenewed === true
 
   return (
     <Card
@@ -33,12 +34,17 @@ export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
       onClick={onToggleExpand}
     >
       <div className="p-2.5">
-        {/* Row 1: Date, Status, Progress */}
+        {/* Row 1: Date, Status, Renewed badge, Progress */}
         <div className="flex items-center gap-2 mb-2">
           <div className="text-xs font-medium">{loan.signDateFormatted}</div>
           <StatusBadge variant={statusToBadgeVariant[effectiveStatus]}>
             {statusLabels[effectiveStatus]}
           </StatusBadge>
+          {wasRenewed && (
+            <StatusBadge variant="info">
+              Renovado
+            </StatusBadge>
+          )}
 
           {/* Progress Bar - fills remaining space */}
           <div className="flex-1 flex items-center gap-2">

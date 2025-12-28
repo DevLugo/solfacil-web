@@ -95,7 +95,7 @@ export function useCreditosQueries({
     })
 
     // Filtrar préstamos que son renovables:
-    // - ACTIVE (no RENOVATED, FINISHED, etc.)
+    // - status ACTIVE (no FINISHED, CANCELLED)
     // - Sin renewedBy (no han sido renovados por otro préstamo)
     // Nota: Incluimos préstamos con 0 deuda porque aún se pueden renovar
     const activeLoans = allLoansFromRoute.filter(

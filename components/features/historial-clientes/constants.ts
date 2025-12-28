@@ -5,7 +5,7 @@
 // LOAN STATUS STYLES
 // ============================================================
 
-export type LoanStatusType = 'active' | 'completed' | 'renewed' | 'cancelled'
+export type LoanStatusType = 'active' | 'finished' | 'cancelled'
 export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info'
 
 /**
@@ -13,8 +13,7 @@ export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info'
  */
 export const statusToBadgeVariant: Record<LoanStatusType, BadgeVariant> = {
   active: 'success',
-  completed: 'default',
-  renewed: 'info',
+  finished: 'default',
   cancelled: 'danger',
 }
 
@@ -23,21 +22,20 @@ export const statusToBadgeVariant: Record<LoanStatusType, BadgeVariant> = {
  */
 export const statusLabels: Record<LoanStatusType, string> = {
   active: 'Activo',
-  completed: 'Terminado',
-  renewed: 'Renovado',
+  finished: 'Terminado',
   cancelled: 'Cancelado',
 }
 
 /**
  * Maps API loan status to internal status type
+ * Note: wasRenewed is no longer used for status - use it separately for the renewal badge
  */
 export const mapApiStatus = (
   apiStatus: string,
-  wasRenewed: boolean
+  _wasRenewed?: boolean // kept for backward compatibility
 ): LoanStatusType => {
   if (apiStatus === 'CANCELLED') return 'cancelled'
-  if (wasRenewed) return 'renewed'
-  if (apiStatus === 'FINISHED') return 'completed'
+  if (apiStatus === 'FINISHED') return 'finished'
   return 'active'
 }
 

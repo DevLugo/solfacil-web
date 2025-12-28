@@ -89,14 +89,14 @@ export function useAbonosQueries({
 
     // Filter loans:
     // - ACTIVE loans: always show (can receive new payments)
-    // - FINISHED/RENEWED loans: only show if they have a payment on the selected date
+    // - FINISHED loans: only show if they have a payment on the selected date
     const filteredLoans = rawLoans.filter((loan: ActiveLoan) => {
       if (loan.status === 'ACTIVE') {
         return true
       }
-      // For FINISHED or RENOVATED loans, check if there's a payment on the selected date
-      // This handles cases where a loan was renovated but had a payment registered that same day
-      if (loan.status === 'FINISHED' || loan.status === 'RENOVATED') {
+      // For FINISHED loans, check if there's a payment on the selected date
+      // This handles cases where a loan was finished/renewed but had a payment registered that same day
+      if (loan.status === 'FINISHED') {
         const hasPaymentOnDate = loan.payments?.some((payment) =>
           isSameDay(new Date(payment.receivedAt), selectedDate)
         )

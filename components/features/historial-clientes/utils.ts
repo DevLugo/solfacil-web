@@ -41,7 +41,6 @@ export const formatPaymentMethod = (method: string): string =>
 export const loanStatusLabels: Record<string, string> = {
   ACTIVE: 'Activo',
   FINISHED: 'Terminado',
-  RENOVATED: 'Renovado',
   CANCELLED: 'Cancelado',
   BAD_DEBT: 'Cartera Vencida',
 }
@@ -131,9 +130,9 @@ export const generatePaymentChronology = (
   const signDate = new Date(loan.signDate)
   const now = new Date()
 
-  // Check if loan is finished or renewed - don't show "no payment" after this
-  const isFinished = loan.status === 'FINISHED' || loan.status === 'RENOVATED'
-  const isRenewed = loan.wasRenewed === true || loan.status === 'RENOVATED'
+  // Check if loan is finished - don't show "no payment" after this
+  const isFinished = loan.status === 'FINISHED'
+  const isRenewed = loan.wasRenewed === true
   const finishedDate = loan.finishedDate ? new Date(loan.finishedDate) : null
 
   // Determine end date for evaluation
@@ -536,14 +535,14 @@ export const mapLoanToCardData = (loan: LoanHistoryDetail) => {
     status: getPaymentStatus(item),
   }))
 
-  let status: 'active' | 'completed' | 'renewed' = 'active'
-  if (loan.status === 'FINISHED') status = 'completed'
-  if (loan.wasRenewed || loan.status === 'RENOVATED') status = 'renewed'
+  let status: 'active' | 'finished' = 'active'
+  if (loan.status === 'FINISHED') status = 'finished'
 
   return {
     id: loan.id,
     date: loan.signDateFormatted,
     status,
+    wasRenewed: loan.wasRenewed || false,
     amount: loan.amountRequested,
     totalAmount: loan.totalAmountDue,
     paidAmount: loan.totalPaid,
