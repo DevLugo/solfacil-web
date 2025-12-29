@@ -77,9 +77,9 @@ export function RouteStatsCard({
 }: RouteStatsCardProps) {
   // Clientes = last week total, Pagando/CV = averages
   // Use route values as fallback when deltas are 0 or undefined
-  const clientes = (deltas?.lastWeekClientes || 0) > 0 ? deltas.lastWeekClientes : route.clientesActivos
-  const pagando = (deltas?.pagandoPromedio || 0) > 0 ? deltas.pagandoPromedio : route.clientesAlCorriente
-  const cv = (deltas?.cvPromedio || 0) > 0 ? deltas.cvPromedio : route.clientesEnCV
+  const clientes = (deltas?.lastWeekClientes ?? 0) > 0 ? deltas!.lastWeekClientes : route.clientesActivos
+  const pagando = (deltas?.pagandoPromedio ?? 0) > 0 ? deltas!.pagandoPromedio : route.clientesAlCorriente
+  const cv = (deltas?.cvPromedio ?? 0) > 0 ? deltas!.cvPromedio : route.clientesEnCV
 
   const cvPercentage = clientes > 0 ? (cv / clientes) * 100 : 0
   const pagandoPercentage = clientes > 0 ? (pagando / clientes) * 100 : 0
