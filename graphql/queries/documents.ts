@@ -9,6 +9,7 @@ export const GET_LOANS_BY_WEEK_LOCATION = gql`
   query GetLoansByWeekAndLocation(
     $year: Int!
     $weekNumber: Int!
+    $routeId: ID
     $locationId: ID
     $limit: Int
     $offset: Int
@@ -16,6 +17,7 @@ export const GET_LOANS_BY_WEEK_LOCATION = gql`
     loansByWeekAndLocation(
       year: $year
       weekNumber: $weekNumber
+      routeId: $routeId
       locationId: $locationId
       limit: $limit
       offset: $offset

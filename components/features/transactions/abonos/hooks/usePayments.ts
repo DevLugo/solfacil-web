@@ -32,7 +32,10 @@ export function usePayments({
 
   // Function to initialize payments for pending loans
   const initializePayments = useCallback(() => {
-    if (loans.length === 0) return
+    if (loans.length === 0) {
+      setPayments({})
+      return
+    }
 
     const isDayCaptured = !!leadPaymentReceivedId
     const initialPayments: Record<string, PaymentEntry> = {}
@@ -60,17 +63,27 @@ export function usePayments({
         isNoPayment: false,
       }
     })
-    setPayments(initialPayments)
+
+    // Only update state if we have payments to initialize
+    // This prevents infinite loops when all loans are registered/faltas
+    setPayments((prev) => {
+      const prevKeys = Object.keys(prev).sort().join(',')
+      const newKeys = Object.keys(initialPayments).sort().join(',')
+      // Skip update if same loans are already initialized
+      if (prevKeys === newKeys && prevKeys.length > 0) {
+        return prev
+      }
+      return initialPayments
+    })
   }, [loans, leadPaymentReceivedId, registeredPaymentsMap])
 
   // Initialize payments when loans are loaded or after reset
   // IMPORTANT: Only initialize for PENDING loans (not captured or registered)
   // Faltas (captured day + no registered payment) should NOT be initialized
   useEffect(() => {
-    if (loans.length > 0 && Object.keys(payments).length === 0) {
-      initializePayments()
-    }
-  }, [loans, leadPaymentReceivedId, registeredPaymentsMap, resetCounter, initializePayments, payments])
+    initializePayments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loans.length, leadPaymentReceivedId, registeredPaymentsMap.size, resetCounter])
 
   // Reset when lead or date changes
   useEffect(() => {

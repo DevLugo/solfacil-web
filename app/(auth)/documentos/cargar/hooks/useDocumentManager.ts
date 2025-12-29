@@ -43,7 +43,7 @@ export function useDocumentManager() {
     skip: !selectedRouteId,
   })
 
-  // Fetch loans by week and location (location is optional)
+  // Fetch loans by week and route/location (location is optional)
   const {
     data: loansData,
     loading: loansLoading,
@@ -53,8 +53,10 @@ export function useDocumentManager() {
     variables: {
       year: weekInfo.year,
       weekNumber: weekInfo.weekNumber,
+      routeId: selectedRouteId || undefined,
       locationId: selectedLocation || undefined,
     },
+    skip: !selectedRouteId, // Only fetch when a route is selected
     fetchPolicy: 'cache-and-network',
   })
 

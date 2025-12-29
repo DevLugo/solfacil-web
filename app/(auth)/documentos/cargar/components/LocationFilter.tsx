@@ -61,13 +61,13 @@ export function LocationFilter({
 
       <div className="space-y-2">
         <Label htmlFor="location-select">
-          Localidad <span className="text-destructive">*</span>
+          Localidad <span className="text-muted-foreground text-xs">(opcional)</span>
         </Label>
         <SearchableSelect
           options={locationOptions}
           value={selectedLocationId || null}
           onValueChange={(value) => onLocationChange(value || '')}
-          placeholder={selectedRouteId ? 'Selecciona una localidad...' : 'Primero selecciona una ruta'}
+          placeholder={selectedRouteId ? 'Todas las localidades' : 'Primero selecciona una ruta'}
           searchPlaceholder="Buscar localidad..."
           emptyText={selectedRouteId ? 'No hay localidades disponibles' : 'Primero selecciona una ruta'}
           disabled={disabled || !selectedRouteId}
@@ -78,13 +78,7 @@ export function LocationFilter({
 
       {!selectedRouteId && (
         <p className="text-sm text-muted-foreground">
-          Selecciona una ruta para ver las localidades disponibles
-        </p>
-      )}
-
-      {selectedRouteId && !selectedLocationId && locations.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Selecciona una localidad para ver los préstamos de la semana
+          Selecciona una ruta para ver los préstamos de la semana
         </p>
       )}
     </div>

@@ -33,6 +33,7 @@ export const SEARCH_CLIENTS_QUERY = gql`
       activeLoans
       finishedLoans
       collateralLoans
+      pendingDebt
     }
   }
 `

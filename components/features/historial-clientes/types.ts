@@ -17,6 +17,7 @@ export interface ClientSearchResult {
   activeLoans: number
   finishedLoans: number
   collateralLoans: number
+  pendingDebt: number
 }
 
 export interface ClientInfo {

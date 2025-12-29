@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLazyQuery } from '@apollo/client'
-import { Search, User, ChevronsUpDown, Trash2, FileText, FileDown, Loader2 } from 'lucide-react'
+import { Search, User, ChevronsUpDown, Trash2, FileText, FileDown, Loader2, MapPin, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -138,7 +138,7 @@ export function SearchBar({
               <PopoverContent
                 className="p-0"
                 align="start"
-                style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '300px' }}
+                style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '400px' }}
               >
                 <Command shouldFilter={false}>
                   <CommandInput
@@ -173,25 +173,65 @@ export function SearchBar({
 
                     {results.length > 0 && (
                       <CommandGroup>
-                        {results.map((client) => (
-                          <CommandItem
-                            key={client.id}
-                            value={client.id}
-                            onSelect={() => handleSelect(client)}
-                            className="flex items-center justify-between gap-2 py-2 px-3 cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                              <span className="font-medium truncate">{client.name}</span>
-                              <span className="text-muted-foreground text-xs flex-shrink-0">#{client.clientCode}</span>
-                            </div>
-                            {client.activeLoans > 0 && (
-                              <span className="text-[10px] font-medium bg-success/15 text-success px-1.5 py-0.5 rounded-full flex-shrink-0">
-                                {client.activeLoans}
-                              </span>
-                            )}
-                          </CommandItem>
-                        ))}
+                        {results.map((client) => {
+                          const locationLabel = client.municipality
+                            ? `${client.location || ''}, ${client.municipality}`
+                            : client.location || ''
+                          const totalRelations = client.totalLoans + client.collateralLoans
+
+                          return (
+                            <CommandItem
+                              key={client.id}
+                              value={client.id}
+                              onSelect={() => handleSelect(client)}
+                              className="flex flex-col items-start gap-0.5 py-2 px-3 cursor-pointer"
+                            >
+                              {/* Row 1: Name, Code, Roles */}
+                              <div className="flex items-center justify-between w-full gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                  <span className="font-medium text-sm truncate">{client.name}</span>
+                                  <span className="text-muted-foreground text-xs flex-shrink-0">#{client.clientCode}</span>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {client.hasLoans && (
+                                    <span className="text-[10px] font-medium bg-success/15 text-success px-1.5 py-0.5 rounded-full">
+                                      Cliente ({client.totalLoans})
+                                    </span>
+                                  )}
+                                  {client.hasBeenCollateral && (
+                                    <span className="text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">
+                                      Aval ({client.collateralLoans})
+                                    </span>
+                                  )}
+                                  {totalRelations === 0 && (
+                                    <span className="text-[10px] font-medium bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                                      Sin historial
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Row 2: Location, Route */}
+                              {(locationLabel || client.route) && (
+                                <div className="flex items-center gap-3 ml-5 text-xs text-muted-foreground">
+                                  {locationLabel && (
+                                    <span className="flex items-center gap-1 truncate">
+                                      <MapPin className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate">{locationLabel}</span>
+                                    </span>
+                                  )}
+                                  {client.route && (
+                                    <span className="flex items-center gap-1 flex-shrink-0">
+                                      <Route className="h-3 w-3" />
+                                      <span>{client.route}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </CommandItem>
+                          )
+                        })}
                       </CommandGroup>
                     )}
                   </CommandList>
