@@ -135,9 +135,7 @@ export function LoanPaymentRow({
 
   // === CLICK HANDLING ===
   // Unified: toggle between payment and no payment
-  const handleToggle = (e: React.MouseEvent, shiftKey: boolean = false) => {
-    e.stopPropagation()
-
+  const handleToggle = (shiftKey: boolean = false) => {
     if (isRegistered) {
       // For registered payments, just enter edit mode on click
       // User can explicitly use the checkbox to mark for deletion
@@ -153,17 +151,14 @@ export function LoanPaymentRow({
   }
 
   const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
-    const target = e.target as HTMLElement
-    const selection = window.getSelection()
-    if (selection && selection.toString().length > 0) return
-
     // Don't handle clicks on interactive elements
-    const isInput = target.closest('input, select, textarea')
-    const isButton = target.closest('button')
-    const isCheckbox = target.closest('[role="checkbox"]')
-    if (isInput || isButton || isCheckbox) return
+    const target = e.target as HTMLElement
+    const isInteractive = target.closest('input, select, textarea, button, [role="checkbox"], [data-radix-collection-item]')
+    if (isInteractive) return
 
-    handleToggle(e, e.shiftKey)
+    // Prevent default to avoid text selection issues
+    e.preventDefault()
+    handleToggle(e.shiftKey)
   }
 
   // === BADGE STYLING ===

@@ -27,41 +27,50 @@ export function usePayments({
   const [editedPayments, setEditedPayments] = useState<Record<string, EditedPayment>>({})
   const [userAddedPayments, setUserAddedPayments] = useState<UserAddedPayment[]>([])
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
+  // Counter to force re-initialization after reset
+  const [resetCounter, setResetCounter] = useState(0)
 
-  // Initialize payments when loans are loaded
+  // Function to initialize payments for pending loans
+  const initializePayments = useCallback(() => {
+    if (loans.length === 0) return
+
+    const isDayCaptured = !!leadPaymentReceivedId
+    const initialPayments: Record<string, PaymentEntry> = {}
+
+    loans.forEach((loan) => {
+      const hasRegisteredPayment = registeredPaymentsMap.has(loan.id)
+      const isFalta = isDayCaptured && !hasRegisteredPayment
+
+      // Skip initialization for registered payments and faltas
+      // They don't need payment state because they're already "captured"
+      if (hasRegisteredPayment || isFalta) {
+        return
+      }
+
+      const defaultCommission = loan.loantype?.loanPaymentComission
+        ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
+        : '0'
+
+      initialPayments[loan.id] = {
+        loanId: loan.id,
+        amount: loan.expectedWeeklyPayment || '0',
+        commission: defaultCommission,
+        initialCommission: defaultCommission,
+        paymentMethod: 'CASH',
+        isNoPayment: false,
+      }
+    })
+    setPayments(initialPayments)
+  }, [loans, leadPaymentReceivedId, registeredPaymentsMap])
+
+  // Initialize payments when loans are loaded or after reset
   // IMPORTANT: Only initialize for PENDING loans (not captured or registered)
   // Faltas (captured day + no registered payment) should NOT be initialized
   useEffect(() => {
     if (loans.length > 0 && Object.keys(payments).length === 0) {
-      const isDayCaptured = !!leadPaymentReceivedId
-      const initialPayments: Record<string, PaymentEntry> = {}
-
-      loans.forEach((loan) => {
-        const hasRegisteredPayment = registeredPaymentsMap.has(loan.id)
-        const isFalta = isDayCaptured && !hasRegisteredPayment
-
-        // Skip initialization for registered payments and faltas
-        // They don't need payment state because they're already "captured"
-        if (hasRegisteredPayment || isFalta) {
-          return
-        }
-
-        const defaultCommission = loan.loantype?.loanPaymentComission
-          ? Math.round(parseFloat(loan.loantype.loanPaymentComission)).toString()
-          : '0'
-
-        initialPayments[loan.id] = {
-          loanId: loan.id,
-          amount: loan.expectedWeeklyPayment || '0',
-          commission: defaultCommission,
-          initialCommission: defaultCommission,
-          paymentMethod: 'CASH',
-          isNoPayment: false,
-        }
-      })
-      setPayments(initialPayments)
+      initializePayments()
     }
-  }, [loans, leadPaymentReceivedId, registeredPaymentsMap])
+  }, [loans, leadPaymentReceivedId, registeredPaymentsMap, resetCounter, initializePayments, payments])
 
   // Reset when lead or date changes
   useEffect(() => {
@@ -470,10 +479,14 @@ export function usePayments({
     setUserAddedPayments([])
   }, [])
 
-  // Reset payments state
+  // Reset payments state and force re-initialization
   const resetPayments = useCallback(() => {
     setPayments({})
+    setEditedPayments({})
+    setUserAddedPayments([])
     setLastSelectedIndex(null)
+    // Increment counter to trigger re-initialization effect
+    setResetCounter((c) => c + 1)
   }, [])
 
   return {

@@ -360,11 +360,10 @@ export function AbonosTab() {
       setSavedCount(newPaymentsToSave.length)
       setShowDistributionModal(false)
       setShowSuccessDialog(true)
-      resetPayments()
-      clearUserAddedPayments()
-      setLastSelectedIndex(null)
 
+      // Refetch first, then reset to ensure clean state with fresh data
       await refetchAll()
+      resetPayments()
 
       toast({
         title: 'Abonos guardados',
