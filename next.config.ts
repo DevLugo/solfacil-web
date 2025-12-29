@@ -17,13 +17,13 @@ const nextConfig: NextConfig = {
     '@solufacil/business-logic',
   ],
   images: {
-    remotePatterns: cloudinaryCloudName ? [
+    remotePatterns: [
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
-        pathname: `/${cloudinaryCloudName}/**`,
+        pathname: '/**',
       },
-    ] : [],
+    ],
   },
 }
 
