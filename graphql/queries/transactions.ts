@@ -458,7 +458,6 @@ export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
             }
             transactions {
               id
-              type
               profitAmount
               returnToCapital
             }
