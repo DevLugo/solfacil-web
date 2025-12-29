@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, memo, useCallback } from 'react'
+import { useState, useMemo, memo, useCallback, useEffect } from 'react'
 import { useQuery } from '@apollo/client'
 import {
   Card,
@@ -296,7 +296,8 @@ export default function PortfolioReportPage() {
     filters,
   })
 
-  // Portfolio report data - previous month for comparison
+  // Portfolio report data - previous month for comparison (lazy load)
+  const [shouldLoadPrevious, setShouldLoadPrevious] = useState(false)
   const {
     report: previousReport,
     loading: previousLoading,
@@ -305,9 +306,19 @@ export default function PortfolioReportPage() {
     year: prevYear,
     month: prevMonth,
     filters,
+    skip: !shouldLoadPrevious,
   })
 
-  // Locality report for "Por Localidad" view
+  // Load previous month data after initial render (non-blocking)
+  useEffect(() => {
+    if (report && !shouldLoadPrevious) {
+      // Delay loading previous month to not block initial render
+      const timer = setTimeout(() => setShouldLoadPrevious(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [report, shouldLoadPrevious])
+
+  // Locality report for "Por Ruta" view (lazy load - only when tab is active)
   const {
     localityReport,
     loading: localityLoading,
@@ -315,9 +326,11 @@ export default function PortfolioReportPage() {
     year,
     month,
     filters,
+    skip: activeTab !== 'rutas',
   })
 
-  // Recovered dead debt
+  // Recovered dead debt (lazy load after main report)
+  const [shouldLoadRecovered, setShouldLoadRecovered] = useState(false)
   const {
     summary: recoveredDeadDebt,
     payments: recoveredDeadDebtPayments,
@@ -325,16 +338,35 @@ export default function PortfolioReportPage() {
   } = useRecoveredDeadDebt({
     year,
     month,
+    skip: !shouldLoadRecovered,
   })
 
-  // Annual data for trends view
+  // Load recovered debt after initial render
+  useEffect(() => {
+    if (report && !shouldLoadRecovered) {
+      const timer = setTimeout(() => setShouldLoadRecovered(true), 200)
+      return () => clearTimeout(timer)
+    }
+  }, [report, shouldLoadRecovered])
+
+  // Annual data for trends view (lazy load - heavy operation)
+  const [shouldLoadAnnual, setShouldLoadAnnual] = useState(false)
   const {
     annualData: rawAnnualData,
     loading: annualLoading,
   } = useAnnualPortfolioData({
     year,
     currentMonth: month,
+    skip: !shouldLoadAnnual,
   })
+
+  // Load annual data after other data is loaded (lowest priority)
+  useEffect(() => {
+    if (report && shouldLoadPrevious && !shouldLoadAnnual) {
+      const timer = setTimeout(() => setShouldLoadAnnual(true), 500)
+      return () => clearTimeout(timer)
+    }
+  }, [report, shouldLoadPrevious, shouldLoadAnnual])
 
   // Routes data for filters
   const { data: routesData } = useQuery<{ routes: RouteType[] }>(GET_ROUTES)

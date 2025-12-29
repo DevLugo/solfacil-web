@@ -133,6 +133,7 @@ interface UsePortfolioReportParams {
   month?: number
   weekNumber?: number
   filters?: PortfolioFilters
+  skip?: boolean
 }
 
 export function usePortfolioReport({
@@ -141,6 +142,7 @@ export function usePortfolioReport({
   month,
   weekNumber,
   filters,
+  skip = false,
 }: UsePortfolioReportParams) {
   // Query for current active week
   const {
@@ -160,7 +162,7 @@ export function usePortfolioReport({
       weekNumber: weekNumber ?? currentWeekData?.currentActiveWeek?.weekNumber ?? 1,
       filters: filters ?? {},
     },
-    skip: periodType !== 'WEEKLY' || (!weekNumber && !currentWeekData?.currentActiveWeek),
+    skip: skip || periodType !== 'WEEKLY' || (!weekNumber && !currentWeekData?.currentActiveWeek),
     fetchPolicy: 'cache-and-network',
   })
 
@@ -176,7 +178,7 @@ export function usePortfolioReport({
       month: month ?? new Date().getMonth() + 1,
       filters: filters ?? {},
     },
-    skip: periodType !== 'MONTHLY',
+    skip: skip || periodType !== 'MONTHLY',
     fetchPolicy: 'cache-and-network',
   })
 
@@ -516,18 +518,23 @@ const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 interface UseAnnualPortfolioDataParams {
   year: number
   currentMonth: number // Fetch from Jan to this month
+  skip?: boolean // Skip fetching until needed
 }
 
-export function useAnnualPortfolioData({ year, currentMonth }: UseAnnualPortfolioDataParams) {
+export function useAnnualPortfolioData({ year, currentMonth, skip = false }: UseAnnualPortfolioDataParams) {
   const [annualData, setAnnualData] = useState<AnnualPortfolioDataPoint[]>([])
   const [loading, setLoading] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
 
   const [fetchMonthReport] = useLazyQuery(GET_PORTFOLIO_REPORT_MONTHLY, {
     fetchPolicy: 'cache-first',
   })
 
-  // Fetch annual data when year or currentMonth changes
+  // Fetch annual data when year or currentMonth changes (and not skipped)
   useEffect(() => {
+    // Skip if told to skip or if we've already fetched for this year/month
+    if (skip) return
+
     let isCancelled = false
 
     const fetchAllMonths = async () => {
@@ -574,6 +581,7 @@ export function useAnnualPortfolioData({ year, currentMonth }: UseAnnualPortfoli
         // Sort by month
         results.sort((a, b) => a.month - b.month)
         setAnnualData(results)
+        setHasFetched(true)
       } catch (error) {
         console.error('Error fetching annual data:', error)
       } finally {
@@ -588,11 +596,12 @@ export function useAnnualPortfolioData({ year, currentMonth }: UseAnnualPortfoli
     return () => {
       isCancelled = true
     }
-  }, [year, currentMonth, fetchMonthReport])
+  }, [year, currentMonth, fetchMonthReport, skip])
 
   return {
     annualData,
     loading,
+    hasFetched,
   }
 }
 
@@ -698,11 +707,13 @@ interface UseRecoveredDeadDebtParams {
   year: number
   month: number
   routeId?: string | null
+  skip?: boolean
 }
 
-export function useRecoveredDeadDebt({ year, month, routeId }: UseRecoveredDeadDebtParams) {
+export function useRecoveredDeadDebt({ year, month, routeId, skip = false }: UseRecoveredDeadDebtParams) {
   const { data, loading, error, refetch } = useQuery(GET_RECOVERED_DEAD_DEBT, {
     variables: { year, month, routeId: routeId || null },
+    skip,
     fetchPolicy: 'cache-and-network',
   })
 
