@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { ActiveLoan, PaymentEntry, EditedPayment, UserAddedPayment, LoanPayment } from '../types'
+import type { ActiveLoan, PaymentEntry, EditedPayment, LoanPayment } from '../types'
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency } from '@/lib/utils'
 
@@ -25,7 +25,6 @@ export function usePayments({
   const { toast } = useToast()
   const [payments, setPayments] = useState<Record<string, PaymentEntry>>({})
   const [editedPayments, setEditedPayments] = useState<Record<string, EditedPayment>>({})
-  const [userAddedPayments, setUserAddedPayments] = useState<UserAddedPayment[]>([])
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   // Counter to force re-initialization after reset
   const [resetCounter, setResetCounter] = useState(0)
@@ -89,7 +88,6 @@ export function usePayments({
   useEffect(() => {
     setPayments({})
     setLastSelectedIndex(null)
-    setUserAddedPayments([])
     setEditedPayments({})
   }, [selectedLeadId, selectedDate])
 
@@ -279,7 +277,6 @@ export function usePayments({
   // Clear all
   const handleClearAll = useCallback(() => {
     setPayments({})
-    setUserAddedPayments([])
     setLastSelectedIndex(null)
   }, [])
 
@@ -295,7 +292,6 @@ export function usePayments({
 
     // Primero: marcar TODOS los pagos registrados para eliminación
     // (incluyendo los que no están en filteredLoans, ej: préstamos terminados)
-    // Now marks ALL payments for deletion (including additional payments)
     registeredPaymentsMap.forEach((paymentsArray, loanId) => {
       paymentsArray.forEach((registeredPayment) => {
         newEditedPayments[registeredPayment.id] = {
@@ -382,7 +378,7 @@ export function usePayments({
 
   // === Edited Payments ===
   // Key by paymentId to support editing any payment (including multiple payments per loan)
-  const handleStartEditPayment = useCallback((loanId: string, registeredPayment: LoanPayment) => {
+  const handleStartEditPayment = useCallback((loanId: string, registeredPayment: LoanPayment, startDeleted: boolean = false) => {
     setEditedPayments((prev) => ({
       ...prev,
       [registeredPayment.id]: {
@@ -391,7 +387,7 @@ export function usePayments({
         amount: registeredPayment.amount,
         comission: registeredPayment.comission,
         paymentMethod: registeredPayment.paymentMethod,
-        isDeleted: false,
+        isDeleted: startDeleted,
       },
     }))
   }, [])
@@ -432,71 +428,10 @@ export function usePayments({
     setEditedPayments({})
   }, [])
 
-  // === User Added Payments ===
-  const handleAddPayment = useCallback(() => {
-    const tempId = `temp-${Date.now()}`
-    setUserAddedPayments((prev) => [
-      {
-        tempId,
-        loanId: '',
-        amount: '',
-        commission: globalCommission || '0',
-        paymentMethod: 'CASH',
-      },
-      ...prev,
-    ])
-  }, [globalCommission])
-
-  const handleUserAddedPaymentChange = useCallback((
-    tempId: string,
-    field: keyof Omit<UserAddedPayment, 'tempId'>,
-    value: string
-  ) => {
-    setUserAddedPayments((prev) =>
-      prev.map((p) => {
-        if (p.tempId !== tempId) return p
-
-        if (field === 'loanId') {
-          const selectedLoan = loans.find((l) => l.id === value)
-          const loanCommission = selectedLoan?.loantype?.loanPaymentComission
-            ? Math.round(parseFloat(selectedLoan.loantype.loanPaymentComission)).toString()
-            : globalCommission || '0'
-
-          return {
-            ...p,
-            loanId: value,
-            commission: loanCommission,
-            amount: p.amount || selectedLoan?.expectedWeeklyPayment || '',
-          }
-        }
-
-        return { ...p, [field]: value }
-      })
-    )
-  }, [loans, globalCommission])
-
-  const handleRemoveUserAddedPayment = useCallback((tempId: string) => {
-    setUserAddedPayments((prev) => prev.filter((p) => p.tempId !== tempId))
-  }, [])
-
-  const getAvailableLoansForRow = useCallback((currentTempId: string) => {
-    const usedLoanIds = new Set(
-      userAddedPayments
-        .filter((p) => p.tempId !== currentTempId && p.loanId)
-        .map((p) => p.loanId)
-    )
-    return loans.filter((loan) => !usedLoanIds.has(loan.id))
-  }, [loans, userAddedPayments])
-
-  const clearUserAddedPayments = useCallback(() => {
-    setUserAddedPayments([])
-  }, [])
-
   // Reset payments state and force re-initialization
   const resetPayments = useCallback(() => {
     setPayments({})
     setEditedPayments({})
-    setUserAddedPayments([])
     setLastSelectedIndex(null)
     // Increment counter to trigger re-initialization effect
     setResetCounter((c) => c + 1)
@@ -506,7 +441,6 @@ export function usePayments({
     // State
     payments,
     editedPayments,
-    userAddedPayments,
     lastSelectedIndex,
     // Payment handlers
     handlePaymentChange,
@@ -525,12 +459,6 @@ export function usePayments({
     handleToggleDeletePayment,
     handleCancelEditPayment,
     clearEditedPayments,
-    // User added payment handlers
-    handleAddPayment,
-    handleUserAddedPaymentChange,
-    handleRemoveUserAddedPayment,
-    getAvailableLoansForRow,
-    clearUserAddedPayments,
     // Setters for external use
     setLastSelectedIndex,
   }

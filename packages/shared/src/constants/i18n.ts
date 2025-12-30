@@ -64,8 +64,8 @@ export const NOTIFICATION_STATUS_COLORS: Record<string, string> = {
  * Report type labels
  */
 export const REPORT_TYPE_LABELS: Record<string, string> = {
-  NOTIFICACION_TIEMPO_REAL: 'Real-time Notification',
-  CREDITOS_CON_ERRORES: 'Credits with Errors (PDF)',
+  NOTIFICACION_TIEMPO_REAL: 'Notificación en Tiempo Real',
+  CREDITOS_CON_ERRORES: 'Créditos con Errores (PDF)',
 } as const
 
 /**

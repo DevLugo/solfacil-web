@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import type {
   PaymentEntry,
   EditedPayment,
-  UserAddedPayment,
   LoanPayment,
   PaymentTotals,
   RegisteredTotals,
@@ -15,14 +14,12 @@ import type {
 interface UseTotalsParams {
   payments: Record<string, PaymentEntry>
   editedPayments: Record<string, EditedPayment>
-  userAddedPayments: UserAddedPayment[]
   registeredPaymentsMap: Map<string, LoanPayment[]>
 }
 
 export function useTotals({
   payments,
   editedPayments,
-  userAddedPayments,
   registeredPaymentsMap,
 }: UseTotalsParams) {
   // Calculate totals for NEW payments (not yet registered)
@@ -55,21 +52,6 @@ export function useTotals({
       }
     })
 
-    userAddedPayments.forEach((payment) => {
-      const amount = parseFloat(payment.amount || '0')
-      const commission = parseFloat(payment.commission || '0')
-
-      if (amount > 0 && payment.loanId) {
-        paymentsCount++
-        commissionTotal += commission
-        if (payment.paymentMethod === 'CASH') {
-          cashTotal += amount
-        } else {
-          bankTotal += amount
-        }
-      }
-    })
-
     return {
       cash: cashTotal,
       bank: bankTotal,
@@ -78,7 +60,7 @@ export function useTotals({
       noPayment: noPaymentCount,
       commission: commissionTotal,
     }
-  }, [payments, userAddedPayments, registeredPaymentsMap])
+  }, [payments, registeredPaymentsMap])
 
   // Calculate totals for REGISTERED payments (already saved) - considering edits
   const registeredTotals: RegisteredTotals = useMemo(() => {
@@ -89,8 +71,6 @@ export function useTotals({
     let commissionTotal = 0
 
     registeredPaymentsMap.forEach((paymentsArray) => {
-      // Now we support editing any payment (including additional payments)
-      // Edits are keyed by paymentId
       paymentsArray.forEach((payment) => {
         const edited = editedPayments[payment.id]
 
@@ -138,10 +118,14 @@ export function useTotals({
     }
   }, [totals, registeredTotals])
 
-  // Modal totals - uses registeredTotals when editing, totals when saving new
+  // Modal totals - determines what to show in the distribution modal
   const modalTotals: ModalTotals = useMemo(() => {
     const hasEdits = Object.keys(editedPayments).length > 0
+    const hasRegisteredPayments = registeredPaymentsMap.size > 0
+    const hasNewPayments = totals.count > 0
+
     if (hasEdits) {
+      // When editing existing payments, show registered totals (with edits applied)
       return {
         cash: registeredTotals.cash,
         bank: registeredTotals.bank,
@@ -152,6 +136,21 @@ export function useTotals({
         noPayment: 0,
       }
     }
+
+    if (hasRegisteredPayments && hasNewPayments) {
+      // When adding new payments to an existing day, show combined totals
+      return {
+        cash: combinedTotals.cash,
+        bank: combinedTotals.bank,
+        total: combinedTotals.total,
+        count: combinedTotals.count,
+        deleted: combinedTotals.deleted,
+        commission: combinedTotals.commission,
+        noPayment: combinedTotals.noPayment,
+      }
+    }
+
+    // Default: only new payments (day not yet captured)
     return {
       cash: totals.cash,
       bank: totals.bank,
@@ -161,7 +160,7 @@ export function useTotals({
       commission: totals.commission,
       noPayment: totals.noPayment,
     }
-  }, [editedPayments, registeredTotals, totals])
+  }, [editedPayments, registeredTotals, totals, combinedTotals, registeredPaymentsMap.size])
 
   return {
     totals,

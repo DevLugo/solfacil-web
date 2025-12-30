@@ -206,6 +206,12 @@ export const LOANS_BY_DATE_LEAD_QUERY = gql`
               }
             }
           }
+          payments {
+            id
+            amount
+            comission
+            receivedAt
+          }
         }
       }
       totalCount

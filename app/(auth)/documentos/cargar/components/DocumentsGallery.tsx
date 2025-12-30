@@ -8,30 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Upload, FileImage, CheckCircle2, AlertCircle, XCircle, FileX, X as CloseIcon, Send } from 'lucide-react'
+import { Upload, FileImage, CheckCircle2, AlertCircle, XCircle, FileX, X as CloseIcon } from 'lucide-react'
 import Image from 'next/image'
 import { DocumentUpload } from './DocumentUpload'
-import { useQuery, useMutation, gql } from '@apollo/client'
+import { useQuery, gql } from '@apollo/client'
 import { GET_LOAN_DOCUMENTS } from '@/graphql/queries/documents'
-
-const SEND_DOCUMENT_NOTIFICATION = gql`
-  mutation SendDocumentNotification($input: SendDocumentNotificationInput!) {
-    sendDocumentNotification(input: $input) {
-      success
-      message
-    }
-  }
-`
-
-const GET_ACTIVE_TELEGRAM_USERS = gql`
-  query GetActiveTelegramUsers {
-    telegramUsers(filters: { isActive: true, isInRecipientsList: true }) {
-      id
-      chatId
-      name
-    }
-  }
-`
 import { useToast } from '@/hooks/use-toast'
 import { useDocumentMutations } from '@/hooks/useDocumentMutations'
 import type { DocumentPhoto, Collateral } from '@/types/documents'
@@ -63,12 +44,6 @@ interface DocumentsGalleryProps {
  * Document gallery component showing thumbnails for client and collateral documents
  * Allows uploading documents for both client and collateral
  */
-interface TelegramUser {
-  id: string
-  chatId: string
-  name: string
-}
-
 export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProps) {
   const [selectedPerson, setSelectedPerson] = useState<'cliente' | string>('cliente')
   const [uploadingType, setUploadingType] = useState<string | null>(null)
@@ -76,25 +51,12 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorDocType, setErrorDocType] = useState<string | null>(null)
   const [errorDescription, setErrorDescription] = useState('')
-  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
-  const [notifyDocId, setNotifyDocId] = useState<string | null>(null)
-  const [selectedRecipients, setSelectedRecipients] = useState<string[]>([])
   const { toast } = useToast()
 
   // Use custom hook for mutations with consistent refetch queries
   const { markAsMissing, deleteDocument, updateDocument, loading } = useDocumentMutations({
     loanId: loan.id,
   })
-
-  // Query for Telegram users (only for admins)
-  const { data: telegramUsersData } = useQuery<{ telegramUsers: TelegramUser[] }>(
-    GET_ACTIVE_TELEGRAM_USERS,
-    { fetchPolicy: 'cache-first' }
-  )
-  const telegramUsers = telegramUsersData?.telegramUsers || []
-
-  // Mutation for sending notification
-  const [sendNotification, { loading: sendingNotification }] = useMutation(SEND_DOCUMENT_NOTIFICATION)
 
   // Query to get updated documents - use cache-and-network to always check for updates
   const { data: loanData, loading: loanDataLoading, refetch } = useQuery(GET_LOAN_DOCUMENTS, {
@@ -127,53 +89,6 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
   const handleUploadSuccess = () => {
     setUploadingType(null)
     onUploadSuccess?.()
-  }
-
-  const handleOpenNotifyDialog = (docId: string) => {
-    setNotifyDocId(docId)
-    // Pre-select all recipients
-    setSelectedRecipients(telegramUsers.map((u) => u.chatId))
-    setNotifyDialogOpen(true)
-  }
-
-  const handleSendNotification = async () => {
-    if (!notifyDocId || selectedRecipients.length === 0) return
-
-    try {
-      const { data } = await sendNotification({
-        variables: {
-          input: {
-            documentId: notifyDocId,
-            recipientChatIds: selectedRecipients,
-            includePhoto: true,
-          },
-        },
-      })
-
-      if (data?.sendDocumentNotification?.success) {
-        toast({
-          title: 'Notificacion enviada',
-          description: 'Se ha notificado por Telegram sobre el documento',
-        })
-      } else {
-        toast({
-          title: 'Error al enviar',
-          description: data?.sendDocumentNotification?.message || 'No se pudo enviar la notificacion',
-          variant: 'destructive',
-        })
-      }
-
-      setNotifyDialogOpen(false)
-      setNotifyDocId(null)
-      setSelectedRecipients([])
-    } catch (error) {
-      console.error('Error sending notification:', error)
-      toast({
-        title: 'Error',
-        description: 'No se pudo enviar la notificacion',
-        variant: 'destructive',
-      })
-    }
   }
 
   const handleMarkAsError = async (docType: string, description?: string) => {
@@ -544,21 +459,6 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
                               <XCircle className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                               Desmarcar
                             </Button>
-                            {telegramUsers.length > 0 && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 text-xs md:text-sm h-7 md:h-8 border-blue-300 hover:bg-blue-50"
-                                onClick={() => {
-                                  const doc = findDocumentByType(personDocuments, docType.value)
-                                  if (doc) handleOpenNotifyDialog(doc.id)
-                                }}
-                                disabled={sendingNotification}
-                              >
-                                <Send className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                                Notificar
-                              </Button>
-                            )}
                           </div>
                         </div>
                       ) : status === 'error' ? (
@@ -588,21 +488,6 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
                               <XCircle className="w-3 h-3 md:w-4 md:h-4" />
                             </Button>
                           </div>
-                          {telegramUsers.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full text-xs md:text-sm h-7 md:h-8 border-blue-300 hover:bg-blue-50"
-                              onClick={() => {
-                                const doc = findDocumentByType(personDocuments, docType.value)
-                                if (doc) handleOpenNotifyDialog(doc.id)
-                              }}
-                              disabled={sendingNotification}
-                            >
-                              <Send className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                              Notificar
-                            </Button>
-                          )}
                         </div>
                       ) : (
                         // Normal state - show upload and action buttons
@@ -733,101 +618,6 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
               >
                 <AlertCircle className="w-4 h-4 mr-2" />
                 Marcar con error
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Telegram Notification Dialog */}
-      <Dialog open={notifyDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setNotifyDialogOpen(false)
-          setNotifyDocId(null)
-          setSelectedRecipients([])
-        }
-      }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5" />
-              Enviar notificacion por Telegram
-            </DialogTitle>
-            <DialogDescription>
-              Selecciona los destinatarios para notificar sobre este documento
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Destinatarios</Label>
-              <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
-                {telegramUsers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    No hay usuarios de Telegram configurados
-                  </p>
-                ) : (
-                  telegramUsers.map((user) => (
-                    <label
-                      key={user.id}
-                      className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedRecipients.includes(user.chatId)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedRecipients((prev) => [...prev, user.chatId])
-                          } else {
-                            setSelectedRecipients((prev) =>
-                              prev.filter((id) => id !== user.chatId)
-                            )
-                          }
-                        }}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm">{user.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-              {telegramUsers.length > 1 && (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedRecipients(telegramUsers.map((u) => u.chatId))}
-                  >
-                    Seleccionar todos
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedRecipients([])}
-                  >
-                    Deseleccionar
-                  </Button>
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setNotifyDialogOpen(false)
-                  setNotifyDocId(null)
-                  setSelectedRecipients([])
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSendNotification}
-                disabled={sendingNotification || selectedRecipients.length === 0}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                {sendingNotification ? 'Enviando...' : 'Enviar notificacion'}
               </Button>
             </div>
           </div>

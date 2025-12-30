@@ -40,12 +40,11 @@ interface LoanPaymentRowProps {
   editedPayment: EditedPayment | undefined
   leadPaymentReceivedId: string | null
   isAdmin?: boolean
-  isAdditionalPayment?: boolean // True for 2nd, 3rd, etc. payments of same loan on same day
   onPaymentChange: (amount: string) => void
   onCommissionChange: (commission: string) => void
   onPaymentMethodChange: (method: 'CASH' | 'MONEY_TRANSFER') => void
   onToggleNoPayment: (shiftKey: boolean) => void
-  onStartEdit: () => void
+  onStartEdit: (startDeleted?: boolean) => void
   onEditChange: (field: keyof EditedPayment, value: string | boolean) => void
   onToggleDelete: () => void
   onCancelEdit: () => void
@@ -60,7 +59,6 @@ export function LoanPaymentRow({
   editedPayment,
   leadPaymentReceivedId,
   isAdmin,
-  isAdditionalPayment = false,
   onPaymentChange,
   onCommissionChange,
   onPaymentMethodChange,
@@ -185,70 +183,61 @@ export function LoanPaymentRow({
       className={cn(
         'transition-colors select-none cursor-pointer',
         getRowStyle(),
-        showAsNoPayment && !isAdditionalPayment && 'line-through opacity-80',
-        isAdditionalPayment && 'bg-emerald-50/50 dark:bg-emerald-950/30'
+        showAsNoPayment && 'line-through opacity-80'
       )}
       onClick={handleRowClick}
     >
       {/* Checkbox - same behavior as row click */}
       <TableCell className="cursor-pointer">
-        {isAdditionalPayment ? (
-          <span className="text-muted-foreground text-xs">↳</span>
-        ) : (
-          <Checkbox
-            checked={showAsNoPayment}
-            onCheckedChange={() => {
-              if (isRegistered) {
-                // For registered payments, toggle delete in edit mode
-                if (!isEditing) {
-                  onStartEdit()
-                  setTimeout(() => onToggleDelete(), 0)
-                } else {
-                  onToggleDelete()
-                }
+        <Checkbox
+          checked={showAsNoPayment}
+          onCheckedChange={() => {
+            if (isRegistered) {
+              // For registered payments, toggle delete in edit mode
+              if (!isEditing) {
+                // Start edit mode with payment already marked for deletion
+                onStartEdit(true)
               } else {
-                // For pending rows OR faltas, toggle no payment
-                onToggleNoPayment(false)
+                onToggleDelete()
               }
-            }}
-          />
-        )}
+            } else {
+              // For pending rows OR faltas, toggle no payment
+              onToggleNoPayment(false)
+            }
+          }}
+        />
       </TableCell>
 
       {/* Index */}
       <TableCell className="font-medium text-muted-foreground">
-        {isAdditionalPayment ? '' : displayIndex}
+        {displayIndex}
       </TableCell>
 
       {/* Client */}
       <TableCell>
-        {isAdditionalPayment ? (
-          <span className="text-xs text-muted-foreground italic">Pago adicional</span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <div>
-              <p className="font-medium text-sm">
-                {loan.borrower.personalData?.fullName || 'Sin nombre'}
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div>
+            <p className="font-medium text-sm">
+              {loan.borrower.personalData?.fullName || 'Sin nombre'}
+            </p>
+            {loan.borrower.personalData?.phones?.[0]?.number ? (
+              <p className="text-xs text-muted-foreground">
+                {loan.borrower.personalData.phones[0].number}
               </p>
-              {loan.borrower.personalData?.phones?.[0]?.number ? (
-                <p className="text-xs text-muted-foreground">
-                  {loan.borrower.personalData.phones[0].number}
-                </p>
-              ) : (
-                <p className={cn('text-xs flex items-center gap-1', textStyles.orange)}>
-                  <Phone className="h-3 w-3" />
-                  Sin teléfono
-                </p>
-              )}
-            </div>
+            ) : (
+              <p className={cn('text-xs flex items-center gap-1', textStyles.orange)}>
+                <Phone className="h-3 w-3" />
+                Sin teléfono
+              </p>
+            )}
           </div>
-        )}
+        </div>
       </TableCell>
 
       {/* Aval */}
       <TableCell>
-        {isAdditionalPayment ? null : aval ? (
+        {aval ? (
           <div>
             <p className="text-sm">{aval.fullName || <span className={textStyles.orange}>Sin nombre</span>}</p>
             {aval.phones?.[0]?.number ? (
@@ -270,12 +259,12 @@ export function LoanPaymentRow({
 
       {/* Sign date */}
       <TableCell className="text-right text-sm text-muted-foreground">
-        {isAdditionalPayment ? '' : loan.signDate ? format(new Date(loan.signDate), 'dd/MM/yy') : '-'}
+        {loan.signDate ? format(new Date(loan.signDate), 'dd/MM/yy') : '-'}
       </TableCell>
 
       {/* Expected weekly payment */}
       <TableCell className="text-right font-medium">
-        {isAdditionalPayment ? '' : formatCurrency(parseFloat(loan.expectedWeeklyPayment))}
+        {formatCurrency(parseFloat(loan.expectedWeeklyPayment))}
       </TableCell>
 
       {/* Amount */}
@@ -438,7 +427,7 @@ export function LoanPaymentRow({
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 {showAsNoPayment ? 'Falta' : isEditing ? 'Editando' : 'Capturado'}
               </Badge>
-              {/* Edit/Cancel button for registered payments (including additional payments) */}
+              {/* Edit/Cancel button for registered payments */}
               {isRegistered && (
                 isEditing ? (
                   <Button
@@ -455,7 +444,7 @@ export function LoanPaymentRow({
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                    onClick={onStartEdit}
+                    onClick={() => onStartEdit()}
                     title="Editar pago"
                   >
                     <Pencil className="h-3.5 w-3.5" />

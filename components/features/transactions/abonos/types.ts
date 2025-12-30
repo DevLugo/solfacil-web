@@ -73,14 +73,6 @@ export interface EditedPayment {
   isDeleted: boolean
 }
 
-export interface UserAddedPayment {
-  tempId: string
-  loanId: string
-  amount: string
-  commission: string
-  paymentMethod: 'CASH' | 'MONEY_TRANSFER'
-}
-
 export interface PaymentTotals {
   cash: number
   bank: number

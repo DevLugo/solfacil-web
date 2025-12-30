@@ -28,7 +28,6 @@ import {
   DistributionModal,
   MultaModal,
   SuccessDialog,
-  UserAddedPaymentRow,
   LoanPaymentRow,
   FalcosPendientesDrawer,
   RegisteredSectionHeader,
@@ -106,7 +105,6 @@ export function AbonosTab() {
   const {
     payments,
     editedPayments,
-    userAddedPayments,
     handlePaymentChange,
     handleCommissionChange,
     handlePaymentMethodChange,
@@ -120,11 +118,6 @@ export function AbonosTab() {
     handleToggleDeletePayment,
     handleCancelEditPayment,
     clearEditedPayments,
-    handleAddPayment,
-    handleUserAddedPaymentChange,
-    handleRemoveUserAddedPayment,
-    getAvailableLoansForRow,
-    clearUserAddedPayments,
     resetPayments,
     setLastSelectedIndex,
   } = usePayments({
@@ -140,7 +133,6 @@ export function AbonosTab() {
   const { totals, registeredTotals, combinedTotals, modalTotals } = useTotals({
     payments,
     editedPayments,
-    userAddedPayments,
     registeredPaymentsMap,
   })
 
@@ -236,24 +228,12 @@ export function AbonosTab() {
       (p) => !p.isNoPayment && p.amount && parseFloat(p.amount) > 0
     )
 
-    const validUserAddedPayments = userAddedPayments.filter(
-      (p) => p.loanId && p.amount && parseFloat(p.amount) > 0
-    )
-
-    const newPaymentsToSave = [
-      ...validPayments.map((p) => ({
-        loanId: p.loanId,
-        amount: p.amount,
-        comission: p.commission || '0',
-        paymentMethod: p.paymentMethod,
-      })),
-      ...validUserAddedPayments.map((p) => ({
-        loanId: p.loanId,
-        amount: p.amount,
-        comission: p.commission || '0',
-        paymentMethod: p.paymentMethod,
-      })),
-    ]
+    const newPaymentsToSave = validPayments.map((p) => ({
+      loanId: p.loanId,
+      amount: p.amount,
+      comission: p.commission || '0',
+      paymentMethod: p.paymentMethod,
+    }))
 
     if (newPaymentsToSave.length === 0) {
       toast({
@@ -971,7 +951,6 @@ export function AbonosTab() {
               onSetAllWeekly={() => handleSetAllWeekly(filteredLoans)}
               onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoans, registeredPaymentsMap)}
               onClearAll={handleClearAll}
-              onAddPayment={handleAddPayment}
               onOpenMultaModal={handleOpenMultaModal}
               onOpenFalcosDrawer={() => setShowFalcosDrawer(true)}
               falcosPendientesCount={falcosPendientes.length}
@@ -980,7 +959,6 @@ export function AbonosTab() {
               filteredLoansCount={filteredLoans.length}
               totalsCount={totals.count}
               totalsNoPayment={totals.noPayment}
-              userAddedPaymentsCount={userAddedPayments.length}
               isSubmitting={isSubmitting}
               isSavingEdits={isSavingEdits}
               hasEditedPayments={hasEditedPayments}
@@ -1023,22 +1001,6 @@ export function AbonosTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* User-added payment rows */}
-                {userAddedPayments.map((userPayment) => (
-                  <UserAddedPaymentRow
-                    key={userPayment.tempId}
-                    payment={userPayment}
-                    availableLoans={getAvailableLoansForRow(userPayment.tempId)}
-                    selectedLoan={loans.find((l) => l.id === userPayment.loanId)}
-                    isAdmin={isAdmin}
-                    onLoanChange={(loanId) => handleUserAddedPaymentChange(userPayment.tempId, 'loanId', loanId)}
-                    onAmountChange={(amount) => handleUserAddedPaymentChange(userPayment.tempId, 'amount', amount)}
-                    onCommissionChange={(commission) => handleUserAddedPaymentChange(userPayment.tempId, 'commission', commission)}
-                    onPaymentMethodChange={(method) => handleUserAddedPaymentChange(userPayment.tempId, 'paymentMethod', method)}
-                    onRemove={() => handleRemoveUserAddedPayment(userPayment.tempId)}
-                  />
-                ))}
-
                 {/* Pending loan rows (not yet registered) */}
                 {pendingLoans.map((loan, index) => {
                   const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
@@ -1059,7 +1021,7 @@ export function AbonosTab() {
                       onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
                       onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
                       onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                      onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
+                      onStartEdit={(startDeleted) => handleStartEditPayment(loan.id, firstPayment!, startDeleted)}
                       onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
                       onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
                       onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
@@ -1080,53 +1042,27 @@ export function AbonosTab() {
                   const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
                   const loanPayments = registeredPaymentsMap.get(loan.id) || []
                   const firstPayment = loanPayments[0]
-                  const additionalPayments = loanPayments.slice(1)
 
                   return (
-                    <React.Fragment key={loan.id}>
-                      {/* Main row with first payment */}
-                      <LoanPaymentRow
-                        loan={loan}
-                        index={globalIndex}
-                        displayIndex={pendingLoans.length + index + 1}
-                        payment={payments[loan.id]}
-                        registeredPayment={firstPayment}
-                        editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
-                        leadPaymentReceivedId={leadPaymentReceivedId}
-                        isAdmin={isAdmin}
-                        onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
-                        onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
-                        onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
-                        onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                        onStartEdit={() => handleStartEditPayment(loan.id, firstPayment!)}
-                        onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
-                        onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
-                        onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
-                      />
-                      {/* Additional payment rows for the same loan */}
-                      {additionalPayments.map((payment, paymentIndex) => (
-                        <LoanPaymentRow
-                          key={`${loan.id}-payment-${paymentIndex + 1}`}
-                          loan={loan}
-                          index={globalIndex}
-                          displayIndex={pendingLoans.length + index + 1}
-                          payment={undefined}
-                          registeredPayment={payment}
-                          editedPayment={editedPayments[payment.id]}
-                          leadPaymentReceivedId={leadPaymentReceivedId}
-                          isAdmin={isAdmin}
-                          isAdditionalPayment={true}
-                          onPaymentChange={() => {}}
-                          onCommissionChange={() => {}}
-                          onPaymentMethodChange={() => {}}
-                          onToggleNoPayment={() => {}}
-                          onStartEdit={() => handleStartEditPayment(loan.id, payment)}
-                          onEditChange={(field, value) => handleEditPaymentChange(payment.id, field, value)}
-                          onToggleDelete={() => handleToggleDeletePayment(payment.id)}
-                          onCancelEdit={() => handleCancelEditPayment(payment.id)}
-                        />
-                      ))}
-                    </React.Fragment>
+                    <LoanPaymentRow
+                      key={loan.id}
+                      loan={loan}
+                      index={globalIndex}
+                      displayIndex={pendingLoans.length + index + 1}
+                      payment={payments[loan.id]}
+                      registeredPayment={firstPayment}
+                      editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
+                      leadPaymentReceivedId={leadPaymentReceivedId}
+                      isAdmin={isAdmin}
+                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
+                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
+                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
+                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
+                      onStartEdit={(startDeleted) => handleStartEditPayment(loan.id, firstPayment!, startDeleted)}
+                      onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
+                      onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
+                      onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
+                    />
                   )
                 })}
               </TableBody>

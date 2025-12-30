@@ -7,6 +7,7 @@ import {
   Trash2,
   Pencil,
   RefreshCw,
+  Banknote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,9 @@ export function LoanTableRow({ loan, isAdmin, onEdit, onCancel }: LoanTableRowPr
   const aval = loan.collaterals[0]
   const hasAval = aval && aval.fullName
   const isRenewal = loan.previousLoan !== null
+
+  // Check for first payment (payment made on same day as loan)
+  const firstPayment = loan.payments?.[0]
 
   return (
     <TableRow>
@@ -47,6 +51,19 @@ export function LoanTableRow({ loan, isAdmin, onEdit, onCancel }: LoanTableRowPr
               <p className="text-xs text-muted-foreground">
                 {loan.borrower.personalData.phones[0].number}
               </p>
+            )}
+            {firstPayment && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <Banknote className="h-3 w-3 text-success" />
+                <span className="text-xs text-success">
+                  1er pago: {formatCurrency(parseFloat(firstPayment.amount))}
+                  {parseFloat(firstPayment.comission) > 0 && (
+                    <span className="text-muted-foreground ml-1">
+                      (com. {formatCurrency(parseFloat(firstPayment.comission))})
+                    </span>
+                  )}
+                </span>
+              </div>
             )}
           </div>
         </div>

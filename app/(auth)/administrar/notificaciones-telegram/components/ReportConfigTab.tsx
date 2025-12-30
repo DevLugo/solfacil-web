@@ -422,9 +422,13 @@ export function ReportConfigTab() {
             </div>
 
             {/* Report Type */}
-            {!editingConfig && (
-              <div className="space-y-2">
-                <Label>Tipo de Reporte</Label>
+            <div className="space-y-2">
+              <Label>Tipo de Reporte</Label>
+              {editingConfig ? (
+                <div className="flex items-center h-10 px-3 rounded-md border bg-muted text-muted-foreground">
+                  {REPORT_TYPE_LABELS[formData.reportType] || formData.reportType}
+                </div>
+              ) : (
                 <Select
                   value={formData.reportType}
                   onValueChange={(v) => setFormData((p) => ({ ...p, reportType: v as ConfigFormData['reportType'] }))}
@@ -441,8 +445,8 @@ export function ReportConfigTab() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Schedule */}
             <div className="space-y-2">

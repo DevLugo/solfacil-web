@@ -87,6 +87,13 @@ export interface BorrowerSearchResult {
   isFromCurrentLocation: boolean
 }
 
+export interface LoanPayment {
+  id: string
+  amount: string
+  comission: string
+  receivedAt: string
+}
+
 export interface Loan {
   id: string
   requestedAmount: string
@@ -121,6 +128,7 @@ export interface Loan {
       personalData: { fullName: string }
     }
   } | null
+  payments?: LoanPayment[]
 }
 
 export interface PreviousLoan {

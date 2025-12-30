@@ -69,6 +69,7 @@ export function CreateLoansModal({
   const [selectedAval, setSelectedAval] = useState<UnifiedClientValue | null>(null)
   const [includeFirstPayment, setIncludeFirstPayment] = useState(false)
   const [firstPaymentAmount, setFirstPaymentAmount] = useState<string>('')
+  const [firstPaymentComission, setFirstPaymentComission] = useState<string>('')
   const [globalComissionAmount, setGlobalComissionAmount] = useState<string>('')
 
   // Get active loan from selected borrower (if any)
@@ -122,11 +123,13 @@ export function CreateLoansModal({
     }
   }, [selectedLoanType, editingLoanId])
 
-  // Handler for first payment toggle - pre-fill with weekly payment
+  // Handler for first payment toggle - pre-fill with weekly payment and commission
   const handleFirstPaymentToggle = (enabled: boolean) => {
     setIncludeFirstPayment(enabled)
     if (enabled && calculatedWeeklyPayment > 0) {
       setFirstPaymentAmount(Math.round(calculatedWeeklyPayment).toString())
+      // Pre-fill commission from loan type's loanPaymentComission
+      setFirstPaymentComission(selectedLoanType?.loanPaymentComission || '0')
     }
   }
 
@@ -144,6 +147,7 @@ export function CreateLoansModal({
     setSelectedAval(null)
     setIncludeFirstPayment(false)
     setFirstPaymentAmount('')
+    setFirstPaymentComission('')
   }
 
   // Load loan data into form for editing
@@ -227,9 +231,11 @@ export function CreateLoansModal({
     if (loan.firstPayment) {
       setIncludeFirstPayment(true)
       setFirstPaymentAmount(loan.firstPayment.amount)
+      setFirstPaymentComission(loan.firstPayment.comission || '0')
     } else {
       setIncludeFirstPayment(false)
       setFirstPaymentAmount('')
+      setFirstPaymentComission('')
     }
   }
 
@@ -425,7 +431,7 @@ export function CreateLoansModal({
       collateralPhone,
       newCollateral,
       firstPayment: includeFirstPayment && firstPaymentAmount
-        ? { amount: firstPaymentAmount, paymentMethod: 'CASH' }
+        ? { amount: firstPaymentAmount, comission: firstPaymentComission || '0', paymentMethod: 'CASH' }
         : undefined,
       isFromDifferentLocation: selectedBorrower?.isFromCurrentLocation === false,
       isRenewal: !!previousLoanId,
@@ -665,6 +671,8 @@ export function CreateLoansModal({
               onIncludeChange={handleFirstPaymentToggle}
               firstPaymentAmount={firstPaymentAmount}
               onAmountChange={setFirstPaymentAmount}
+              firstPaymentComission={firstPaymentComission}
+              onComissionChange={setFirstPaymentComission}
             />
           </div>
 
