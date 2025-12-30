@@ -168,24 +168,6 @@ export const UPDATE_PHONE = gql`
 // PAYMENT MUTATIONS - Para Tab de Abonos
 // ============================================================
 
-export const CREATE_LOAN_PAYMENT = gql`
-  mutation CreateLoanPayment($input: CreateLoanPaymentInput!) {
-    createLoanPayment(input: $input) {
-      id
-      amount
-      comission
-      receivedAt
-      paymentMethod
-      loan {
-        id
-        totalPaid
-        pendingAmountStored
-        status
-      }
-    }
-  }
-`
-
 export const UPDATE_LOAN_PAYMENT = gql`
   mutation UpdateLoanPayment($id: ID!, $input: UpdateLoanPaymentInput!) {
     updateLoanPayment(id: $id, input: $input) {
