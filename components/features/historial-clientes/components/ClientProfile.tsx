@@ -72,16 +72,19 @@ export function ClientProfile({ client, summary }: ClientProfileProps) {
 
         {/* Leader Info */}
         {client.leader && (
-          <div className="flex items-center gap-2 text-xs">
-            <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/60 border min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase">Líder:</span>
-                <span className="font-medium truncate">{client.leader.name}</span>
-              </div>
-              <div className="flex items-center gap-1 text-muted-foreground ml-auto flex-shrink-0">
+          <div className="text-xs px-2 py-1.5 rounded-md bg-muted/60 border">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase">Líder:</span>
+              <span className="font-medium truncate">{client.leader.name}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+              {client.leader.location && (
+                <span className="font-medium text-foreground">{client.leader.location}</span>
+              )}
+              <span className="flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                <span className="truncate max-w-[120px]">{client.leader.route}</span>
-              </div>
+                <span>{client.leader.route}</span>
+              </span>
             </div>
           </div>
         )}
