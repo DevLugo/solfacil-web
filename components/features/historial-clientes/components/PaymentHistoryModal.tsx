@@ -149,7 +149,7 @@ export function PaymentHistoryModal({ loan, isOpen, onClose }: PaymentHistoryMod
               <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/50">
                 <div className="min-w-0">
                   <div className="text-xs font-bold truncate">{formatCurrency(loan.totalAmountDue)}</div>
-                  <div className="text-[10px] text-muted-foreground">total</div>
+                  <div className="text-[10px] text-muted-foreground">deuda</div>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/50">

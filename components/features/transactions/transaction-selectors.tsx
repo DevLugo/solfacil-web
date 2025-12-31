@@ -251,8 +251,11 @@ export function TransactionSelectors() {
         {/* Current Selection Summary */}
         {selectedRouteId && (
           <div className="sm:ml-auto text-xs sm:text-sm text-muted-foreground text-center sm:text-right w-full sm:w-auto">
-            {selectedRoute?.name} •{' '}
-            {format(selectedDate, "d MMM yyyy", { locale: es })}
+            {selectedRoute?.name}
+            {selectedLeadId && leads.find(l => l.id === selectedLeadId)?.personalData?.addresses?.[0]?.location?.name && (
+              <> · <span className="font-medium text-foreground">{leads.find(l => l.id === selectedLeadId)?.personalData?.addresses?.[0]?.location?.name}</span></>
+            )}
+            {' '}• {format(selectedDate, "d MMM yyyy", { locale: es })}
           </div>
         )}
       </div>
