@@ -313,6 +313,8 @@ export const GET_LOCALITY_CLIENTS = gql`
       daysSinceLastPayment
       loanType
       category
+      expectedWeekly
+      paidThisWeek
     }
   }
 `

@@ -450,6 +450,8 @@ export interface LocalityClientDetail {
   daysSinceLastPayment: number | null
   loanType: string
   category: ClientCategory
+  expectedWeekly: number
+  paidThisWeek: number
 }
 
 interface UseLocalityReportParams {

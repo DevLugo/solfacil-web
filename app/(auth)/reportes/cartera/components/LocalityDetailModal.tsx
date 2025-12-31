@@ -91,6 +91,11 @@ function ClientRow({ client }: { client: LocalityClientDetail }) {
   const categoryConfig = CATEGORY_CONFIG[client.category]
   const CategoryIcon = categoryConfig.icon
 
+  // Calculate payment percentage for color coding
+  const paymentPercentage = client.expectedWeekly > 0
+    ? (client.paidThisWeek / client.expectedWeekly) * 100
+    : 100
+
   return (
     <TableRow>
       <TableCell>
@@ -115,15 +120,23 @@ function ClientRow({ client }: { client: LocalityClientDetail }) {
         </Badge>
       </TableCell>
       <TableCell>
-        <Badge
-          variant={client.cvStatus === 'EN_CV' ? 'destructive' : 'secondary'}
-          className={cn(
-            client.cvStatus === 'AL_CORRIENTE' &&
-              'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400'
-          )}
-        >
-          {client.cvStatus === 'EN_CV' ? 'En CV' : 'Al Corriente'}
-        </Badge>
+        <div className="flex flex-col items-end">
+          <span
+            className={cn(
+              'font-medium text-sm',
+              paymentPercentage >= 100
+                ? 'text-green-600 dark:text-green-400'
+                : paymentPercentage >= 50
+                  ? 'text-yellow-600 dark:text-yellow-400'
+                  : 'text-red-600 dark:text-red-400'
+            )}
+          >
+            {formatCurrency(client.paidThisWeek)}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            / {formatCurrency(client.expectedWeekly)}
+          </span>
+        </div>
       </TableCell>
       <TableCell className="text-center">
         {client.daysSinceLastPayment !== null ? (
@@ -257,7 +270,7 @@ export function LocalityDetailModal({
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Pendiente</TableHead>
                   <TableHead>Categoría</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Pagado / Esperado</TableHead>
                   <TableHead className="text-center">Días s/pago</TableHead>
                   <TableHead>Tipo</TableHead>
                 </TableRow>
