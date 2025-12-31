@@ -23,6 +23,8 @@ import {
   Users,
   Send,
   Skull,
+  AlertTriangle,
+  Cake,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -51,6 +53,8 @@ const navegacion: NavItem[] = [
     hijos: [
       { titulo: 'Financiero', href: '/reportes/financiero', icono: DollarSign },
       { titulo: 'Cartera', href: '/reportes/cartera', icono: Wallet },
+      { titulo: 'Clientes Morosos', href: '/reportes/clientes-morosos', icono: AlertTriangle },
+      { titulo: 'Cumpleaños Líderes', href: '/reportes/cumpleanos-lideres', icono: Cake },
     ],
   },
   {

@@ -181,6 +181,62 @@ export const GET_CLIENT_HISTORY_QUERY = gql`
 `
 
 // ============================================================
+// LOAN HISTORY DETAIL - Single loan for payment history modal
+// ============================================================
+
+export const GET_LOAN_HISTORY_DETAIL_QUERY = gql`
+  query GetLoanHistoryDetail($loanId: ID!) {
+    getLoanHistoryDetail(loanId: $loanId) {
+      id
+      signDate
+      signDateFormatted
+      finishedDate
+      finishedDateFormatted
+      renewedDate
+      loanType
+      amountRequested
+      totalAmountDue
+      interestAmount
+      totalPaid
+      pendingDebt
+      daysSinceSign
+      status
+      wasRenewed
+      weekDuration
+      rate
+      leadName
+      routeName
+      paymentsCount
+      payments {
+        id
+        amount
+        receivedAt
+        receivedAtFormatted
+        type
+        paymentMethod
+        paymentNumber
+        balanceBeforePayment
+        balanceAfterPayment
+      }
+      noPaymentPeriods {
+        id
+        startDate
+        endDate
+        startDateFormatted
+        endDateFormatted
+        weekCount
+      }
+      renewedFrom
+      renewedTo
+      avalName
+      avalPhone
+      clientName
+      clientDui
+    }
+  }
+`
+
+// ============================================================
 // LOAN DOCUMENT PHOTOS - Lazy load photos for a loan
 // ============================================================
 
