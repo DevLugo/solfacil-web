@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@apollo/client'
 import { format, differenceInYears } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Cake, FileDown, Loader2, Phone, MapPin, Route } from 'lucide-react'
+import { Cake, FileDown, Phone, MapPin, Route } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { API_CONFIG } from '@/lib/constants/api'
 import { GET_LEADER_BIRTHDAYS, GET_ROUTES } from '@/graphql/queries/leader'
 
 interface LeaderBirthday {
@@ -64,7 +65,6 @@ function formatBirthday(birthDate: string | null): string {
 
 export default function CumpleanosLideresPage() {
   const [selectedRouteId, setSelectedRouteId] = useState<string>('all')
-  const [isExporting, setIsExporting] = useState(false)
 
   const { data: routesData, loading: routesLoading } = useQuery<{ routes: Route[] }>(GET_ROUTES)
   const routes = routesData?.routes || []
@@ -86,37 +86,15 @@ export default function CumpleanosLideresPage() {
     return routes.find((r) => r.id === selectedRouteId)?.name || ''
   }, [selectedRouteId, routes])
 
-  const handleExportPDF = async () => {
-    setIsExporting(true)
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
-      const params = new URLSearchParams()
-      if (selectedRouteId !== 'all') {
-        params.append('routeId', selectedRouteId)
-        params.append('routeName', selectedRouteName)
-      }
-
-      const response = await fetch(`${apiUrl}/api/export-leader-birthdays-pdf?${params}`)
-
-      if (!response.ok) {
-        throw new Error('Error al generar PDF')
-      }
-
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `cumpleanos-lideres-${selectedRouteId === 'all' ? 'todas' : selectedRouteName}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Error exporting PDF:', error)
-      alert('Error al exportar PDF. Verifica que el servidor esté corriendo.')
-    } finally {
-      setIsExporting(false)
+  const handleExportPDF = () => {
+    const params = new URLSearchParams()
+    if (selectedRouteId !== 'all') {
+      params.append('routeId', selectedRouteId)
+      params.append('routeName', selectedRouteName)
     }
+
+    const url = `${API_CONFIG.BASE_URL}/api/export-leader-birthdays-pdf?${params.toString()}`
+    window.open(url, '_blank')
   }
 
   return (
@@ -170,14 +148,10 @@ export default function CumpleanosLideresPage() {
               variant="outline"
               size="sm"
               onClick={handleExportPDF}
-              disabled={isExporting || loading || leaders.length === 0}
+              disabled={loading || leaders.length === 0}
               className="gap-2"
             >
-              {isExporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileDown className="h-4 w-4" />
-              )}
+              <FileDown className="h-4 w-4" />
               Exportar PDF
             </Button>
           </div>
