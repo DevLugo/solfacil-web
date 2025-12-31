@@ -247,8 +247,9 @@ export function EditLoanModal({
             <Label>Nombre del cliente</Label>
             <Input
               value={borrowerName}
-              onChange={(e) => setBorrowerName(e.target.value)}
+              onChange={(e) => setBorrowerName(e.target.value.toUpperCase())}
               placeholder="Nombre completo"
+              className="uppercase"
             />
           </div>
 

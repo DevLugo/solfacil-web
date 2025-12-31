@@ -251,8 +251,8 @@ export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: Summ
                   type="text"
                   placeholder="Buscar localidad o líder..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-8 w-64"
+                  onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
+                  className="pl-9 pr-8 w-64 uppercase"
                 />
                 {searchTerm && (
                   <button

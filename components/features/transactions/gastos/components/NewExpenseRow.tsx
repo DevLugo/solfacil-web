@@ -94,8 +94,8 @@ export function NewExpenseRow({
           type="text"
           placeholder="Observaciones..."
           value={expense.observaciones || ''}
-          onChange={(e) => onUpdate(index, 'observaciones', e.target.value)}
-          className="w-full"
+          onChange={(e) => onUpdate(index, 'observaciones', e.target.value.toUpperCase())}
+          className="w-full uppercase"
         />
       </TableCell>
       <TableCell>

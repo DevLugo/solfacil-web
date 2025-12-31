@@ -239,9 +239,9 @@ export function LoanPaymentRow({
       <TableCell>
         {aval ? (
           <div>
-            <p className="text-sm">{aval.fullName || <span className={textStyles.orange}>Sin nombre</span>}</p>
+            <p className="text-xs text-muted-foreground">{aval.fullName || <span className={textStyles.orange}>Sin nombre</span>}</p>
             {aval.phones?.[0]?.number ? (
-              <p className="text-xs text-muted-foreground">{aval.phones[0].number}</p>
+              <p className="text-xs text-muted-foreground/70">{aval.phones[0].number}</p>
             ) : (
               <p className={cn('text-xs flex items-center gap-1', textStyles.orange)}>
                 <Phone className="h-3 w-3" />
@@ -250,7 +250,7 @@ export function LoanPaymentRow({
             )}
           </div>
         ) : (
-          <span className={cn('text-sm flex items-center gap-1', textStyles.orange)}>
+          <span className={cn('text-xs flex items-center gap-1', textStyles.orange)}>
             <AlertTriangle className="h-3 w-3" />
             Sin aval
           </span>

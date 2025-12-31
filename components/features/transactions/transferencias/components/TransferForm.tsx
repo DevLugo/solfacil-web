@@ -183,8 +183,9 @@ export function TransferForm({
                   : 'Descripcion de la transferencia'
               }
               value={description}
-              onChange={(e) => onDescriptionChange(e.target.value)}
+              onChange={(e) => onDescriptionChange(e.target.value.toUpperCase())}
               disabled={isSubmitting}
+              className="uppercase"
             />
           </div>
         </div>

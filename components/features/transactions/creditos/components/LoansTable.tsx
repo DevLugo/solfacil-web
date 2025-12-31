@@ -72,8 +72,8 @@ export function LoansTable({
             <Input
               placeholder="Buscar cliente..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
+              onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
+              className="pl-9 uppercase"
             />
           </div>
         </div>

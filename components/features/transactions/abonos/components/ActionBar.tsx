@@ -88,8 +88,8 @@ export function ActionBar({
           <Input
             placeholder="Buscar cliente..."
             value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 h-8"
+            onChange={(e) => onSearchChange(e.target.value.toUpperCase())}
+            className="pl-9 h-8 uppercase"
           />
         </div>
 
