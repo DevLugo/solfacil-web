@@ -5,6 +5,7 @@ import { useQuery, useMutation, useLazyQuery, gql } from '@apollo/client'
 import {
   GET_PORTFOLIO_REPORT_WEEKLY,
   GET_PORTFOLIO_REPORT_MONTHLY,
+  GET_PORTFOLIO_ROUTE_KPIS,
   GET_ACTIVE_CLIENTS_WITH_CV_STATUS,
   GET_CURRENT_ACTIVE_WEEK,
   GENERATE_PORTFOLIO_REPORT_PDF,
@@ -80,6 +81,9 @@ export interface LocationBreakdown {
   clientesAlCorriente: number
   clientesEnCV: number
   balance: number
+  // Averages from completed weeks (for monthly reports)
+  pagandoPromedio?: number
+  cvPromedio?: number
 }
 
 export interface RenovationKPIs {
@@ -728,6 +732,59 @@ export function useRecoveredDeadDebt({ year, month, routeId, skip = false }: Use
   return {
     summary,
     payments,
+    loading,
+    error,
+    refetch,
+  }
+}
+
+// =============================================================================
+// ROUTE KPIs HOOK (Simplified metrics for "Por Ruta" tab)
+// =============================================================================
+
+export interface RouteKPI {
+  routeId: string
+  routeName: string
+  clientesTotal: number
+  pagandoPromedio: number
+  cvPromedio: number
+}
+
+interface UseRouteKPIsParams {
+  year: number
+  month: number
+  filters?: PortfolioFilters
+  skip?: boolean
+}
+
+export function useRouteKPIs({ year, month, filters, skip = false }: UseRouteKPIsParams) {
+  const { data, loading, error, refetch } = useQuery(GET_PORTFOLIO_ROUTE_KPIS, {
+    variables: {
+      year,
+      month,
+      filters: filters ?? {},
+    },
+    skip,
+    fetchPolicy: 'cache-and-network',
+  })
+
+  const routeKPIs: RouteKPI[] = useMemo(() => {
+    return data?.portfolioRouteKPIs ?? []
+  }, [data])
+
+  // Calculate totals across all routes
+  const totals = useMemo(() => {
+    if (routeKPIs.length === 0) return null
+    return {
+      clientesTotal: routeKPIs.reduce((sum, r) => sum + r.clientesTotal, 0),
+      pagandoPromedio: routeKPIs.reduce((sum, r) => sum + r.pagandoPromedio, 0),
+      cvPromedio: routeKPIs.reduce((sum, r) => sum + r.cvPromedio, 0),
+    }
+  }, [routeKPIs])
+
+  return {
+    routeKPIs,
+    totals,
     loading,
     error,
     refetch,

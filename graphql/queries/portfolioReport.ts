@@ -31,6 +31,8 @@ const LOCATION_BREAKDOWN_FRAGMENT = gql`
     clientesAlCorriente
     clientesEnCV
     balance
+    pagandoPromedio
+    cvPromedio
   }
 `
 
@@ -130,6 +132,23 @@ export const GET_PORTFOLIO_REPORT_MONTHLY = gql`
   ${PORTFOLIO_REPORT_FRAGMENT}
 `
 
+// Query: Get simplified route KPIs (only 3 metrics per route)
+export const GET_PORTFOLIO_ROUTE_KPIS = gql`
+  query GetPortfolioRouteKPIs(
+    $year: Int!
+    $month: Int!
+    $filters: PortfolioFiltersInput
+  ) {
+    portfolioRouteKPIs(year: $year, month: $month, filters: $filters) {
+      routeId
+      routeName
+      clientesTotal
+      pagandoPromedio
+      cvPromedio
+    }
+  }
+`
+
 // Query: Get active clients with CV status
 export const GET_ACTIVE_CLIENTS_WITH_CV_STATUS = gql`
   query GetActiveClientsWithCVStatus($filters: PortfolioFiltersInput) {
@@ -216,6 +235,7 @@ const LOCALITY_SUMMARY_FRAGMENT = gql`
     totalReintegros
     totalFinalizados
     balance
+    alCorrientePromedio
     cvPromedio
     porcentajePagando
   }

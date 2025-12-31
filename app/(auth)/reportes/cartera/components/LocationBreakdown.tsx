@@ -14,82 +14,68 @@ import { MapPin, ArrowLeft, Route } from 'lucide-react'
 import {
   RouteStatsCard,
   RouteStatsSummary,
-  calculateRouteDeltas,
 } from '@/components/features/route-stats'
 import type {
-  LocationBreakdown as LocationBreakdownType,
   LocalityReport,
   LocalityBreakdownDetail,
+  RouteKPI,
 } from '../hooks'
 import { LocalityWeeklyTable } from './LocalityWeeklyTable'
 import { LocalityDetailModal } from './LocalityDetailModal'
 
 interface LocationBreakdownProps {
-  locations: LocationBreakdownType[]
+  // New simplified RouteKPI data
+  routeKPIs: RouteKPI[]
+  routeKPIsTotals: { clientesTotal: number; pagandoPromedio: number; cvPromedio: number } | null
+  routeKPIsLoading: boolean
+  // Locality data for drill-down
   localityReport?: LocalityReport | null
   localityLoading?: boolean
   year: number
   month: number
+  // Controlled drill-down state
+  selectedRouteId?: string | null
+  onRouteSelect?: (routeId: string | null) => void
 }
 
 function RouteCardsView({
-  locations,
-  localityReport,
+  routeKPIs,
+  totals,
+  loading,
   onRouteClick,
 }: {
-  locations: LocationBreakdownType[]
-  localityReport?: LocalityReport | null
+  routeKPIs: RouteKPI[]
+  totals: { clientesTotal: number; pagandoPromedio: number; cvPromedio: number } | null
+  loading: boolean
   onRouteClick: (routeId: string) => void
 }) {
-  // Calculate deltas from weekly data for each route (shared logic)
-  const routeDeltas = useMemo(() => {
-    return calculateRouteDeltas(localityReport ?? null)
-  }, [localityReport])
-
-  // Calculate totals
-  const totals = useMemo(() => {
-    const base = locations.reduce(
-      (acc, loc) => ({
-        activos: acc.activos + loc.clientesActivos,
-        alCorriente: acc.alCorriente + loc.clientesAlCorriente,
-        enCV: acc.enCV + loc.clientesEnCV,
-        balance: acc.balance + loc.balance,
-      }),
-      { activos: 0, alCorriente: 0, enCV: 0, balance: 0 }
-    )
-
-    // Calculate total deltas, last week totals, and averages from weekly data
-    let totalPagandoDelta = 0
-    let totalCvDelta = 0
-    let lastWeekClientes = 0
-    let totalPagandoPromedio = 0
-    let totalCvPromedio = 0
-
-    for (const deltas of routeDeltas.values()) {
-      totalPagandoDelta += deltas.pagandoDelta
-      totalCvDelta += deltas.cvDelta
-      lastWeekClientes += deltas.lastWeekClientes
-      totalPagandoPromedio += deltas.pagandoPromedio
-      totalCvPromedio += deltas.cvPromedio
-    }
-
+  // Transform totals to match RouteStatsSummary expected format
+  const summaryTotals = useMemo(() => {
+    if (!totals) return { lastWeekClientes: 0, pagandoPromedio: 0, cvPromedio: 0, balance: 0, pagandoDelta: 0, cvDelta: 0 }
     return {
-      ...base,
-      pagandoDelta: totalPagandoDelta,
-      cvDelta: totalCvDelta,
-      lastWeekClientes: lastWeekClientes || base.activos,
-      // Use averages for Pagando and CV
-      pagandoPromedio: totalPagandoPromedio || base.alCorriente,
-      cvPromedio: totalCvPromedio || base.enCV,
+      lastWeekClientes: totals.clientesTotal,
+      pagandoPromedio: totals.pagandoPromedio,
+      cvPromedio: totals.cvPromedio,
+      balance: 0, // Not used in simplified view
+      pagandoDelta: 0,
+      cvDelta: 0,
     }
-  }, [locations, routeDeltas])
+  }, [totals])
 
-  // Sort by clientes activos descending
-  const sortedLocations = [...locations].sort(
-    (a, b) => b.clientesActivos - a.clientesActivos
-  )
+  if (loading) {
+    return (
+      <div className="space-y-3 sm:space-y-4">
+        <Skeleton className="h-20 w-full" />
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
-  if (locations.length === 0) {
+  if (routeKPIs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-6 sm:py-12 text-center">
         <MapPin className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/50 mb-2 sm:mb-4" />
@@ -104,7 +90,7 @@ function RouteCardsView({
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* Summary */}
-      <RouteStatsSummary totals={totals} />
+      <RouteStatsSummary totals={summaryTotals} />
 
       {/* Instruction */}
       <p className="text-xs sm:text-sm text-muted-foreground">
@@ -113,19 +99,28 @@ function RouteCardsView({
 
       {/* Cards grid */}
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {sortedLocations.map((location) => (
+        {routeKPIs.map((kpi) => (
           <RouteStatsCard
-            key={location.locationId}
+            key={kpi.routeId}
             route={{
-              id: location.locationId,
-              name: location.routeName || location.locationName,
-              clientesActivos: location.clientesActivos,
-              clientesAlCorriente: location.clientesAlCorriente,
-              clientesEnCV: location.clientesEnCV,
-              balance: location.balance,
+              id: kpi.routeId,
+              name: kpi.routeName,
+              clientesActivos: kpi.clientesTotal,
+              clientesAlCorriente: Math.round(kpi.pagandoPromedio),
+              clientesEnCV: Math.round(kpi.cvPromedio),
+              balance: 0, // Not used in simplified view
             }}
-            deltas={routeDeltas.get(location.routeId || location.locationId)}
-            onClick={() => onRouteClick(location.routeId || location.locationId)}
+            deltas={{
+              clientesDelta: 0,
+              pagandoDelta: 0,
+              cvDelta: 0,
+              lastWeekClientes: kpi.clientesTotal,
+              lastWeekPagando: Math.round(kpi.pagandoPromedio),
+              lastWeekCV: Math.round(kpi.cvPromedio),
+              pagandoPromedio: kpi.pagandoPromedio,
+              cvPromedio: kpi.cvPromedio,
+            }}
+            onClick={() => onRouteClick(kpi.routeId)}
           />
         ))}
       </div>
@@ -134,30 +129,36 @@ function RouteCardsView({
 }
 
 export function LocationBreakdown({
-  locations,
+  routeKPIs,
+  routeKPIsTotals,
+  routeKPIsLoading,
   localityReport,
   localityLoading,
   year,
   month,
+  selectedRouteId: controlledRouteId,
+  onRouteSelect,
 }: LocationBreakdownProps) {
-  // Drill-down state: null = show routes, string = show localities for that route
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
+  // Local state for modal (not controlled by parent)
   const [selectedLocality, setSelectedLocality] = useState<LocalityBreakdownDetail | null>(null)
   const [selectedWeekNumber, setSelectedWeekNumber] = useState<number | undefined>(undefined)
+
+  // Use controlled state from parent, or fall back to null (routes view)
+  const selectedRouteId = controlledRouteId ?? null
 
   // Find the selected route name
   const selectedRouteName = useMemo(() => {
     if (!selectedRouteId) return null
-    const route = locations.find((loc) => loc.routeId === selectedRouteId || loc.locationId === selectedRouteId)
-    return route?.routeName || route?.locationName || 'Ruta'
-  }, [selectedRouteId, locations])
+    const route = routeKPIs.find((kpi) => kpi.routeId === selectedRouteId)
+    return route?.routeName || 'Ruta'
+  }, [selectedRouteId, routeKPIs])
 
   const handleRouteClick = (routeId: string) => {
-    setSelectedRouteId(routeId)
+    onRouteSelect?.(routeId)
   }
 
   const handleBackToRoutes = () => {
-    setSelectedRouteId(null)
+    onRouteSelect?.(null)
   }
 
   const handleLocalityClick = (locality: LocalityBreakdownDetail, weekNumber?: number) => {
@@ -170,67 +171,10 @@ export function LocationBreakdown({
     setSelectedWeekNumber(undefined)
   }
 
-  // Filter localities by selected route for drill-down view
-  // IMPORTANT: Use same matching logic as RouteCardsView routeDeltas (loc.routeId || loc.localityId)
-  const filteredLocalityReport = useMemo(() => {
-    if (!localityReport || !selectedRouteId) return localityReport
-
-    const filteredLocalities = localityReport.localities.filter(
-      (loc) => (loc.routeId || loc.localityId) === selectedRouteId
-    )
-
-    // Recalculate totals for filtered data
-    const totals = filteredLocalities.reduce(
-      (acc, loc) => ({
-        totalClientesActivos: acc.totalClientesActivos + loc.summary.totalClientesActivos,
-        totalClientesAlCorriente: acc.totalClientesAlCorriente + loc.summary.totalClientesAlCorriente,
-        totalClientesEnCV: acc.totalClientesEnCV + loc.summary.totalClientesEnCV,
-        totalNuevos: acc.totalNuevos + loc.summary.totalNuevos,
-        totalRenovados: acc.totalRenovados + loc.summary.totalRenovados,
-        totalReintegros: acc.totalReintegros + loc.summary.totalReintegros,
-        totalFinalizados: acc.totalFinalizados + loc.summary.totalFinalizados,
-        balance: acc.balance + loc.summary.balance,
-        alCorrientePromedio: 0,
-        cvPromedio: 0,
-        porcentajePagando: 0,
-      }),
-      {
-        totalClientesActivos: 0,
-        totalClientesAlCorriente: 0,
-        totalClientesEnCV: 0,
-        totalNuevos: 0,
-        totalRenovados: 0,
-        totalReintegros: 0,
-        totalFinalizados: 0,
-        balance: 0,
-        alCorrientePromedio: 0,
-        cvPromedio: 0,
-        porcentajePagando: 0,
-      }
-    )
-
-    // Calculate averages - SUM locality averages (not average of averages)
-    // This matches the RouteCard calculation which sums weekly averages
-    if (filteredLocalities.length > 0) {
-      totals.alCorrientePromedio = filteredLocalities.reduce(
-        (sum, loc) => sum + (loc.summary.alCorrientePromedio ?? loc.summary.totalClientesAlCorriente ?? 0),
-        0
-      )
-      totals.cvPromedio = filteredLocalities.reduce(
-        (sum, loc) => sum + (loc.summary.cvPromedio ?? loc.summary.totalClientesEnCV ?? 0),
-        0
-      )
-      totals.porcentajePagando = totals.totalClientesActivos > 0
-        ? (totals.totalClientesAlCorriente / totals.totalClientesActivos) * 100
-        : 0
-    }
-
-    return {
-      ...localityReport,
-      localities: filteredLocalities,
-      totals,
-    }
-  }, [localityReport, selectedRouteId])
+  // When drilling down into a route, localityReport is already filtered by that route on the backend.
+  // We just use it directly without re-filtering to ensure consistency with routeKPIs.
+  // The backend's totals are the source of truth.
+  const filteredLocalityReport = localityReport
 
   const localityCount = filteredLocalityReport?.localities.length ?? 0
 
@@ -268,7 +212,7 @@ export function LocationBreakdown({
                 <>
                   <CardTitle className="text-base sm:text-lg">Desglose por Ruta</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    {locations.length} rutas con clientes activos
+                    {routeKPIs.length} rutas con clientes activos
                   </CardDescription>
                 </>
               )}
@@ -291,10 +235,11 @@ export function LocationBreakdown({
               />
             )
           ) : (
-            // Default: Show route cards
+            // Default: Show route cards with simplified KPIs
             <RouteCardsView
-              locations={locations}
-              localityReport={localityReport}
+              routeKPIs={routeKPIs}
+              totals={routeKPIsTotals}
+              loading={routeKPIsLoading}
               onRouteClick={handleRouteClick}
             />
           )}

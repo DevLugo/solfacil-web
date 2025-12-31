@@ -17,6 +17,10 @@ export interface LocalityBreakdownDetail {
   localityId: string
   routeId: string | null
   weeklyData: LocalityWeekData[]
+  summary?: {
+    alCorrientePromedio?: number
+    cvPromedio?: number
+  }
 }
 
 /**
@@ -30,11 +34,15 @@ export interface LocalityReport {
  * Calculate route deltas from weekly locality data
  * Used by both LocationBreakdown (reports) and useRouteManagement (admin)
  *
+ * IMPORTANT: For averages (pagandoPromedio, cvPromedio), this function prefers
+ * using pre-calculated values from locality.summary when available (from backend).
+ * This ensures consistency with backend calculations and avoids recalculation errors.
+ *
  * @param localityReport - The locality report with weekly data (accepts any object with localities array)
  * @returns Map of routeId to RouteDeltas
  */
 export function calculateRouteDeltas<
-  T extends { localities: Array<{ localityId: string; routeId: string | null; weeklyData: Array<{ isCompleted: boolean; clientesActivos: number; clientesAlCorriente: number; clientesEnCV: number }> }> }
+  T extends { localities: Array<{ localityId: string; routeId: string | null; weeklyData: Array<{ isCompleted: boolean; clientesActivos: number; clientesAlCorriente: number; clientesEnCV: number }>; summary?: { alCorrientePromedio?: number; cvPromedio?: number } }> }
 >(
   localityReport: T | null
 ): Map<string, RouteDeltas> {
@@ -60,13 +68,22 @@ export function calculateRouteDeltas<
     let lastWeekClientes = 0
     let lastWeekPagando = 0
     let lastWeekCV = 0
-    let totalPagandoSum = 0
-    let totalCvSum = 0
-    let totalCompletedWeeks = 0
+
+    // Sum pre-calculated averages from backend (preferred)
+    let summaryPagandoPromedio = 0
+    let summaryCvPromedio = 0
+    let hasSummaryData = false
 
     for (const loc of localities) {
       const weeklyData = loc.weeklyData || []
       const completedWeeks = weeklyData.filter((w) => w.isCompleted)
+
+      // Use backend-calculated summary if available
+      if (loc.summary?.alCorrientePromedio !== undefined || loc.summary?.cvPromedio !== undefined) {
+        hasSummaryData = true
+        summaryPagandoPromedio += loc.summary.alCorrientePromedio ?? 0
+        summaryCvPromedio += loc.summary.cvPromedio ?? 0
+      }
 
       if (completedWeeks.length >= 1) {
         const firstWeek = completedWeeks[0]
@@ -79,21 +96,15 @@ export function calculateRouteDeltas<
         lastWeekClientes += lastWeek.clientesActivos
         lastWeekPagando += lastWeek.clientesAlCorriente
         lastWeekCV += lastWeek.clientesEnCV
-
-        // Sum all completed weeks for average calculation
-        for (const week of completedWeeks) {
-          totalPagandoSum += week.clientesAlCorriente
-          totalCvSum += week.clientesEnCV
-          totalCompletedWeeks++
-        }
       }
     }
 
-    // Calculate averages
-    const pagandoPromedio =
-      totalCompletedWeeks > 0 ? Math.round(totalPagandoSum / totalCompletedWeeks) : lastWeekPagando
-    const cvPromedio =
-      totalCompletedWeeks > 0 ? Math.round(totalCvSum / totalCompletedWeeks) : lastWeekCV
+    // IMPORTANT: Use backend-calculated averages when available
+    // This ensures consistency with the original Keystone calculation:
+    // cvPromedio = sum(CV for all weeks) / number of weeks (per locality)
+    // Then sum across localities for route total
+    const pagandoPromedio = hasSummaryData ? Math.round(summaryPagandoPromedio) : lastWeekPagando
+    const cvPromedio = hasSummaryData ? Math.round(summaryCvPromedio) : lastWeekCV
 
     deltasMap.set(routeId, {
       clientesDelta: lastWeekClientes - firstWeekClientes,

@@ -6,6 +6,7 @@ export {
   useLocalityClients,
   useAnnualPortfolioData,
   useRecoveredDeadDebt,
+  useRouteKPIs,
 } from './usePortfolioReport'
 
 export type {
@@ -35,4 +36,6 @@ export type {
   // Recovered dead debt types
   RecoveredDeadDebtSummary,
   RecoveredDeadDebtPayment,
+  // Route KPIs
+  RouteKPI,
 } from './usePortfolioReport'

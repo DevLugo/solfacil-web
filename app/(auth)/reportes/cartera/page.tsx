@@ -50,6 +50,7 @@ import {
   useLocalityReport,
   useAnnualPortfolioData,
   useRecoveredDeadDebt,
+  useRouteKPIs,
 } from './hooks'
 import type { AnnualMonthData } from './components'
 import {
@@ -256,6 +257,8 @@ export default function PortfolioReportPage() {
   const [activeTab, setActiveTab] = useState('resumen')
   const [showRecoveredDeadDebtModal, setShowRecoveredDeadDebtModal] = useState(false)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
+  // Drill-down state: which route is selected for locality details (null = show routes only)
+  const [selectedRouteForDrillDown, setSelectedRouteForDrillDown] = useState<string | null>(null)
 
   // Period navigation - always use MONTHLY view
   const {
@@ -318,15 +321,36 @@ export default function PortfolioReportPage() {
     }
   }, [report, shouldLoadPrevious])
 
-  // Locality report for "Por Ruta" view (lazy load - only when tab is active)
+  // Build filters for locality report - include the specific route for drill-down
+  const localityFilters = useMemo(() => {
+    if (!selectedRouteForDrillDown) return filters
+    // When drilling down into a specific route, filter by that route
+    return {
+      ...filters,
+      routeIds: [selectedRouteForDrillDown],
+    }
+  }, [filters, selectedRouteForDrillDown])
+
+  // Locality report for drill-down (only loaded when a route is selected)
   const {
     localityReport,
     loading: localityLoading,
   } = useLocalityReport({
     year,
     month,
+    filters: localityFilters,
+    skip: !selectedRouteForDrillDown, // Only fetch when drilling down into a route
+  })
+
+  // Route KPIs for "Por Ruta" tab - simplified query with only 3 metrics
+  const {
+    routeKPIs,
+    totals: routeKPIsTotals,
+    loading: routeKPIsLoading,
+  } = useRouteKPIs({
+    year,
+    month,
     filters,
-    skip: activeTab !== 'rutas',
   })
 
   // Recovered dead debt (lazy load after main report)
@@ -661,11 +685,15 @@ export default function PortfolioReportPage() {
           {/* Por Ruta Tab */}
           <TabsContent value="rutas">
             <LocationBreakdown
-              locations={report.byLocation}
+              routeKPIs={routeKPIs}
+              routeKPIsTotals={routeKPIsTotals}
+              routeKPIsLoading={routeKPIsLoading}
               localityReport={localityReport}
               localityLoading={localityLoading}
               year={year}
               month={month}
+              selectedRouteId={selectedRouteForDrillDown}
+              onRouteSelect={setSelectedRouteForDrillDown}
             />
           </TabsContent>
         </Tabs>
