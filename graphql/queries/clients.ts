@@ -79,6 +79,8 @@ export const GET_CLIENT_HISTORY_QUERY = gql`
         currentPendingDebtAsClient
         hasBeenClient
         hasBeenCollateral
+        firstLoanDate
+        avgMissedPaymentsPerLoan
       }
       loansAsClient {
         id

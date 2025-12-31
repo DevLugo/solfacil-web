@@ -139,7 +139,7 @@ export function PaymentHistoryModal({ loan, isOpen, onClose }: PaymentHistoryMod
         <ScrollArea className="flex-1 overflow-auto">
           <div className="p-3 md:p-4">
             {/* Loan Summary - Match outside cards style */}
-            <div className="grid grid-cols-4 gap-1.5 mb-3">
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
               <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/50">
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-success truncate">{formatCurrency(loan.amountRequested)}</div>
@@ -169,6 +169,13 @@ export function PaymentHistoryModal({ loan, isOpen, onClose }: PaymentHistoryMod
                   <div className="text-[10px] text-muted-foreground">debe</div>
                 </div>
               </div>
+            </div>
+
+            {/* Interest rate and weeks info */}
+            <div className="flex items-center justify-center gap-3 text-[10px] text-muted-foreground mb-3">
+              <span>Interés: <span className="font-medium text-foreground">{Math.round(loan.rate * 100)}%</span></span>
+              <span>•</span>
+              <span><span className="font-medium text-foreground">{loan.weekDuration}</span> semanas</span>
             </div>
 
             {/* Legend - Compact inline */}

@@ -55,6 +55,8 @@ export interface ClientSummary {
   currentPendingDebtAsClient: number
   hasBeenClient: boolean
   hasBeenCollateral: boolean
+  firstLoanDate: string | null
+  avgMissedPaymentsPerLoan: number
 }
 
 export interface LoanHistoryDetail {
