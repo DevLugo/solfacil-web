@@ -9,6 +9,7 @@ export const ME_QUERY = gql`
       employee {
         id
         personalData {
+          id
           fullName
         }
       }

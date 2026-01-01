@@ -12,6 +12,7 @@ export const LOGIN_MUTATION = gql`
         employee {
           id
           personalData {
+            id
             fullName
           }
         }
@@ -32,6 +33,7 @@ export const REFRESH_TOKEN_MUTATION = gql`
         employee {
           id
           personalData {
+            id
             fullName
           }
         }
