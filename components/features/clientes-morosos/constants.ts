@@ -1,8 +1,8 @@
 // Constants and styles for Clientes Morosos feature
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+import { API_CONFIG } from '@/lib/constants/api'
 
-export const PDF_EXPORT_ENDPOINT = `${API_BASE_URL}/api/export-bad-debt-pdf`
+export const PDF_EXPORT_ENDPOINT = `${API_CONFIG.BASE_URL}/api/export-bad-debt-pdf`
 
 export const statusBadgeStyles = {
   badDebt: 'bg-destructive/10 text-destructive border-destructive/20',
