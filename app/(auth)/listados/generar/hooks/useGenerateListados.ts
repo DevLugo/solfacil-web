@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@apollo/client'
 import { GET_ROUTES_FOR_PDF, GET_ROUTE_LOCALITIES } from '@/graphql/queries/generar-listados'
 import { useToast } from '@/hooks/use-toast'
-import { API_CONFIG } from '@/lib/constants/api'
+import { getApiBaseUrl } from '@/lib/constants/api'
 
 interface LocalityWithLeader {
   id: string
@@ -175,7 +175,7 @@ export function useGenerateListados() {
           })
 
           // Abrir PDF en nueva pestaña
-          const url = `${API_CONFIG.BASE_URL}/api/generar-listados?${params.toString()}`
+          const url = `${getApiBaseUrl()}/api/generar-listados?${params.toString()}`
           window.open(url, '_blank')
           successCount++
 

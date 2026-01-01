@@ -11,7 +11,7 @@ import {
   LoansListSkeleton,
 } from './components'
 import { useClientHistory } from './hooks'
-import { API_CONFIG } from '@/lib/constants/api'
+import { getApiBaseUrl } from '@/lib/constants/api'
 import type { ClientSearchResult } from './types'
 
 export function HistorialClientes() {
@@ -36,7 +36,7 @@ export function HistorialClientes() {
 
       setPdfLoading(true)
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/export-client-history-pdf`, {
+        const response = await fetch(`${getApiBaseUrl()}/api/export-client-history-pdf`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

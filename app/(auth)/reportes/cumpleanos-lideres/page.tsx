@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { API_CONFIG } from '@/lib/constants/api'
+import { getApiBaseUrl } from '@/lib/constants/api'
 import { GET_LEADER_BIRTHDAYS, GET_ROUTES } from '@/graphql/queries/leader'
 
 interface LeaderBirthday {
@@ -93,7 +93,7 @@ export default function CumpleanosLideresPage() {
       params.append('routeName', selectedRouteName)
     }
 
-    const url = `${API_CONFIG.BASE_URL}/api/export-leader-birthdays-pdf?${params.toString()}`
+    const url = `${getApiBaseUrl()}/api/export-leader-birthdays-pdf?${params.toString()}`
     window.open(url, '_blank')
   }
 

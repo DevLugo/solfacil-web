@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Badge } from '@/components/ui/badge'
 import { GET_ROUTES, GET_LOCATIONS } from '@/graphql/queries/leader'
-import { PDF_EXPORT_ENDPOINT } from '../constants'
+import { getApiBaseUrl } from '@/lib/constants/api'
 import type { BadDebtFilters, RouteOption, LocationOption } from '../types'
 
 interface FilterBarProps {
@@ -69,7 +69,7 @@ export function FilterBar({
     if (selectedRoute) params.append('routeName', selectedRoute.name)
     if (selectedLocation) params.append('locationName', selectedLocation.name)
 
-    const url = `${PDF_EXPORT_ENDPOINT}?${params.toString()}`
+    const url = `${getApiBaseUrl()}/api/export-bad-debt-pdf?${params.toString()}`
     window.open(url, '_blank')
   }
 
