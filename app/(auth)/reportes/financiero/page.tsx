@@ -90,6 +90,8 @@ interface MonthlyFinancialData {
   incomes: string
   operationalProfit: string
   operationalProfitCapitalOnly: string
+  assetAcquisitions: string
+  netProfit: string
   profitPercentage: string
   gainPerPayment: string
   activeWeeks: number
@@ -209,8 +211,8 @@ export default function FinancialReportPage() {
       'totalExpenses', 'generalExpenses', 'nomina', 'comissions',
       'nominaInterna', 'salarioExterno', 'viaticos', 'travelExpenses',
       'tokaGasolina', 'cashGasolina', 'totalGasolina', 'badDebtAmount',
-      'badDebtCapital', 'badDebtProfit',
-      'incomes', 'operationalProfit', 'operationalProfitCapitalOnly', 'loanDisbursements',
+      'badDebtCapital', 'badDebtProfit', 'assetAcquisitions',
+      'incomes', 'operationalProfit', 'operationalProfitCapitalOnly', 'netProfit', 'loanDisbursements',
       'totalIncomingCash', 'capitalReturn', 'profitReturn',
       'operationalCashUsed', 'totalInvestment', 'availableCash'
     ]
@@ -752,6 +754,38 @@ export default function FinancialReportPage() {
                     </td>
                   </tr>
 
+                  {/* Adquisición de Activos (CAPEX) */}
+                  <tr className="border-b bg-purple-50/50 dark:bg-purple-950/20 hover:bg-purple-50 dark:hover:bg-purple-950/30">
+                    <td className="sticky left-0 z-10 bg-purple-50/50 dark:bg-purple-950/20 px-4 py-2 font-medium shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                            Adquisición de Activos
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white p-3 text-xs max-w-xs">
+                            <div className="space-y-1">
+                              <div className="font-semibold border-b border-slate-700 pb-1 mb-1">CAPEX (Gasto de Capital)</div>
+                              <p className="text-slate-300">
+                                Compra de vehículos, equipos u otros activos. <strong>No afecta la ganancia operativa</strong>, pero sí la ganancia neta.
+                              </p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </td>
+                    {report.data.map((monthData, idx) => {
+                      const val = parseFloat(monthData.assetAcquisitions)
+                      return (
+                        <td key={idx} className={cn('text-center px-2 py-2 font-medium border-l', val > 0 ? 'text-purple-700 dark:text-purple-400' : 'text-muted-foreground')}>
+                          {formatCurrency(val)}
+                        </td>
+                      )
+                    })}
+                    <td className="text-center px-2 py-2 font-bold bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-l">
+                      {formatCurrency(annualTotals.assetAcquisitions)}
+                    </td>
+                  </tr>
+
                   {/* SECTION: INGRESOS */}
                   <tr className="bg-green-100 dark:bg-green-950/50">
                     <td colSpan={14} className="px-4 py-3 text-center font-bold text-green-800 dark:text-green-400 text-sm tracking-wide">
@@ -860,6 +894,38 @@ export default function FinancialReportPage() {
                       ) : (
                         formatCurrency(annualTotals.operationalProfit)
                       )}
+                    </td>
+                  </tr>
+
+                  {/* Ganancia Neta (incluyendo CAPEX) */}
+                  <tr className="border-b bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50">
+                    <td className="sticky left-0 z-10 bg-indigo-50 dark:bg-indigo-950/30 px-4 py-2 font-bold shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                      <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">
+                            GANANCIA NETA
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white p-3 text-xs max-w-xs">
+                            <div className="space-y-1">
+                              <div className="font-semibold border-b border-slate-700 pb-1 mb-1">Ganancia Neta</div>
+                              <p className="text-slate-300">
+                                Ganancia Operativa <strong>menos</strong> adquisiciones de activos (vehículos, equipos). Refleja el flujo de caja real.
+                              </p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </td>
+                    {report.data.map((monthData, idx) => {
+                      const val = parseFloat(monthData.netProfit)
+                      return (
+                        <td key={idx} className={cn('text-center px-2 py-2.5 font-bold border-l', getValueColor(val))}>
+                          {formatCurrency(val)}
+                        </td>
+                      )
+                    })}
+                    <td className="text-center px-2 py-2.5 font-bold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-400 border-l">
+                      {formatCurrency(annualTotals.netProfit)}
                     </td>
                   </tr>
 

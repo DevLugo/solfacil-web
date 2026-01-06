@@ -14,6 +14,7 @@ import {
   Wallet,
   HandCoins,
   CircleDollarSign,
+  Truck,
 } from 'lucide-react'
 import type { ExpenseType, AccountType } from './types'
 
@@ -34,6 +35,7 @@ export const EXPENSE_TYPES: ExpenseType[] = [
   { value: 'POSADA', label: 'Posada', icon: PartyPopper },
   { value: 'REGALOS_LIDERES', label: 'Regalos Lideres', icon: Gift },
   { value: 'AGUINALDO', label: 'Aguinaldo', icon: DollarSign },
+  { value: 'ASSET_ACQUISITION', label: 'Adquisicion de Activos', icon: Truck },
   { value: 'OTRO', label: 'Otro', icon: Wallet },
 ]
 
@@ -66,6 +68,7 @@ export const EXPENSE_SOURCE_LABELS: Record<string, string> = {
   POSADA: 'Posada',
   REGALOS_LIDERES: 'Regalos Lideres',
   AGUINALDO: 'Aguinaldo',
+  ASSET_ACQUISITION: 'Adquisicion de Activos',
   OTRO: 'Otro',
   // Commission types
   LOAN_GRANTED: 'Credito Otorgado',

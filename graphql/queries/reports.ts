@@ -28,6 +28,8 @@ export const GET_FINANCIAL_REPORT_ANNUAL = gql`
         incomes
         operationalProfit
         operationalProfitCapitalOnly
+        assetAcquisitions
+        netProfit
         profitPercentage
         gainPerPayment
         activeWeeks

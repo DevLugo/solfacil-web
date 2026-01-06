@@ -132,6 +132,10 @@ const GET_DEAD_DEBT_MONTHLY_SUMMARY = gql`
             locality
             route
           }
+          payments {
+            receivedAt
+            amount
+          }
         }
       }
     }
@@ -171,6 +175,10 @@ interface DeadDebtLoan {
     locality: string
     route: string
   }
+  payments: {
+    receivedAt: string | null
+    amount: string
+  }[]
 }
 
 interface MonthSummary {
@@ -388,6 +396,7 @@ function MonthCard({
                         <TableHead>Localidad / Ruta</TableHead>
                         <TableHead className="text-center">Sem. Crédito</TableHead>
                         <TableHead className="text-center">Sem. Sin Pago</TableHead>
+                        <TableHead className="text-center">Último Pago</TableHead>
                         <TableHead className="text-right">Pendiente</TableHead>
                         <TableHead className="text-right">Cartera Muerta</TableHead>
                       </TableRow>
@@ -428,6 +437,15 @@ function MonthCard({
                             <Badge variant={loan.weeksWithoutPayment >= 8 ? 'destructive' : 'secondary'}>
                               {loan.weeksWithoutPayment}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">
+                            {loan.payments?.[0]?.receivedAt
+                              ? new Date(loan.payments[0].receivedAt).toLocaleDateString('es-MX', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: '2-digit'
+                                })
+                              : 'Sin pagos'}
                           </TableCell>
                           <TableCell className="text-right font-medium">
                             {formatCurrency(parseFloat(loan.pendingAmountStored))}
