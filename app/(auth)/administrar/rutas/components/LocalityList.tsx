@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, MapPin } from 'lucide-react'
+import { ChevronLeft, MapPin, History } from 'lucide-react'
 import { MoveLocalitiesPanel } from './MoveLocalitiesPanel'
+import { LocationHistoryPanel } from './LocationHistoryPanel'
+import { AddHistoryModal } from './AddHistoryModal'
 import { useMoveLocalities } from '../hooks/useMoveLocalities'
 import type { RouteWithStats, LocalityInfo } from '../types'
 
@@ -23,11 +25,20 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
     selectedLocalities,
     targetRouteId,
     isMoving,
+    effectiveDate,
     toggleLocality,
     setTargetRouteId,
+    setEffectiveDate,
     handleMove,
     clearSelection,
   } = useMoveLocalities(route)
+
+  // State for history panel and modal
+  const [historyLocation, setHistoryLocation] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [showAddHistoryModal, setShowAddHistoryModal] = useState(false)
 
   // Build locality info for selected items
   const selectedLocalityInfo: LocalityInfo[] = useMemo(() => {
@@ -105,6 +116,8 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
           onCancel={clearSelection}
           selectedLocalities={selectedLocalityInfo}
           isMoving={isMoving}
+          effectiveDate={effectiveDate}
+          onEffectiveDateChange={setEffectiveDate}
         />
       )}
 
@@ -167,12 +180,56 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
                   </div>
                 </div>
 
-                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                {/* History and Location buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {locality?.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setHistoryLocation({
+                          id: locality.id,
+                          name: locality.name ?? 'Sin nombre',
+                        })
+                      }}
+                      title="Ver historial de rutas"
+                    >
+                      <History className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  )}
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                </div>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {/* History Panel */}
+      {historyLocation && (
+        <LocationHistoryPanel
+          locationId={historyLocation.id}
+          locationName={historyLocation.name}
+          onClose={() => setHistoryLocation(null)}
+          onAddHistory={() => setShowAddHistoryModal(true)}
+        />
+      )}
+
+      {/* Add History Modal */}
+      {historyLocation && (
+        <AddHistoryModal
+          open={showAddHistoryModal}
+          onOpenChange={setShowAddHistoryModal}
+          locationId={historyLocation.id}
+          locationName={historyLocation.name}
+          routes={[...otherRoutes, route].map((r) => ({
+            routeId: r.routeId,
+            routeName: r.routeName,
+          }))}
+        />
+      )}
     </div>
   )
 }

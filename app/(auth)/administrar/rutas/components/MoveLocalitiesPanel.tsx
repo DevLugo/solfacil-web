@@ -9,8 +9,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowRight, X, Users, AlertCircle, CheckCircle2, MoveRight } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { ArrowRight, X, Users, AlertCircle, CheckCircle2, MoveRight, CalendarIcon } from 'lucide-react'
 import { MoveConfirmationModal } from './MoveConfirmationModal'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { cn } from '@/lib/utils'
 import type { RouteWithStats, LocalityInfo } from '../types'
 
 interface MoveLocalitiesPanelProps {
@@ -23,6 +32,8 @@ interface MoveLocalitiesPanelProps {
   onCancel: () => void
   selectedLocalities: LocalityInfo[]
   isMoving: boolean
+  effectiveDate: Date
+  onEffectiveDateChange: (date: Date) => void
 }
 
 /**
@@ -39,6 +50,8 @@ export function MoveLocalitiesPanel({
   onCancel,
   selectedLocalities,
   isMoving,
+  effectiveDate,
+  onEffectiveDateChange,
 }: MoveLocalitiesPanelProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
 
@@ -218,6 +231,40 @@ export function MoveLocalitiesPanel({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Effective Date Picker */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Fecha Efectiva del Cambio</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'w-full justify-start text-left font-normal',
+                    !effectiveDate && 'text-muted-foreground'
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {effectiveDate ? format(effectiveDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={effectiveDate}
+                  onSelect={(date) => date && onEffectiveDateChange(date)}
+                  initialFocus
+                  locale={es}
+                  captionLayout="dropdown"
+                  fromYear={2015}
+                  toYear={new Date().getFullYear() + 1}
+                />
+              </PopoverContent>
+            </Popover>
+            <p className="text-[10px] text-muted-foreground">
+              Fecha desde la cual la localidad pertenecerá a la nueva ruta
+            </p>
           </div>
 
           {/* Action Button */}
