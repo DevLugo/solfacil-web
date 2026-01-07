@@ -40,6 +40,7 @@ export interface ClientBalanceData {
   nuevos: number
   terminadosSinRenovar: number
   renovados: number
+  reintegros: number
   balance: number
   trend: Trend
 }
@@ -515,6 +516,7 @@ export interface AnnualPortfolioDataPoint {
   cvPromedio: number
   renovaciones: number
   nuevos: number
+  reintegros: number
   balance: number
   tasaRenovacion?: number
 }
@@ -578,6 +580,7 @@ export function useAnnualPortfolioData({ year, currentMonth, skip = false }: Use
               cvPromedio: data.summary.promedioCV ?? data.summary.clientesEnCV,
               renovaciones: data.renovationKPIs.totalRenovaciones,
               nuevos: data.summary.clientBalance.nuevos,
+              reintegros: data.summary.clientBalance.reintegros,
               balance: data.summary.clientBalance.balance,
               tasaRenovacion: data.renovationKPIs.tasaRenovacion,
             })

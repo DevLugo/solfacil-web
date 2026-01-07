@@ -50,6 +50,7 @@ const PORTFOLIO_SUMMARY_FRAGMENT = gql`
       nuevos
       terminadosSinRenovar
       renovados
+      reintegros
       balance
       trend
     }

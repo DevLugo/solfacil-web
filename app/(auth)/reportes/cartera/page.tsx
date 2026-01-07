@@ -409,6 +409,7 @@ export default function PortfolioReportPage() {
       cvPromedio: d.cvPromedio,
       renovaciones: d.renovaciones,
       nuevos: d.nuevos,
+      reintegros: d.reintegros,
       balance: d.balance,
       tasaRenovacion: d.tasaRenovacion,
     }))
@@ -442,6 +443,7 @@ export default function PortfolioReportPage() {
       cvPromedio: safeNumber(report.summary.promedioCV ?? report.summary.clientesEnCV),
       renovaciones: safeNumber(report.renovationKPIs.totalRenovaciones),
       nuevos: safeNumber(report.summary.clientBalance.nuevos),
+      reintegros: safeNumber(report.summary.clientBalance.reintegros),
       tasaRenovacion: safeNumber(report.renovationKPIs.tasaRenovacion),
     }
 
@@ -458,6 +460,7 @@ export default function PortfolioReportPage() {
           cvPromedio: safeNumber(previousReport.summary.promedioCV ?? previousReport.summary.clientesEnCV),
           renovaciones: safeNumber(previousReport.renovationKPIs.totalRenovaciones),
           nuevos: safeNumber(previousReport.summary.clientBalance.nuevos),
+          reintegros: safeNumber(previousReport.summary.clientBalance.reintegros ?? 0),
           tasaRenovacion: safeNumber(previousReport.renovationKPIs.tasaRenovacion),
         }
       : null

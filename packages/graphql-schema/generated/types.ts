@@ -26,6 +26,7 @@ export type Account = {
   accountBalance: Scalars['Decimal']['output'];
   amount: Scalars['Decimal']['output'];
   createdAt: Scalars['DateTime']['output'];
+  entries: Array<AccountEntry>;
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   routes: Array<Route>;
@@ -34,6 +35,44 @@ export type Account = {
   type: AccountType;
   updatedAt: Scalars['DateTime']['output'];
 };
+
+export type AccountEntry = {
+  __typename?: 'AccountEntry';
+  account: Account;
+  amount: Scalars['Decimal']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  description?: Maybe<Scalars['String']['output']>;
+  destinationAccount?: Maybe<Account>;
+  entryDate: Scalars['DateTime']['output'];
+  entryType: AccountEntryType;
+  id: Scalars['ID']['output'];
+  lead?: Maybe<Employee>;
+  loan?: Maybe<Loan>;
+  loanPayment?: Maybe<LoanPayment>;
+  profitAmount?: Maybe<Scalars['Decimal']['output']>;
+  returnToCapital?: Maybe<Scalars['Decimal']['output']>;
+  route?: Maybe<Route>;
+  snapshotLeadId?: Maybe<Scalars['String']['output']>;
+  sourceType: SourceType;
+};
+
+export type AccountEntryConnection = {
+  __typename?: 'AccountEntryConnection';
+  edges: Array<AccountEntryEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type AccountEntryEdge = {
+  __typename?: 'AccountEntryEdge';
+  cursor: Scalars['String']['output'];
+  node: AccountEntry;
+};
+
+export enum AccountEntryType {
+  Credit = 'CREDIT',
+  Debit = 'DEBIT'
+}
 
 export enum AccountType {
   Bank = 'BANK',
@@ -90,6 +129,37 @@ export type AuthPayload = {
   accessToken: Scalars['String']['output'];
   refreshToken: Scalars['String']['output'];
   user: User;
+};
+
+export type BadDebtClientItem = {
+  __typename?: 'BadDebtClientItem';
+  amountRequested: Scalars['Decimal']['output'];
+  badDebtDate?: Maybe<Scalars['DateTime']['output']>;
+  borrowerPersonalDataId: Scalars['ID']['output'];
+  cleanupDate?: Maybe<Scalars['DateTime']['output']>;
+  clientCode?: Maybe<Scalars['String']['output']>;
+  clientName: Scalars['String']['output'];
+  clientPhone?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  isFromCleanup: Scalars['Boolean']['output'];
+  lastPaymentDate?: Maybe<Scalars['DateTime']['output']>;
+  leadName?: Maybe<Scalars['String']['output']>;
+  leadPhone?: Maybe<Scalars['String']['output']>;
+  loanId: Scalars['ID']['output'];
+  locationName?: Maybe<Scalars['String']['output']>;
+  municipalityName?: Maybe<Scalars['String']['output']>;
+  pendingDebt: Scalars['Decimal']['output'];
+  routeName?: Maybe<Scalars['String']['output']>;
+  signDate: Scalars['DateTime']['output'];
+  totalAmountDue: Scalars['Decimal']['output'];
+  totalPaid: Scalars['Decimal']['output'];
+};
+
+export type BadDebtClientsResult = {
+  __typename?: 'BadDebtClientsResult';
+  clients: Array<BadDebtClientItem>;
+  hasMore: Scalars['Boolean']['output'];
+  totalCount: Scalars['Int']['output'];
 };
 
 export type BadDebtData = {
@@ -236,8 +306,11 @@ export type ClientAddressInfo = {
 
 export type ClientBalanceData = {
   __typename?: 'ClientBalanceData';
+  /** Balance neto (nuevos + reintegros - terminadosSinRenovar) */
   balance: Scalars['Int']['output'];
   nuevos: Scalars['Int']['output'];
+  /** Reintegros: clientes que regresan después de pagar completamente su préstamo anterior */
+  reintegros: Scalars['Int']['output'];
   renovados: Scalars['Int']['output'];
   terminadosSinRenovar: Scalars['Int']['output'];
   trend: Trend;
@@ -295,7 +368,9 @@ export type ClientSummary = {
   __typename?: 'ClientSummary';
   activeLoansAsClient: Scalars['Int']['output'];
   activeLoansAsCollateral: Scalars['Int']['output'];
+  avgMissedPaymentsPerLoan: Scalars['Float']['output'];
   currentPendingDebtAsClient: Scalars['Decimal']['output'];
+  firstLoanDate?: Maybe<Scalars['DateTime']['output']>;
   hasBeenClient: Scalars['Boolean']['output'];
   hasBeenCollateral: Scalars['Boolean']['output'];
   totalAmountPaidAsClient: Scalars['Decimal']['output'];
@@ -373,14 +448,6 @@ export type CreateLoanInput = {
   previousLoanId?: InputMaybe<Scalars['ID']['input']>;
   requestedAmount: Scalars['Decimal']['input'];
   signDate: Scalars['DateTime']['input'];
-};
-
-export type CreateLoanPaymentInput = {
-  amount: Scalars['Decimal']['input'];
-  comission?: InputMaybe<Scalars['Decimal']['input']>;
-  loanId: Scalars['ID']['input'];
-  paymentMethod: PaymentMethod;
-  receivedAt: Scalars['DateTime']['input'];
 };
 
 export type CreateLoansInBatchInput = {
@@ -817,8 +884,6 @@ export type Loan = {
   snapshotLeadAssignedAt?: Maybe<Scalars['DateTime']['output']>;
   snapshotLeadId?: Maybe<Scalars['String']['output']>;
   snapshotLeadName?: Maybe<Scalars['String']['output']>;
-  snapshotRouteId?: Maybe<Scalars['String']['output']>;
-  snapshotRouteName?: Maybe<Scalars['String']['output']>;
   status: LoanStatus;
   totalDebtAcquired: Scalars['Decimal']['output'];
   totalPaid: Scalars['Decimal']['output'];
@@ -936,8 +1001,10 @@ export type LocalityClientDetail = {
   clientName: Scalars['String']['output'];
   cvStatus: CvStatus;
   daysSinceLastPayment?: Maybe<Scalars['Int']['output']>;
+  expectedWeekly: Scalars['Decimal']['output'];
   loanId: Scalars['ID']['output'];
   loanType: Scalars['String']['output'];
+  paidThisWeek: Scalars['Decimal']['output'];
   pendingAmount: Scalars['Decimal']['output'];
   signDate: Scalars['DateTime']['output'];
 };
@@ -960,8 +1027,8 @@ export type LocalitySummary = {
   cvPromedio: Scalars['Float']['output'];
   porcentajePagando: Scalars['Float']['output'];
   totalClientesActivos: Scalars['Int']['output'];
-  totalClientesAlCorriente: Scalars['Int']['output'];
-  totalClientesEnCV: Scalars['Int']['output'];
+  totalClientesAlCorriente: Scalars['Float']['output'];
+  totalClientesEnCV: Scalars['Float']['output'];
   totalFinalizados: Scalars['Int']['output'];
   totalNuevos: Scalars['Int']['output'];
   totalReintegros: Scalars['Int']['output'];
@@ -972,8 +1039,8 @@ export type LocalityWeekData = {
   __typename?: 'LocalityWeekData';
   balance: Scalars['Int']['output'];
   clientesActivos: Scalars['Int']['output'];
-  clientesAlCorriente: Scalars['Int']['output'];
-  clientesEnCV: Scalars['Int']['output'];
+  clientesAlCorriente: Scalars['Float']['output'];
+  clientesEnCV: Scalars['Float']['output'];
   finalizados: Scalars['Int']['output'];
   /** Si la semana ya está completada (pasó el domingo) */
   isCompleted: Scalars['Boolean']['output'];
@@ -997,10 +1064,12 @@ export type LocationBreakdown = {
   __typename?: 'LocationBreakdown';
   balance: Scalars['Int']['output'];
   clientesActivos: Scalars['Int']['output'];
-  clientesAlCorriente: Scalars['Int']['output'];
-  clientesEnCV: Scalars['Int']['output'];
+  clientesAlCorriente: Scalars['Float']['output'];
+  clientesEnCV: Scalars['Float']['output'];
+  cvPromedio?: Maybe<Scalars['Float']['output']>;
   locationId: Scalars['ID']['output'];
   locationName: Scalars['String']['output'];
+  pagandoPromedio?: Maybe<Scalars['Float']['output']>;
   routeId?: Maybe<Scalars['ID']['output']>;
   routeName?: Maybe<Scalars['String']['output']>;
 };
@@ -1030,6 +1099,7 @@ export type MonthInfo = {
 export type MonthlyFinancialData = {
   __typename?: 'MonthlyFinancialData';
   activeWeeks: Scalars['Int']['output'];
+  assetAcquisitions: Scalars['Decimal']['output'];
   availableCash: Scalars['Decimal']['output'];
   badDebtAmount: Scalars['Decimal']['output'];
   badDebtCapital: Scalars['Decimal']['output'];
@@ -1045,6 +1115,7 @@ export type MonthlyFinancialData = {
   incomes: Scalars['Decimal']['output'];
   loanDisbursements: Scalars['Decimal']['output'];
   month: Scalars['String']['output'];
+  netProfit: Scalars['Decimal']['output'];
   nomina: Scalars['Decimal']['output'];
   nominaInterna: Scalars['Decimal']['output'];
   operationalCashUsed: Scalars['Decimal']['output'];
@@ -1087,7 +1158,6 @@ export type Mutation = {
   createFalcoCompensatoryPayment: FalcoCompensatoryPayment;
   createLeadPaymentReceived: LeadPaymentReceived;
   createLoan: Loan;
-  createLoanPayment: LoanPayment;
   createLoansInBatch: Array<Loan>;
   createLoantype: Loantype;
   createLocation: Location;
@@ -1196,11 +1266,6 @@ export type MutationCreateLeadPaymentReceivedArgs = {
 
 export type MutationCreateLoanArgs = {
   input: CreateLoanInput;
-};
-
-
-export type MutationCreateLoanPaymentArgs = {
-  input: CreateLoanPaymentInput;
 };
 
 
@@ -1562,10 +1627,10 @@ export type PerformanceMetrics = {
 export type PeriodComparison = {
   __typename?: 'PeriodComparison';
   balanceChange: Scalars['Int']['output'];
-  cvChange: Scalars['Int']['output'];
+  cvChange: Scalars['Float']['output'];
   previousBalance: Scalars['Int']['output'];
   previousClientesActivos: Scalars['Int']['output'];
-  previousClientesEnCV: Scalars['Int']['output'];
+  previousClientesEnCV: Scalars['Float']['output'];
 };
 
 export enum PeriodType {
@@ -1632,11 +1697,12 @@ export type PortfolioSummary = {
   clientBalance: ClientBalanceData;
   /** Clientes activos al INICIO del período (solo para reportes mensuales) */
   clientesActivosInicio?: Maybe<Scalars['Int']['output']>;
-  clientesAlCorriente: Scalars['Int']['output'];
-  clientesEnCV: Scalars['Int']['output'];
+  clientesAlCorriente: Scalars['Float']['output'];
+  /** Clientes en CV (puede ser decimal por conteo parcial 0.5 para pagos 50-100%) */
+  clientesEnCV: Scalars['Float']['output'];
   comparison?: Maybe<PeriodComparison>;
   /** Promedio de clientes en CV de las semanas completadas (solo para reportes mensuales) */
-  promedioCV?: Maybe<Scalars['Int']['output']>;
+  promedioCV?: Maybe<Scalars['Float']['output']>;
   /** Número de semanas completadas usadas para calcular el promedio */
   semanasCompletadas?: Maybe<Scalars['Int']['output']>;
   /** Clientes activos al FINAL del período */
@@ -1648,9 +1714,11 @@ export type PortfolioSummary = {
 export type Query = {
   __typename?: 'Query';
   account?: Maybe<Account>;
+  accountEntries: AccountEntryConnection;
   accounts: Array<Account>;
   activeClientsWithCVStatus: Array<ActiveClientStatus>;
   badDebtByMonth: Array<BadDebtData>;
+  badDebtClients: BadDebtClientsResult;
   badDebtSummary: BadDebtSummary;
   checkExistingLeader?: Maybe<ExistingLeaderInfo>;
   currentActiveWeek: WeekRange;
@@ -1670,6 +1738,7 @@ export type Query = {
   getBankIncomeTransactions: BankIncomeTransactionsResponse;
   getClientHistory: ClientHistoryData;
   getFinancialReportAnnual: AnnualFinancialReport;
+  getLoanHistoryDetail?: Maybe<LoanHistoryDetail>;
   leadPaymentReceivedById?: Maybe<LeadPaymentReceived>;
   leadPaymentReceivedByLeadAndDate?: Maybe<LeadPaymentReceived>;
   loan?: Maybe<Loan>;
@@ -1689,6 +1758,8 @@ export type Query = {
   portfolioCleanups: Array<PortfolioCleanup>;
   portfolioReportMonthly: PortfolioReport;
   portfolioReportWeekly: PortfolioReport;
+  /** KPIs simplificados por ruta - retorna solo clientesTotal, pagandoPromedio, cvPromedio por cada ruta */
+  portfolioRouteKPIs: Array<RouteKpi>;
   previewBulkDateMigration: BulkDateMigrationPreview;
   previewPortfolioCleanup: CleanupPreview;
   recoveredDeadDebt: RecoveredDeadDebtResult;
@@ -1717,6 +1788,19 @@ export type QueryAccountArgs = {
 };
 
 
+export type QueryAccountEntriesArgs = {
+  accountId?: InputMaybe<Scalars['ID']['input']>;
+  entryType?: InputMaybe<AccountEntryType>;
+  fromDate?: InputMaybe<Scalars['DateTime']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  routeId?: InputMaybe<Scalars['ID']['input']>;
+  sourceType?: InputMaybe<SourceType>;
+  sourceTypes?: InputMaybe<Array<SourceType>>;
+  toDate?: InputMaybe<Scalars['DateTime']['input']>;
+};
+
+
 export type QueryAccountsArgs = {
   routeId?: InputMaybe<Scalars['ID']['input']>;
   type?: InputMaybe<AccountType>;
@@ -1731,6 +1815,14 @@ export type QueryActiveClientsWithCvStatusArgs = {
 export type QueryBadDebtByMonthArgs = {
   month: Scalars['Int']['input'];
   year: Scalars['Int']['input'];
+};
+
+
+export type QueryBadDebtClientsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  locationId?: InputMaybe<Scalars['ID']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  routeId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -1856,6 +1948,11 @@ export type QueryGetFinancialReportAnnualArgs = {
 };
 
 
+export type QueryGetLoanHistoryDetailArgs = {
+  loanId: Scalars['ID']['input'];
+};
+
+
 export type QueryLeadPaymentReceivedByIdArgs = {
   id: Scalars['ID']['input'];
 };
@@ -1970,6 +2067,13 @@ export type QueryPortfolioReportMonthlyArgs = {
 export type QueryPortfolioReportWeeklyArgs = {
   filters?: InputMaybe<PortfolioFiltersInput>;
   weekNumber: Scalars['Int']['input'];
+  year: Scalars['Int']['input'];
+};
+
+
+export type QueryPortfolioRouteKpIsArgs = {
+  filters?: InputMaybe<PortfolioFiltersInput>;
+  month: Scalars['Int']['input'];
   year: Scalars['Int']['input'];
 };
 
@@ -2220,6 +2324,19 @@ export type RouteInfo = {
   name: Scalars['String']['output'];
 };
 
+/** KPIs simplificados por ruta - solo 3 métricas clave */
+export type RouteKpi = {
+  __typename?: 'RouteKPI';
+  /** Total de clientes activos en la ruta */
+  clientesTotal: Scalars['Int']['output'];
+  /** Promedio de clientes en CV en semanas completadas */
+  cvPromedio: Scalars['Float']['output'];
+  /** Promedio de clientes pagando (al corriente) en semanas completadas */
+  pagandoPromedio: Scalars['Float']['output'];
+  routeId: Scalars['ID']['output'];
+  routeName: Scalars['String']['output'];
+};
+
 /** Route with calculated statistics for administration */
 export type RouteWithStats = {
   __typename?: 'RouteWithStats';
@@ -2245,6 +2362,33 @@ export type SendNotificationResult = {
   success: Scalars['Boolean']['output'];
   telegramResponse?: Maybe<Scalars['String']['output']>;
 };
+
+export enum SourceType {
+  AssetAcquisition = 'ASSET_ACQUISITION',
+  BalanceAdjustment = 'BALANCE_ADJUSTMENT',
+  BankExpense = 'BANK_EXPENSE',
+  CarPayment = 'CAR_PAYMENT',
+  EmployeeExpense = 'EMPLOYEE_EXPENSE',
+  ExternalSalary = 'EXTERNAL_SALARY',
+  FalcoCompensatory = 'FALCO_COMPENSATORY',
+  FalcoLoss = 'FALCO_LOSS',
+  Gasoline = 'GASOLINE',
+  GasolineToka = 'GASOLINE_TOKA',
+  GeneralExpense = 'GENERAL_EXPENSE',
+  InitialBalance = 'INITIAL_BALANCE',
+  LoanCancelledRestore = 'LOAN_CANCELLED_RESTORE',
+  LoanGrant = 'LOAN_GRANT',
+  LoanGrantCommission = 'LOAN_GRANT_COMMISSION',
+  LoanPaymentBank = 'LOAN_PAYMENT_BANK',
+  LoanPaymentCash = 'LOAN_PAYMENT_CASH',
+  NominaSalary = 'NOMINA_SALARY',
+  OtherExpense = 'OTHER_EXPENSE',
+  PaymentCommission = 'PAYMENT_COMMISSION',
+  TransferIn = 'TRANSFER_IN',
+  TransferOut = 'TRANSFER_OUT',
+  TravelExpenses = 'TRAVEL_EXPENSES',
+  Viatic = 'VIATIC'
+}
 
 export type State = {
   __typename?: 'State';
@@ -2614,7 +2758,8 @@ export type WeeklyPortfolioData = {
   __typename?: 'WeeklyPortfolioData';
   balance: Scalars['Int']['output'];
   clientesActivos: Scalars['Int']['output'];
-  clientesEnCV: Scalars['Int']['output'];
+  /** Clientes en CV (puede ser decimal por conteo parcial) */
+  clientesEnCV: Scalars['Float']['output'];
   /** Si la semana ya está completada (pasó el domingo) */
   isCompleted: Scalars['Boolean']['output'];
   weekRange: WeekRange;
@@ -2693,12 +2838,18 @@ export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = ResolversObject<{
   Account: ResolverTypeWrapper<Account>;
+  AccountEntry: ResolverTypeWrapper<AccountEntry>;
+  AccountEntryConnection: ResolverTypeWrapper<AccountEntryConnection>;
+  AccountEntryEdge: ResolverTypeWrapper<AccountEntryEdge>;
+  AccountEntryType: AccountEntryType;
   AccountType: AccountType;
   ActiveClientStatus: ResolverTypeWrapper<ActiveClientStatus>;
   ActiveLoansBreakdown: ResolverTypeWrapper<ActiveLoansBreakdown>;
   Address: ResolverTypeWrapper<Address>;
   AnnualFinancialReport: ResolverTypeWrapper<AnnualFinancialReport>;
   AuthPayload: ResolverTypeWrapper<AuthPayload>;
+  BadDebtClientItem: ResolverTypeWrapper<BadDebtClientItem>;
+  BadDebtClientsResult: ResolverTypeWrapper<BadDebtClientsResult>;
   BadDebtData: ResolverTypeWrapper<BadDebtData>;
   BadDebtSummary: ResolverTypeWrapper<BadDebtSummary>;
   BankIncomeTransaction: ResolverTypeWrapper<BankIncomeTransaction>;
@@ -2730,7 +2881,6 @@ export type ResolversTypes = ResolversObject<{
   CreateFalcoCompensatoryPaymentInput: CreateFalcoCompensatoryPaymentInput;
   CreateLeadPaymentReceivedInput: CreateLeadPaymentReceivedInput;
   CreateLoanInput: CreateLoanInput;
-  CreateLoanPaymentInput: CreateLoanPaymentInput;
   CreateLoansInBatchInput: CreateLoansInBatchInput;
   CreateLoantypeInput: CreateLoantypeInput;
   CreateLocationInput: CreateLocationInput;
@@ -2832,9 +2982,11 @@ export type ResolversTypes = ResolversObject<{
   Route: ResolverTypeWrapper<Route>;
   RouteAmountInput: RouteAmountInput;
   RouteInfo: ResolverTypeWrapper<RouteInfo>;
+  RouteKPI: ResolverTypeWrapper<RouteKpi>;
   RouteWithStats: ResolverTypeWrapper<RouteWithStats>;
   SendDocumentNotificationInput: SendDocumentNotificationInput;
   SendNotificationResult: ResolverTypeWrapper<SendNotificationResult>;
+  SourceType: SourceType;
   State: ResolverTypeWrapper<State>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   TelegramUser: ResolverTypeWrapper<TelegramUser>;
@@ -2883,11 +3035,16 @@ export type ResolversTypes = ResolversObject<{
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = ResolversObject<{
   Account: Account;
+  AccountEntry: AccountEntry;
+  AccountEntryConnection: AccountEntryConnection;
+  AccountEntryEdge: AccountEntryEdge;
   ActiveClientStatus: ActiveClientStatus;
   ActiveLoansBreakdown: ActiveLoansBreakdown;
   Address: Address;
   AnnualFinancialReport: AnnualFinancialReport;
   AuthPayload: AuthPayload;
+  BadDebtClientItem: BadDebtClientItem;
+  BadDebtClientsResult: BadDebtClientsResult;
   BadDebtData: BadDebtData;
   BadDebtSummary: BadDebtSummary;
   BankIncomeTransaction: BankIncomeTransaction;
@@ -2917,7 +3074,6 @@ export type ResolversParentTypes = ResolversObject<{
   CreateFalcoCompensatoryPaymentInput: CreateFalcoCompensatoryPaymentInput;
   CreateLeadPaymentReceivedInput: CreateLeadPaymentReceivedInput;
   CreateLoanInput: CreateLoanInput;
-  CreateLoanPaymentInput: CreateLoanPaymentInput;
   CreateLoansInBatchInput: CreateLoansInBatchInput;
   CreateLoantypeInput: CreateLoantypeInput;
   CreateLocationInput: CreateLocationInput;
@@ -3009,6 +3165,7 @@ export type ResolversParentTypes = ResolversObject<{
   Route: Route;
   RouteAmountInput: RouteAmountInput;
   RouteInfo: RouteInfo;
+  RouteKPI: RouteKpi;
   RouteWithStats: RouteWithStats;
   SendDocumentNotificationInput: SendDocumentNotificationInput;
   SendNotificationResult: SendNotificationResult;
@@ -3068,6 +3225,7 @@ export type AccountResolvers<ContextType = GraphQLContext, ParentType extends Re
   accountBalance?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   amount?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  entries?: Resolver<Array<ResolversTypes['AccountEntry']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   routes?: Resolver<Array<ResolversTypes['Route']>, ParentType, ContextType>;
@@ -3075,6 +3233,39 @@ export type AccountResolvers<ContextType = GraphQLContext, ParentType extends Re
   transactionsSource?: Resolver<Array<ResolversTypes['Transaction']>, ParentType, ContextType>;
   type?: Resolver<ResolversTypes['AccountType'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type AccountEntryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AccountEntry'] = ResolversParentTypes['AccountEntry']> = ResolversObject<{
+  account?: Resolver<ResolversTypes['Account'], ParentType, ContextType>;
+  amount?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  destinationAccount?: Resolver<Maybe<ResolversTypes['Account']>, ParentType, ContextType>;
+  entryDate?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  entryType?: Resolver<ResolversTypes['AccountEntryType'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  lead?: Resolver<Maybe<ResolversTypes['Employee']>, ParentType, ContextType>;
+  loan?: Resolver<Maybe<ResolversTypes['Loan']>, ParentType, ContextType>;
+  loanPayment?: Resolver<Maybe<ResolversTypes['LoanPayment']>, ParentType, ContextType>;
+  profitAmount?: Resolver<Maybe<ResolversTypes['Decimal']>, ParentType, ContextType>;
+  returnToCapital?: Resolver<Maybe<ResolversTypes['Decimal']>, ParentType, ContextType>;
+  route?: Resolver<Maybe<ResolversTypes['Route']>, ParentType, ContextType>;
+  snapshotLeadId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  sourceType?: Resolver<ResolversTypes['SourceType'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type AccountEntryConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AccountEntryConnection'] = ResolversParentTypes['AccountEntryConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['AccountEntryEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type AccountEntryEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AccountEntryEdge'] = ResolversParentTypes['AccountEntryEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['AccountEntry'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -3124,6 +3315,37 @@ export type AuthPayloadResolvers<ContextType = GraphQLContext, ParentType extend
   accessToken?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   refreshToken?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   user?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type BadDebtClientItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BadDebtClientItem'] = ResolversParentTypes['BadDebtClientItem']> = ResolversObject<{
+  amountRequested?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  badDebtDate?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  borrowerPersonalDataId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  cleanupDate?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  clientCode?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  clientName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  clientPhone?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isFromCleanup?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  lastPaymentDate?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  leadName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  leadPhone?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  loanId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  locationName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  municipalityName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  pendingDebt?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  routeName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  signDate?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  totalAmountDue?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  totalPaid?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type BadDebtClientsResultResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BadDebtClientsResult'] = ResolversParentTypes['BadDebtClientsResult']> = ResolversObject<{
+  clients?: Resolver<Array<ResolversTypes['BadDebtClientItem']>, ParentType, ContextType>;
+  hasMore?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -3254,6 +3476,7 @@ export type ClientAddressInfoResolvers<ContextType = GraphQLContext, ParentType 
 export type ClientBalanceDataResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ClientBalanceData'] = ResolversParentTypes['ClientBalanceData']> = ResolversObject<{
   balance?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   nuevos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  reintegros?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   renovados?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   terminadosSinRenovar?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   trend?: Resolver<ResolversTypes['Trend'], ParentType, ContextType>;
@@ -3302,7 +3525,9 @@ export type ClientSearchResultResolvers<ContextType = GraphQLContext, ParentType
 export type ClientSummaryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ClientSummary'] = ResolversParentTypes['ClientSummary']> = ResolversObject<{
   activeLoansAsClient?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   activeLoansAsCollateral?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  avgMissedPaymentsPerLoan?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   currentPendingDebtAsClient?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
+  firstLoanDate?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   hasBeenClient?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   hasBeenCollateral?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   totalAmountPaidAsClient?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
@@ -3607,8 +3832,6 @@ export type LoanResolvers<ContextType = GraphQLContext, ParentType extends Resol
   snapshotLeadAssignedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   snapshotLeadId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   snapshotLeadName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  snapshotRouteId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  snapshotRouteName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   status?: Resolver<ResolversTypes['LoanStatus'], ParentType, ContextType>;
   totalDebtAcquired?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   totalPaid?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
@@ -3719,8 +3942,10 @@ export type LocalityClientDetailResolvers<ContextType = GraphQLContext, ParentTy
   clientName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   cvStatus?: Resolver<ResolversTypes['CVStatus'], ParentType, ContextType>;
   daysSinceLastPayment?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  expectedWeekly?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   loanId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   loanType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  paidThisWeek?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   pendingAmount?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   signDate?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
@@ -3743,8 +3968,8 @@ export type LocalitySummaryResolvers<ContextType = GraphQLContext, ParentType ex
   cvPromedio?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   porcentajePagando?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   totalClientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  totalClientesAlCorriente?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  totalClientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  totalClientesAlCorriente?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  totalClientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   totalFinalizados?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   totalNuevos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   totalReintegros?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -3755,8 +3980,8 @@ export type LocalitySummaryResolvers<ContextType = GraphQLContext, ParentType ex
 export type LocalityWeekDataResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LocalityWeekData'] = ResolversParentTypes['LocalityWeekData']> = ResolversObject<{
   balance?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   clientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesAlCorriente?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  clientesAlCorriente?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  clientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   finalizados?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   isCompleted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   nuevos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -3779,10 +4004,12 @@ export type LocationResolvers<ContextType = GraphQLContext, ParentType extends R
 export type LocationBreakdownResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LocationBreakdown'] = ResolversParentTypes['LocationBreakdown']> = ResolversObject<{
   balance?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   clientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesAlCorriente?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  clientesAlCorriente?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  clientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  cvPromedio?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   locationId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   locationName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  pagandoPromedio?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   routeId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   routeName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
@@ -3806,6 +4033,7 @@ export type MonthInfoResolvers<ContextType = GraphQLContext, ParentType extends 
 
 export type MonthlyFinancialDataResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MonthlyFinancialData'] = ResolversParentTypes['MonthlyFinancialData']> = ResolversObject<{
   activeWeeks?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  assetAcquisitions?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   availableCash?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   badDebtAmount?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   badDebtCapital?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
@@ -3821,6 +4049,7 @@ export type MonthlyFinancialDataResolvers<ContextType = GraphQLContext, ParentTy
   incomes?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   loanDisbursements?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   month?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  netProfit?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   nomina?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   nominaInterna?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
   operationalCashUsed?: Resolver<ResolversTypes['Decimal'], ParentType, ContextType>;
@@ -3863,7 +4092,6 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   createFalcoCompensatoryPayment?: Resolver<ResolversTypes['FalcoCompensatoryPayment'], ParentType, ContextType, RequireFields<MutationCreateFalcoCompensatoryPaymentArgs, 'input'>>;
   createLeadPaymentReceived?: Resolver<ResolversTypes['LeadPaymentReceived'], ParentType, ContextType, RequireFields<MutationCreateLeadPaymentReceivedArgs, 'input'>>;
   createLoan?: Resolver<ResolversTypes['Loan'], ParentType, ContextType, RequireFields<MutationCreateLoanArgs, 'input'>>;
-  createLoanPayment?: Resolver<ResolversTypes['LoanPayment'], ParentType, ContextType, RequireFields<MutationCreateLoanPaymentArgs, 'input'>>;
   createLoansInBatch?: Resolver<Array<ResolversTypes['Loan']>, ParentType, ContextType, RequireFields<MutationCreateLoansInBatchArgs, 'input'>>;
   createLoantype?: Resolver<ResolversTypes['Loantype'], ParentType, ContextType, RequireFields<MutationCreateLoantypeArgs, 'input'>>;
   createLocation?: Resolver<ResolversTypes['Location'], ParentType, ContextType, RequireFields<MutationCreateLocationArgs, 'input'>>;
@@ -3960,10 +4188,10 @@ export type PerformanceMetricsResolvers<ContextType = GraphQLContext, ParentType
 
 export type PeriodComparisonResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PeriodComparison'] = ResolversParentTypes['PeriodComparison']> = ResolversObject<{
   balanceChange?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  cvChange?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  cvChange?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   previousBalance?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   previousClientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  previousClientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  previousClientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -4018,10 +4246,10 @@ export type PortfolioReportResolvers<ContextType = GraphQLContext, ParentType ex
 export type PortfolioSummaryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PortfolioSummary'] = ResolversParentTypes['PortfolioSummary']> = ResolversObject<{
   clientBalance?: Resolver<ResolversTypes['ClientBalanceData'], ParentType, ContextType>;
   clientesActivosInicio?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
-  clientesAlCorriente?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  clientesAlCorriente?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  clientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   comparison?: Resolver<Maybe<ResolversTypes['PeriodComparison']>, ParentType, ContextType>;
-  promedioCV?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  promedioCV?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   semanasCompletadas?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
   totalClientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   totalSemanas?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
@@ -4030,9 +4258,11 @@ export type PortfolioSummaryResolvers<ContextType = GraphQLContext, ParentType e
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   account?: Resolver<Maybe<ResolversTypes['Account']>, ParentType, ContextType, RequireFields<QueryAccountArgs, 'id'>>;
+  accountEntries?: Resolver<ResolversTypes['AccountEntryConnection'], ParentType, ContextType, Partial<QueryAccountEntriesArgs>>;
   accounts?: Resolver<Array<ResolversTypes['Account']>, ParentType, ContextType, Partial<QueryAccountsArgs>>;
   activeClientsWithCVStatus?: Resolver<Array<ResolversTypes['ActiveClientStatus']>, ParentType, ContextType, Partial<QueryActiveClientsWithCvStatusArgs>>;
   badDebtByMonth?: Resolver<Array<ResolversTypes['BadDebtData']>, ParentType, ContextType, RequireFields<QueryBadDebtByMonthArgs, 'month' | 'year'>>;
+  badDebtClients?: Resolver<ResolversTypes['BadDebtClientsResult'], ParentType, ContextType, RequireFields<QueryBadDebtClientsArgs, 'limit' | 'offset'>>;
   badDebtSummary?: Resolver<ResolversTypes['BadDebtSummary'], ParentType, ContextType>;
   checkExistingLeader?: Resolver<Maybe<ResolversTypes['ExistingLeaderInfo']>, ParentType, ContextType, RequireFields<QueryCheckExistingLeaderArgs, 'locationId'>>;
   currentActiveWeek?: Resolver<ResolversTypes['WeekRange'], ParentType, ContextType>;
@@ -4052,6 +4282,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   getBankIncomeTransactions?: Resolver<ResolversTypes['BankIncomeTransactionsResponse'], ParentType, ContextType, RequireFields<QueryGetBankIncomeTransactionsArgs, 'endDate' | 'routeIds' | 'startDate'>>;
   getClientHistory?: Resolver<ResolversTypes['ClientHistoryData'], ParentType, ContextType, RequireFields<QueryGetClientHistoryArgs, 'clientId'>>;
   getFinancialReportAnnual?: Resolver<ResolversTypes['AnnualFinancialReport'], ParentType, ContextType, RequireFields<QueryGetFinancialReportAnnualArgs, 'routeIds' | 'year'>>;
+  getLoanHistoryDetail?: Resolver<Maybe<ResolversTypes['LoanHistoryDetail']>, ParentType, ContextType, RequireFields<QueryGetLoanHistoryDetailArgs, 'loanId'>>;
   leadPaymentReceivedById?: Resolver<Maybe<ResolversTypes['LeadPaymentReceived']>, ParentType, ContextType, RequireFields<QueryLeadPaymentReceivedByIdArgs, 'id'>>;
   leadPaymentReceivedByLeadAndDate?: Resolver<Maybe<ResolversTypes['LeadPaymentReceived']>, ParentType, ContextType, RequireFields<QueryLeadPaymentReceivedByLeadAndDateArgs, 'endDate' | 'leadId' | 'startDate'>>;
   loan?: Resolver<Maybe<ResolversTypes['Loan']>, ParentType, ContextType, RequireFields<QueryLoanArgs, 'id'>>;
@@ -4071,6 +4302,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   portfolioCleanups?: Resolver<Array<ResolversTypes['PortfolioCleanup']>, ParentType, ContextType, Partial<QueryPortfolioCleanupsArgs>>;
   portfolioReportMonthly?: Resolver<ResolversTypes['PortfolioReport'], ParentType, ContextType, RequireFields<QueryPortfolioReportMonthlyArgs, 'month' | 'year'>>;
   portfolioReportWeekly?: Resolver<ResolversTypes['PortfolioReport'], ParentType, ContextType, RequireFields<QueryPortfolioReportWeeklyArgs, 'weekNumber' | 'year'>>;
+  portfolioRouteKPIs?: Resolver<Array<ResolversTypes['RouteKPI']>, ParentType, ContextType, RequireFields<QueryPortfolioRouteKpIsArgs, 'month' | 'year'>>;
   previewBulkDateMigration?: Resolver<ResolversTypes['BulkDateMigrationPreview'], ParentType, ContextType, RequireFields<QueryPreviewBulkDateMigrationArgs, 'input'>>;
   previewPortfolioCleanup?: Resolver<ResolversTypes['CleanupPreview'], ParentType, ContextType, RequireFields<QueryPreviewPortfolioCleanupArgs, 'maxSignDate'>>;
   recoveredDeadDebt?: Resolver<ResolversTypes['RecoveredDeadDebtResult'], ParentType, ContextType, RequireFields<QueryRecoveredDeadDebtArgs, 'month' | 'year'>>;
@@ -4194,6 +4426,15 @@ export type RouteResolvers<ContextType = GraphQLContext, ParentType extends Reso
 export type RouteInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RouteInfo'] = ResolversParentTypes['RouteInfo']> = ResolversObject<{
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type RouteKpiResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RouteKPI'] = ResolversParentTypes['RouteKPI']> = ResolversObject<{
+  clientesTotal?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  cvPromedio?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  pagandoPromedio?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  routeId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  routeName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -4403,7 +4644,7 @@ export type WeeklyDataResolvers<ContextType = GraphQLContext, ParentType extends
 export type WeeklyPortfolioDataResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['WeeklyPortfolioData'] = ResolversParentTypes['WeeklyPortfolioData']> = ResolversObject<{
   balance?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   clientesActivos?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  clientesEnCV?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  clientesEnCV?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   isCompleted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   weekRange?: Resolver<ResolversTypes['WeekRange'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
@@ -4411,11 +4652,16 @@ export type WeeklyPortfolioDataResolvers<ContextType = GraphQLContext, ParentTyp
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   Account?: AccountResolvers<ContextType>;
+  AccountEntry?: AccountEntryResolvers<ContextType>;
+  AccountEntryConnection?: AccountEntryConnectionResolvers<ContextType>;
+  AccountEntryEdge?: AccountEntryEdgeResolvers<ContextType>;
   ActiveClientStatus?: ActiveClientStatusResolvers<ContextType>;
   ActiveLoansBreakdown?: ActiveLoansBreakdownResolvers<ContextType>;
   Address?: AddressResolvers<ContextType>;
   AnnualFinancialReport?: AnnualFinancialReportResolvers<ContextType>;
   AuthPayload?: AuthPayloadResolvers<ContextType>;
+  BadDebtClientItem?: BadDebtClientItemResolvers<ContextType>;
+  BadDebtClientsResult?: BadDebtClientsResultResolvers<ContextType>;
   BadDebtData?: BadDebtDataResolvers<ContextType>;
   BadDebtSummary?: BadDebtSummaryResolvers<ContextType>;
   BankIncomeTransaction?: BankIncomeTransactionResolvers<ContextType>;
@@ -4502,6 +4748,7 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   ReportSchedule?: ReportScheduleResolvers<ContextType>;
   Route?: RouteResolvers<ContextType>;
   RouteInfo?: RouteInfoResolvers<ContextType>;
+  RouteKPI?: RouteKpiResolvers<ContextType>;
   RouteWithStats?: RouteWithStatsResolvers<ContextType>;
   SendNotificationResult?: SendNotificationResultResolvers<ContextType>;
   State?: StateResolvers<ContextType>;

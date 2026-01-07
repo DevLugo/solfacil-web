@@ -227,8 +227,6 @@ type Loan {
   snapshotLeadId: String
   snapshotLeadName: String
   snapshotLeadAssignedAt: DateTime
-  snapshotRouteId: String
-  snapshotRouteName: String
   previousLoan: Loan
   renewedBy: Loan
   createdAt: DateTime!
@@ -279,7 +277,6 @@ type AccountEntry {
   profitAmount: Decimal
   returnToCapital: Decimal
   snapshotLeadId: String
-  snapshotRouteId: String
   account: Account!
   loan: Loan
   loanPayment: LoanPayment
@@ -691,6 +688,9 @@ type ClientBalanceData {
   nuevos: Int!
   terminadosSinRenovar: Int!
   renovados: Int!
+  "Reintegros: clientes que regresan después de pagar completamente su préstamo anterior"
+  reintegros: Int!
+  "Balance neto (nuevos + reintegros - terminadosSinRenovar)"
   balance: Int!
   trend: Trend!
 }

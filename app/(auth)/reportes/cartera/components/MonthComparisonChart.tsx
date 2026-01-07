@@ -41,6 +41,7 @@ interface MonthData {
   cvPromedio: number
   renovaciones: number
   nuevos: number
+  reintegros: number // Clientes que regresan después de pagar completamente
   tasaRenovacion?: number
 }
 
@@ -53,6 +54,7 @@ export interface AnnualMonthData {
   cvPromedio: number
   renovaciones: number
   nuevos: number
+  reintegros: number
   balance: number
   tasaRenovacion?: number
 }
@@ -200,6 +202,7 @@ function ComparisonView({
     cv: ReturnType<typeof calculateChange>
     renovaciones: ReturnType<typeof calculateChange>
     nuevos: ReturnType<typeof calculateChange>
+    reintegros: ReturnType<typeof calculateChange>
     tasaRenovacion: ReturnType<typeof calculateChange>
   } | null
   annualData?: AnnualMonthData[]
@@ -213,6 +216,7 @@ function ComparisonView({
       cv: annualData.map((d) => ({ label: d.label, value: d.cvPromedio })),
       renovaciones: annualData.map((d) => ({ label: d.label, value: d.renovaciones })),
       nuevos: annualData.map((d) => ({ label: d.label, value: d.nuevos })),
+      reintegros: annualData.map((d) => ({ label: d.label, value: d.reintegros })),
       tasaRenovacion: annualData.map((d) => ({ label: d.label, value: (d.tasaRenovacion ?? 0) * 100 })),
     }
   }, [annualData])
@@ -366,6 +370,32 @@ function ComparisonView({
           {sparklineData && (
             <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
               <Sparkline data={sparklineData.nuevos} dataKey="nuevos" color="rgb(147, 51, 234)" height={48} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Reintegros - Clientes que regresan después de pagar */}
+      <div className="rounded-lg border bg-teal-50/50 dark:bg-teal-950/20 border-teal-200 dark:border-teal-900 p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Reintegros</p>
+          <Badge variant="outline" className="text-[10px] sm:text-xs bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400 border-teal-300 shrink-0">
+            Total
+          </Badge>
+        </div>
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xl sm:text-3xl font-bold text-teal-600 dark:text-teal-400">{currentMonth.reintegros}</p>
+            {previousMonth && changes && (
+              <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <span className="text-muted-foreground hidden sm:inline">{previousMonth.label}: {previousMonth.reintegros}</span>
+                <TrendIndicator change={changes.reintegros} />
+              </div>
+            )}
+          </div>
+          {sparklineData && (
+            <div className="w-16 sm:w-24 flex-shrink-0 hidden sm:block">
+              <Sparkline data={sparklineData.reintegros} dataKey="reintegros" color="rgb(20, 184, 166)" height={48} />
             </div>
           )}
         </div>
@@ -653,6 +683,7 @@ export function MonthComparisonChart({
       cv: calculateChange(currentMonth.cvPromedio ?? 0, previousMonth.cvPromedio),
       renovaciones: calculateChange(currentMonth.renovaciones ?? 0, previousMonth.renovaciones),
       nuevos: calculateChange(currentMonth.nuevos ?? 0, previousMonth.nuevos),
+      reintegros: calculateChange(currentMonth.reintegros ?? 0, previousMonth.reintegros ?? 0),
       tasaRenovacion: calculateChange((currentMonth.tasaRenovacion ?? 0) * 100, (previousMonth.tasaRenovacion ?? 0) * 100),
     }
   }, [currentMonth, previousMonth])
