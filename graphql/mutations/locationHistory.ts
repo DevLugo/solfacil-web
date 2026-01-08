@@ -45,3 +45,25 @@ export const DELETE_LOCATION_ROUTE_HISTORY = gql`
     deleteLocationRouteHistory(id: $id)
   }
 `
+
+export const BATCH_CHANGE_LOCATION_ROUTES = gql`
+  mutation BatchChangeLocationRoutes($input: BatchChangeLocationRouteInput!) {
+    batchChangeLocationRoutes(input: $input) {
+      success
+      message
+      changesApplied
+      errors {
+        locationId
+        error
+      }
+      details {
+        locationId
+        locationName
+        previousRouteId
+        previousRouteName
+        newRouteId
+        newRouteName
+      }
+    }
+  }
+`

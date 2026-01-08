@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react'
-import { useMutation, useQuery } from '@apollo/client'
+import { useMutation } from '@apollo/client'
 import { useToast } from '@/hooks/use-toast'
 import { UPDATE_EMPLOYEE_ROUTES } from '@/graphql/mutations/routeManagement'
-import { CHANGE_LOCATION_ROUTE } from '@/graphql/mutations/locationHistory'
-import { GET_LOCATION_ROUTE_HISTORY } from '@/graphql/queries/locationHistory'
+import { BATCH_CHANGE_LOCATION_ROUTES } from '@/graphql/mutations/locationHistory'
 import type { RouteWithStats } from '../types'
 
 /**
@@ -22,7 +21,7 @@ export function useMoveLocalities(sourceRoute: RouteWithStats) {
     refetchQueries: ['GetRoutesWithStats'],
   })
 
-  const [changeLocationRoute] = useMutation(CHANGE_LOCATION_ROUTE, {
+  const [batchChangeLocationRoutes] = useMutation(BATCH_CHANGE_LOCATION_ROUTES, {
     refetchQueries: ['GetRoutesWithStats', 'GetLocationRouteHistory'],
   })
 
@@ -44,25 +43,30 @@ export function useMoveLocalities(sourceRoute: RouteWithStats) {
     setIsMoving(true)
 
     try {
-      // Execute mutations sequentially for each selected locality
+      // Execute mutations sequentially for each selected employee (existing behavior)
       for (const employeeId of selectedLocalities) {
-        // Update employee routes (existing behavior)
         await updateEmployeeRoutes({
           variables: { employeeId, routeIds: [targetRouteId] },
         })
       }
 
-      // Also update location route history if locationIds are provided
+      // Batch update location route history if locationIds are provided
       if (localityIds && localityIds.length > 0) {
-        for (const locationId of localityIds) {
-          if (locationId) {
-            await changeLocationRoute({
-              variables: {
-                locationId,
-                routeId: targetRouteId,
+        const validLocationIds = localityIds.filter(Boolean)
+        if (validLocationIds.length > 0) {
+          const result = await batchChangeLocationRoutes({
+            variables: {
+              input: {
+                locationIds: validLocationIds,
+                newRouteId: targetRouteId,
                 effectiveDate: effectiveDate.toISOString(),
               },
-            })
+            },
+          })
+
+          const batchResult = result.data?.batchChangeLocationRoutes
+          if (batchResult && batchResult.errors?.length > 0) {
+            console.warn('Some locations had errors:', batchResult.errors)
           }
         }
       }
@@ -88,7 +92,7 @@ export function useMoveLocalities(sourceRoute: RouteWithStats) {
     } finally {
       setIsMoving(false)
     }
-  }, [targetRouteId, selectedLocalities, effectiveDate, updateEmployeeRoutes, changeLocationRoute, toast])
+  }, [targetRouteId, selectedLocalities, effectiveDate, updateEmployeeRoutes, batchChangeLocationRoutes, toast])
 
   const clearSelection = useCallback(() => {
     setSelectedLocalities(new Set())
