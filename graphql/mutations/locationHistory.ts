@@ -67,3 +67,27 @@ export const BATCH_CHANGE_LOCATION_ROUTES = gql`
     }
   }
 `
+
+export const BATCH_UPSERT_HISTORICAL_ASSIGNMENT = gql`
+  mutation BatchUpsertHistoricalAssignment($input: BatchUpsertHistoricalInput!) {
+    batchUpsertHistoricalAssignment(input: $input) {
+      success
+      message
+      recordsCreated
+      recordsAdjusted
+      recordsDeleted
+      errors {
+        locationId
+        error
+      }
+      details {
+        locationId
+        locationName
+        routeId
+        routeName
+        startDate
+        endDate
+      }
+    }
+  }
+`

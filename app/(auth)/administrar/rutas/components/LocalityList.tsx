@@ -3,10 +3,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, MapPin, History } from 'lucide-react'
+import { ChevronLeft, MapPin, History, Clock } from 'lucide-react'
 import { MoveLocalitiesPanel } from './MoveLocalitiesPanel'
 import { LocationHistoryPanel } from './LocationHistoryPanel'
 import { AddHistoryModal } from './AddHistoryModal'
+import { BatchAddHistoryModal } from './BatchAddHistoryModal'
 import { useMoveLocalities } from '../hooks/useMoveLocalities'
 import type { RouteWithStats, LocalityInfo } from '../types'
 
@@ -39,6 +40,7 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
     name: string
   } | null>(null)
   const [showAddHistoryModal, setShowAddHistoryModal] = useState(false)
+  const [showBatchHistoryModal, setShowBatchHistoryModal] = useState(false)
 
   // Build locality info for selected items
   const selectedLocalityInfo: LocalityInfo[] = useMemo(() => {
@@ -58,6 +60,16 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
         }
       })
   }, [route.employees, selectedLocalities])
+
+  // Build locations for batch history modal (only locations with valid IDs)
+  const selectedLocationsForBatch = useMemo(() => {
+    return selectedLocalityInfo
+      .filter((info) => info.localityId)
+      .map((info) => ({
+        id: info.localityId,
+        name: info.localityName,
+      }))
+  }, [selectedLocalityInfo])
 
   if (route.employees.length === 0) {
     return (
@@ -106,19 +118,33 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
 
       {/* Move Panel */}
       {selectedLocalities.size > 0 && (
-        <MoveLocalitiesPanel
-          count={selectedLocalities.size}
-          sourceRoute={route}
-          targetRoutes={otherRoutes}
-          targetRouteId={targetRouteId}
-          onTargetChange={setTargetRouteId}
-          onMove={handleMove}
-          onCancel={clearSelection}
-          selectedLocalities={selectedLocalityInfo}
-          isMoving={isMoving}
-          effectiveDate={effectiveDate}
-          onEffectiveDateChange={setEffectiveDate}
-        />
+        <>
+          <MoveLocalitiesPanel
+            count={selectedLocalities.size}
+            sourceRoute={route}
+            targetRoutes={otherRoutes}
+            targetRouteId={targetRouteId}
+            onTargetChange={setTargetRouteId}
+            onMove={handleMove}
+            onCancel={clearSelection}
+            selectedLocalities={selectedLocalityInfo}
+            isMoving={isMoving}
+            effectiveDate={effectiveDate}
+            onEffectiveDateChange={setEffectiveDate}
+          />
+          {/* Batch History Button */}
+          {selectedLocationsForBatch.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBatchHistoryModal(true)}
+              className="flex items-center gap-2"
+            >
+              <Clock className="h-4 w-4" />
+              Agregar historial a {selectedLocationsForBatch.length} localidades
+            </Button>
+          )}
+        </>
       )}
 
       {/* Localities List */}
@@ -230,6 +256,18 @@ export function LocalityList({ route, otherRoutes, onBack }: LocalityListProps) 
           }))}
         />
       )}
+
+      {/* Batch Add History Modal */}
+      <BatchAddHistoryModal
+        open={showBatchHistoryModal}
+        onOpenChange={setShowBatchHistoryModal}
+        locations={selectedLocationsForBatch}
+        routes={[...otherRoutes, route].map((r) => ({
+          routeId: r.routeId,
+          routeName: r.routeName,
+        }))}
+        onSuccess={clearSelection}
+      />
     </div>
   )
 }
