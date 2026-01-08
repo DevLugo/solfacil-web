@@ -52,6 +52,8 @@ export function AddHistoryModal({
   const [routeId, setRouteId] = useState<string>('')
   const [startDate, setStartDate] = useState<Date>()
   const [endDate, setEndDate] = useState<Date>()
+  const [startDateOpen, setStartDateOpen] = useState(false)
+  const [endDateOpen, setEndDateOpen] = useState(false)
 
   const [addHistory, { loading }] = useMutation(ADD_LOCATION_ROUTE_HISTORY, {
     refetchQueries: [
@@ -80,6 +82,8 @@ export function AddHistoryModal({
     setRouteId('')
     setStartDate(undefined)
     setEndDate(undefined)
+    setStartDateOpen(false)
+    setEndDateOpen(false)
     onOpenChange(false)
   }
 
@@ -154,7 +158,7 @@ export function AddHistoryModal({
           {/* Start Date Picker */}
           <div className="space-y-2">
             <Label>Fecha Inicio *</Label>
-            <Popover>
+            <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -171,7 +175,10 @@ export function AddHistoryModal({
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={setStartDate}
+                  onSelect={(date) => {
+                    setStartDate(date)
+                    setStartDateOpen(false)
+                  }}
                   initialFocus
                   locale={es}
                   captionLayout="dropdown"
@@ -185,7 +192,7 @@ export function AddHistoryModal({
           {/* End Date Picker */}
           <div className="space-y-2">
             <Label>Fecha Fin *</Label>
-            <Popover>
+            <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -202,7 +209,10 @@ export function AddHistoryModal({
                 <Calendar
                   mode="single"
                   selected={endDate}
-                  onSelect={setEndDate}
+                  onSelect={(date) => {
+                    setEndDate(date)
+                    setEndDateOpen(false)
+                  }}
                   initialFocus
                   locale={es}
                   captionLayout="dropdown"
