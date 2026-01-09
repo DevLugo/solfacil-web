@@ -226,7 +226,7 @@ export function SummaryTab({ selectedDate, selectedRoute, refreshKey = 0 }: Summ
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
       {/* Executive Summary Stats */}
       <ExecutiveSummary data={executiveSummary} />
 
