@@ -385,6 +385,7 @@ export const LEAD_PAYMENT_RECEIVED_BY_ID_QUERY = gql`
 
 // Query to get loan payments by lead and date (Keystone approach)
 // Gets payments directly with leadPaymentReceived included
+// Extended with full loan details to support history mode (showing finished loans)
 export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
   query LoanPaymentsByLeadAndDate($leadId: ID!, $startDate: DateTime!, $endDate: DateTime!) {
     loanPaymentsByLeadAndDate(leadId: $leadId, startDate: $startDate, endDate: $endDate) {
@@ -396,13 +397,42 @@ export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
       type
       loan {
         id
+        requestedAmount
+        amountGived
+        signDate
+        expectedWeeklyPayment
+        totalPaid
+        pendingAmountStored
+        status
+        loantype {
+          id
+          name
+          weekDuration
+          loanPaymentComission
+        }
         borrower {
           id
           personalData {
             id
             fullName
+            phones {
+              number
+            }
           }
         }
+        collaterals {
+          id
+          fullName
+          phones {
+            id
+            number
+          }
+        }
+      }
+      transactions {
+        id
+        profitAmount
+        returnToCapital
       }
       leadPaymentReceived {
         id

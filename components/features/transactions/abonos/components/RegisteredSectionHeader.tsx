@@ -1,15 +1,29 @@
 'use client'
 
-import { CheckCircle2, Lock } from 'lucide-react'
+import { CheckCircle2, Lock, Pencil } from 'lucide-react'
 import { TableRow, TableCell } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 interface RegisteredSectionHeaderProps {
   registeredCount: number
   isAdmin?: boolean
+  hasDistribution?: boolean
+  onEditDistribution?: () => void
 }
 
-export function RegisteredSectionHeader({ registeredCount, isAdmin }: RegisteredSectionHeaderProps) {
+export function RegisteredSectionHeader({
+  registeredCount,
+  isAdmin,
+  hasDistribution,
+  onEditDistribution,
+}: RegisteredSectionHeaderProps) {
   // Calculate total columns: base 10 + 2 admin columns if admin
   const totalColumns = isAdmin ? 12 : 10
 
@@ -27,6 +41,29 @@ export function RegisteredSectionHeader({ registeredCount, isAdmin }: Registered
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{registeredCount} pago{registeredCount !== 1 ? 's' : ''} guardado{registeredCount !== 1 ? 's' : ''}</span>
           </div>
+
+          {/* Edit distribution button */}
+          {hasDistribution && onEditDistribution && (
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                    onClick={onEditDistribution}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Editar distribución
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Editar distribución (efectivo/banco)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600 ml-2" />
         </div>
       </TableCell>

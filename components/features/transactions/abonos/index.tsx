@@ -362,36 +362,52 @@ export function AbonosTab() {
     }
   }
 
+  // Helper: Find original payment in registeredPaymentsMap
+  const findOriginalPayment = (paymentId: string) => {
+    let originalPayment: { amount: string; paymentMethod: string } | undefined
+    registeredPaymentsMap.forEach((payments) => {
+      const found = payments.find(p => p.id === paymentId)
+      if (found) originalPayment = found
+    })
+    return originalPayment
+  }
+
+  // Helper: Calculate sum of MONEY_TRANSFER payments from registeredPaymentsMap
+  const calculateMoneyTransferSum = () => {
+    return Array.from(registeredPaymentsMap.values())
+      .flat()
+      .filter(p => p.paymentMethod === 'MONEY_TRANSFER')
+      .reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0)
+  }
+
+  // Helper: Check if an edit changes amount or payment method
+  const hasAmountOrMethodChange = (edit: typeof editedPayments[string]) => {
+    const originalPayment = findOriginalPayment(edit.paymentId)
+    if (!originalPayment) return false
+
+    const oldAmount = parseFloat(originalPayment.amount || '0')
+    const newAmount = edit.isDeleted ? 0 : parseFloat(edit.amount || '0')
+
+    return oldAmount !== newAmount || originalPayment.paymentMethod !== edit.paymentMethod
+  }
+
   const handleSaveEditedPayments = () => {
     const editsToSave = Object.values(editedPayments)
     if (editsToSave.length === 0) return
 
-    // Check if changes are ONLY commissions (no amount or payment method changes)
-    let hasAmountOrMethodChanges = false
-    for (const edit of editsToSave) {
-      // Find the original payment
-      let originalPayment: { amount: string; paymentMethod: string } | undefined
-      registeredPaymentsMap.forEach((payments) => {
-        const found = payments.find(p => p.id === edit.paymentId)
-        if (found) originalPayment = found
-      })
-
-      if (!originalPayment) continue
-
-      // Check for amount changes (including deletions)
-      const oldAmount = parseFloat(originalPayment.amount || '0')
-      const newAmount = edit.isDeleted ? 0 : parseFloat(edit.amount || '0')
-      if (oldAmount !== newAmount) {
-        hasAmountOrMethodChanges = true
-        break
-      }
-
-      // Check for payment method changes
-      if (originalPayment.paymentMethod !== edit.paymentMethod) {
-        hasAmountOrMethodChanges = true
-        break
-      }
+    // Check if ALL payments will be deleted
+    const allPaymentsDeleted = editsToSave.every(edit => edit.isDeleted)
+    if (allPaymentsDeleted) {
+      // Reset distribution state since there will be no cash to transfer
+      setBankTransferAmount('0')
+      setFalcoEnabled(false)
+      setFalcoAmount('0')
+      setShowDistributionModal(true)
+      return
     }
+
+    // Check if changes are ONLY commissions (no amount or payment method changes)
+    const hasAmountOrMethodChanges = editsToSave.some(hasAmountOrMethodChange)
 
     // If ONLY commissions changed, save directly without showing distribution modal
     if (!hasAmountOrMethodChanges) {
@@ -421,18 +437,17 @@ export function AbonosTab() {
 
       // Current cashToBank = bankPaidAmount - moneyTransferSum (from original, not edited)
       const existingBankPaid = parseFloat(existingRecord.bankPaidAmount || '0')
-      const existingMoneyTransferSum = Array.from(registeredPaymentsMap.values())
-        .flat()
-        .filter(p => p.paymentMethod === 'MONEY_TRANSFER')
-        .reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0)
+      const existingMoneyTransferSum = calculateMoneyTransferSum()
       const existingCashToBank = existingBankPaid - existingMoneyTransferSum
 
-      console.log('[handleSaveEditedPayments] Pre-loading distribution:', {
-        existingBankPaid,
-        existingMoneyTransferSum,
-        existingCashToBank,
-        newMoneyTransferSum: currentMoneyTransferSum,
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[handleSaveEditedPayments] Pre-loading distribution:', {
+          existingBankPaid,
+          existingMoneyTransferSum,
+          existingCashToBank,
+          newMoneyTransferSum: currentMoneyTransferSum,
+        })
+      }
 
       // Pre-load with the existing cashToBank value (what leader previously transferred)
       setBankTransferAmount(Math.max(0, existingCashToBank).toString())
@@ -468,10 +483,12 @@ export function AbonosTab() {
         isDeleted: edit.isDeleted,
       }))
 
-      console.log('[AbonosTab] Saving commission-only changes (no distribution change):', {
-        id: leadPaymentReceivedId,
-        paymentsCount: paymentsToUpdate.length,
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AbonosTab] Saving commission-only changes (no distribution change):', {
+          id: leadPaymentReceivedId,
+          paymentsCount: paymentsToUpdate.length,
+        })
+      }
 
       // Only send payments, NO cashPaidAmount or bankPaidAmount
       // This tells the backend to only update the payments without changing distribution
@@ -519,13 +536,15 @@ export function AbonosTab() {
     // This prevents issues when selectedDate changes between saves
     const freshLeadPaymentData = await fetchLeadPaymentById(leadPaymentReceivedId)
 
-    console.log('[handleEditDistribution] Fresh data received by ID:', {
-      id: leadPaymentReceivedId,
-      freshLeadPaymentData,
-      cashPaidAmount: freshLeadPaymentData?.cashPaidAmount,
-      bankPaidAmount: freshLeadPaymentData?.bankPaidAmount,
-      payments: freshLeadPaymentData?.payments,
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[handleEditDistribution] Fresh data received by ID:', {
+        id: leadPaymentReceivedId,
+        freshLeadPaymentData,
+        cashPaidAmount: freshLeadPaymentData?.cashPaidAmount,
+        bankPaidAmount: freshLeadPaymentData?.bankPaidAmount,
+        payments: freshLeadPaymentData?.payments,
+      })
+    }
 
     // Calculate the sum of MONEY_TRANSFER payments FROM THE FETCHED RECORD
     // This ensures we use the correct payments even if selectedDate changed
@@ -551,13 +570,15 @@ export function AbonosTab() {
     // Original cash = what's currently in cash + what was transferred to bank
     const originalCash = currentCashPaid + cashToBank
 
-    console.log('[handleEditDistribution] Calculated values:', {
-      moneyTransferSum,
-      currentBankPaid,
-      currentCashPaid,
-      cashToBank,
-      originalCash,
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[handleEditDistribution] Calculated values:', {
+        moneyTransferSum,
+        currentBankPaid,
+        currentCashPaid,
+        cashToBank,
+        originalCash,
+      })
+    }
 
     setIsEditingDistributionOnly(true)
     // Store the original values for the modal
@@ -597,13 +618,15 @@ export function AbonosTab() {
       // New bank = money transfers from clients + what the leader transfers
       const newBankPaid = moneyTransferSum + bankTransferValue
 
-      console.log('[AbonosTab] Saving distribution-only change:', {
-        id: leadPaymentReceivedId,
-        originalCash,
-        moneyTransferSum,
-        leaderTransfer: bankTransferValue,
-        new: { cash: newCashPaid, bank: newBankPaid },
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AbonosTab] Saving distribution-only change:', {
+          id: leadPaymentReceivedId,
+          originalCash,
+          moneyTransferSum,
+          leaderTransfer: bankTransferValue,
+          new: { cash: newCashPaid, bank: newBankPaid },
+        })
+      }
 
       await updateLeadPaymentReceived({
         variables: {
@@ -693,12 +716,7 @@ export function AbonosTab() {
 
       Object.values(editedPayments).forEach((edit) => {
         // Find the original payment to calculate delta
-        let originalPayment: { amount: string; paymentMethod: string } | undefined
-        registeredPaymentsMap.forEach((payments) => {
-          const found = payments.find(p => p.id === edit.paymentId)
-          if (found) originalPayment = found
-        })
-
+        const originalPayment = findOriginalPayment(edit.paymentId)
         if (!originalPayment) return
 
         const oldAmount = parseFloat(originalPayment.amount || '0')
@@ -734,6 +752,37 @@ export function AbonosTab() {
       // New total = existing + delta
       const newTotalPaid = existingTotal + totalDelta
 
+      // If all payments were deleted, force distribution to 0
+      if (newTotalPaid <= 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AbonosTab] All payments deleted, forcing distribution to 0')
+        }
+
+        const result = await updateLeadPaymentReceived({
+          variables: {
+            id: leadPaymentReceivedId,
+            input: {
+              paidAmount: '0',
+              cashPaidAmount: '0',
+              bankPaidAmount: '0',
+              payments: paymentsToUpdate,
+            },
+          },
+        })
+
+        const allDeleted = result.data?.updateLeadPaymentReceived === null
+
+        toast({
+          title: allDeleted ? 'Pagos eliminados' : 'Cambios guardados',
+          description: `Se eliminaron ${deletedCount} pago(s) del día.`,
+        })
+
+        clearEditedPayments()
+        setShowDistributionModal(false)
+        await refetchAll()
+        return
+      }
+
       // IMPORTANT: existingCashPaid and existingBankPaid already have the OLD cashToBank baked in:
       // - existingCashPaid = (original CASH payments) - oldCashToBank
       // - existingBankPaid = (original MONEY_TRANSFER payments) + oldCashToBank
@@ -743,10 +792,7 @@ export function AbonosTab() {
       // 2. Use the DIFFERENCE between new and old cashToBank
 
       // Calculate OLD cashToBank from existing distribution
-      const existingMoneyTransferSum = Array.from(registeredPaymentsMap.values())
-        .flat()
-        .filter(p => p.paymentMethod === 'MONEY_TRANSFER')
-        .reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0)
+      const existingMoneyTransferSum = calculateMoneyTransferSum()
       const oldCashToBank = existingBankPaid - existingMoneyTransferSum
 
       // For cash/bank distribution:
@@ -758,14 +804,24 @@ export function AbonosTab() {
       // This is the cash that would exist if the leader transferred nothing
       const rawCashAfterMethodChanges = existingCashPaid + oldCashToBank + cashDelta
 
+      // If there's no cash available after method changes, force transfer to 0
+      if (rawCashAfterMethodChanges <= 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AbonosTab] No cash available after method changes, forcing newCashToBank to 0')
+        }
+        newCashToBank = 0
+      }
+
       // Safety check: if newCashToBank exceeds available raw cash, adjust and warn
       if (newCashToBank > rawCashAfterMethodChanges) {
         const adjustedValue = Math.max(0, rawCashAfterMethodChanges)
-        console.log('[AbonosTab] Auto-adjusting bankTransferValue:', {
-          requested: newCashToBank,
-          availableCash: rawCashAfterMethodChanges,
-          adjusted: adjustedValue,
-        })
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AbonosTab] Auto-adjusting bankTransferValue:', {
+            requested: newCashToBank,
+            availableCash: rawCashAfterMethodChanges,
+            adjusted: adjustedValue,
+          })
+        }
         toast({
           title: 'Transferencia ajustada',
           description: `La transferencia se ajustó de ${newCashToBank} a ${adjustedValue} (máximo disponible).`,
@@ -780,29 +836,31 @@ export function AbonosTab() {
       const newCashPaid = existingCashPaid + cashDelta - cashToBankDelta
       const newBankPaid = existingBankPaid + bankDelta + cashToBankDelta
 
-      console.log('[AbonosTab] Sending updateLeadPaymentReceived with:', {
-        id: leadPaymentReceivedId,
-        existing: { total: existingTotal, cash: existingCashPaid, bank: existingBankPaid },
-        deltas: { cash: cashDelta, bank: bankDelta, total: totalDelta },
-        transfer: {
-          existingMoneyTransferSum,
-          oldCashToBank,
-          newCashToBank,
-          cashToBankDelta,
-          rawCashAfterMethodChanges,
-        },
-        new: { total: newTotalPaid, cash: newCashPaid, bank: newBankPaid },
-        editedPaymentsCount: paymentsToUpdate.length,
-        deletedPayments: paymentsToUpdate.filter(p => p.isDeleted).length,
-        payments: paymentsToUpdate.map(p => ({
-          paymentId: p.paymentId,
-          loanId: p.loanId,
-          amount: p.amount,
-          comission: p.comission,
-          method: p.paymentMethod,
-          isDeleted: p.isDeleted,
-        })),
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AbonosTab] Sending updateLeadPaymentReceived with:', {
+          id: leadPaymentReceivedId,
+          existing: { total: existingTotal, cash: existingCashPaid, bank: existingBankPaid },
+          deltas: { cash: cashDelta, bank: bankDelta, total: totalDelta },
+          transfer: {
+            existingMoneyTransferSum,
+            oldCashToBank,
+            newCashToBank,
+            cashToBankDelta,
+            rawCashAfterMethodChanges,
+          },
+          new: { total: newTotalPaid, cash: newCashPaid, bank: newBankPaid },
+          editedPaymentsCount: paymentsToUpdate.length,
+          deletedPayments: paymentsToUpdate.filter(p => p.isDeleted).length,
+          payments: paymentsToUpdate.map(p => ({
+            paymentId: p.paymentId,
+            loanId: p.loanId,
+            amount: p.amount,
+            comission: p.comission,
+            method: p.paymentMethod,
+            isDeleted: p.isDeleted,
+          })),
+        })
+      }
 
       const result = await updateLeadPaymentReceived({
         variables: {
@@ -937,7 +995,6 @@ export function AbonosTab() {
                 showOnlyIncomplete={showOnlyIncomplete}
                 onToggleIncomplete={() => setShowOnlyIncomplete(!showOnlyIncomplete)}
                 leadPaymentDistribution={leadPaymentData?.leadPaymentReceivedByLeadAndDate}
-                onEditDistribution={handleEditDistribution}
               />
             </div>
 
@@ -1034,6 +1091,8 @@ export function AbonosTab() {
                   <RegisteredSectionHeader
                     registeredCount={capturedLoans.length}
                     isAdmin={isAdmin}
+                    hasDistribution={!!leadPaymentData?.leadPaymentReceivedByLeadAndDate}
+                    onEditDistribution={handleEditDistribution}
                   />
                 )}
 

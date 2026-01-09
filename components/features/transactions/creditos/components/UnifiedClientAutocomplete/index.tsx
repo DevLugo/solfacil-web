@@ -265,7 +265,7 @@ export function UnifiedClientAutocomplete({
     if (!newClientName.trim()) return
 
     onValueChange({
-      fullName: newClientName.trim(),
+      fullName: newClientName.trim().toUpperCase(),
       phone: newClientPhone.trim() || undefined,
       isFromCurrentLocation: true,
       locationId: locationId || undefined,

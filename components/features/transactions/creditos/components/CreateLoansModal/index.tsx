@@ -71,6 +71,8 @@ export function CreateLoansModal({
   const [firstPaymentAmount, setFirstPaymentAmount] = useState<string>('')
   const [firstPaymentComission, setFirstPaymentComission] = useState<string>('')
   const [globalComissionAmount, setGlobalComissionAmount] = useState<string>('')
+  // Track when first payment was auto-updated for visual feedback
+  const [firstPaymentAutoUpdated, setFirstPaymentAutoUpdated] = useState(false)
 
   // Get active loan from selected borrower (if any)
   const selectedActiveLoan = selectedBorrower?.activeLoan
@@ -122,6 +124,23 @@ export function CreateLoansModal({
       setComissionAmount(selectedLoanType.loanGrantedComission || '0')
     }
   }, [selectedLoanType, editingLoanId])
+
+  // Auto-update first payment when weekly payment changes (if first payment is enabled)
+  useEffect(() => {
+    if (includeFirstPayment && calculatedWeeklyPayment > 0) {
+      const newAmount = Math.round(calculatedWeeklyPayment).toString()
+      // Only update if the value actually changed
+      if (newAmount !== firstPaymentAmount) {
+        setFirstPaymentAmount(newAmount)
+        // Update commission from loan type
+        setFirstPaymentComission(selectedLoanType?.loanPaymentComission || '0')
+        // Trigger visual feedback
+        setFirstPaymentAutoUpdated(true)
+        // Clear feedback after animation
+        setTimeout(() => setFirstPaymentAutoUpdated(false), 1500)
+      }
+    }
+  }, [calculatedWeeklyPayment, includeFirstPayment, selectedLoanType?.loanPaymentComission])
 
   // Handler for first payment toggle - pre-fill with weekly payment and commission
   const handleFirstPaymentToggle = (enabled: boolean) => {
@@ -673,6 +692,7 @@ export function CreateLoansModal({
               onAmountChange={setFirstPaymentAmount}
               firstPaymentComission={firstPaymentComission}
               onComissionChange={setFirstPaymentComission}
+              autoUpdated={firstPaymentAutoUpdated}
             />
           </div>
 

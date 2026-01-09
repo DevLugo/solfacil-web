@@ -6,7 +6,8 @@ import { getApiBaseUrl } from '@/lib/constants/api'
 
 interface LocalityWithLeader {
   id: string
-  name: string
+  name: string // Nombre para mostrar (incluye líder): "YAXCOPOIL · (Juan)"
+  locationName: string // Nombre puro de la localidad: "YAXCOPOIL"
   leaderName: string
   leaderId: string
 }
@@ -54,42 +55,42 @@ export function useGenerateListados() {
   })
 
   /**
-   * Extrae localidades únicas con información del líder responsable
+   * Extrae todas las combinaciones líder-localidad para permitir selección precisa
+   * Cada líder aparece con su localidad principal, similar a transacciones/abonos
    */
   const localities = useMemo(() => {
     if (!routeData?.route?.employees) return []
 
-    const localitiesMap = new Map<string, LocalityWithLeader>()
+    const result: LocalityWithLeader[] = []
     const employees = routeData.route.employees as Employee[]
 
-    // Solo incluir líderes (LEAD) con datos válidos - igual que la implementación original
+    // Solo incluir líderes (LEAD) con datos válidos
     const leaders = employees.filter(
       (emp) =>
         emp.type === 'LEAD' &&
-        emp.personalData && // Verificar que personalData existe
-        emp.personalData.addresses && // Verificar que addresses existe
-        Array.isArray(emp.personalData.addresses) // Verificar que es un array
+        emp.personalData &&
+        emp.personalData.addresses &&
+        Array.isArray(emp.personalData.addresses)
     )
 
+    // Cada líder aparece con su primera localidad (igual que transacciones)
     leaders.forEach((leader) => {
       const leaderName = leader.personalData?.fullName || 'Sin nombre'
+      const firstAddress = leader.personalData?.addresses?.[0]
 
-      leader.personalData?.addresses?.forEach((address) => {
-        if (address?.location && !localitiesMap.has(address.location.id)) {
-          localitiesMap.set(address.location.id, {
-            id: address.location.id,
-            name: address.location.name,
-            leaderName,
-            leaderId: leader.id
-          })
-        }
-      })
+      if (firstAddress?.location) {
+        result.push({
+          id: `${firstAddress.location.id}_${leader.id}`, // Clave única: localidad + líder
+          name: `${firstAddress.location.name} · (${leaderName})`,
+          locationName: firstAddress.location.name, // Nombre puro para el PDF
+          leaderName,
+          leaderId: leader.id
+        })
+      }
     })
 
-    // Convertir a array y ordenar alfabéticamente
-    return Array.from(localitiesMap.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    )
+    // Ordenar alfabéticamente por nombre de localidad
+    return result.sort((a, b) => a.name.localeCompare(b.name))
   }, [routeData])
 
   /**
@@ -165,9 +166,9 @@ export function useGenerateListados() {
 
         try {
           const params = new URLSearchParams({
-            localityId,
+            localityId: locality.leaderId, // Usar leaderId como identificador principal
             routeId: selectedRouteId,
-            localityName: locality.name,
+            localityName: locality.locationName, // Nombre puro de la localidad
             routeName: routeData.route.name,
             leaderName: locality.leaderName,
             leaderId: locality.leaderId,

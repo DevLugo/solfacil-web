@@ -8,6 +8,7 @@ import {
   ACCOUNTS_QUERY,
   LEAD_PAYMENT_RECEIVED_BY_DATE_QUERY,
   LEAD_PAYMENT_RECEIVED_BY_ID_QUERY,
+  LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY,
 } from '@/graphql/queries/transactions'
 import {
   CREATE_LEAD_PAYMENT_RECEIVED,
@@ -78,24 +79,77 @@ export function useAbonosQueries({
     }
   )
 
+  // Check if day is captured (history mode)
+  const isDayCaptured = !!leadPaymentData?.leadPaymentReceivedByLeadAndDate?.id
+
+  // Query for payments by date - only fetch when in history mode
+  // This allows us to show finished loans that had payments on this date
+  const {
+    data: paymentsData,
+    loading: paymentsLoading,
+    refetch: refetchPayments,
+  } = useQuery(LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY, {
+    variables: {
+      leadId: selectedLeadId,
+      startDate: startDateUTC,
+      endDate: endDateUTC,
+    },
+    skip: !selectedLeadId || !isDayCaptured,
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
+  })
+
   // Mutations
   const [createTransaction] = useMutation(CREATE_TRANSACTION)
   const [createLeadPaymentReceived] = useMutation(CREATE_LEAD_PAYMENT_RECEIVED)
   const [updateLeadPaymentReceived] = useMutation(UPDATE_LEAD_PAYMENT_RECEIVED)
 
   // Process loans data
-  // API now returns only ACTIVE loans, no need to filter by status on the frontend
+  // In capture mode: only ACTIVE loans
+  // In history mode: loans from payments (including FINISHED) + active loans without payments (faltas)
   const loans: ActiveLoan[] = useMemo(() => {
-    const rawLoans =
+    const rawActiveLoans =
       loansData?.loans?.edges?.map((edge: { node: ActiveLoan }) => edge.node) || []
 
-    // Sort by sign date (oldest first)
-    return rawLoans.sort((a: ActiveLoan, b: ActiveLoan) => {
+    // Sort helper function
+    const sortBySignDate = (a: ActiveLoan, b: ActiveLoan) => {
       const dateA = new Date(a.signDate || '1970-01-01').getTime()
       const dateB = new Date(b.signDate || '1970-01-01').getTime()
       return dateA - dateB
-    })
-  }, [loansData])
+    }
+
+    // History mode: Build loans from payments + active loans without payments (faltas)
+    if (isDayCaptured && paymentsData?.loanPaymentsByLeadAndDate) {
+      const loansFromPayments = new Map<string, ActiveLoan>()
+
+      // Build loans from payments - this includes FINISHED loans
+      paymentsData.loanPaymentsByLeadAndDate.forEach((payment: LoanPayment & { loan: ActiveLoan }) => {
+        const loan = payment.loan
+        if (!loansFromPayments.has(loan.id)) {
+          // Initialize loan with this payment
+          loansFromPayments.set(loan.id, {
+            ...loan,
+            payments: [payment],
+          })
+        } else {
+          // Add payment to existing loan
+          const existingLoan = loansFromPayments.get(loan.id)!
+          existingLoan.payments = [...(existingLoan.payments || []), payment]
+        }
+      })
+
+      // Add active loans without payments on this date (they are "faltas")
+      const activeLoansWithoutPayments = rawActiveLoans.filter(
+        (loan: ActiveLoan) => !loansFromPayments.has(loan.id)
+      )
+
+      const allLoans = [...loansFromPayments.values(), ...activeLoansWithoutPayments]
+      return allLoans.sort(sortBySignDate)
+    }
+
+    // Capture mode: Only active loans
+    return rawActiveLoans.sort(sortBySignDate)
+  }, [loansData, isDayCaptured, paymentsData])
 
   // Map of loanId -> payments registered today (supports multiple payments per loan per day)
   const registeredPaymentsMap = useMemo(() => {
@@ -137,6 +191,8 @@ export function useAbonosQueries({
       refetchLoans(),
       refetchLeadPayment({ fetchPolicy: 'network-only' }),
       refetchAccounts(),
+      // Refetch payments if in history mode
+      isDayCaptured ? refetchPayments() : Promise.resolve(null),
     ])
     console.log('[refetchAll] leadPaymentResult:', leadPaymentResult)
     console.log('[refetchAll] leadPaymentResult.data:', leadPaymentResult.data)
@@ -163,7 +219,7 @@ export function useAbonosQueries({
   })
 
   // Combine loading states
-  const isLoading = loansLoading || isRefetching
+  const isLoading = loansLoading || paymentsLoading || isRefetching
 
   return {
     // Data
