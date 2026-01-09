@@ -773,19 +773,22 @@ export function useRouteKPIs({ year, month, filters, skip = false }: UseRouteKPI
     fetchPolicy: 'cache-and-network',
   })
 
+  // Extract routes array from response
   const routeKPIs: RouteKPI[] = useMemo(() => {
-    return data?.portfolioRouteKPIs ?? []
+    return data?.portfolioRouteKPIs?.routes ?? []
   }, [data])
 
-  // Calculate totals across all routes
+  // Use uniqueTotals from backend (no duplicates when loan is in multiple routes)
   const totals = useMemo(() => {
-    if (routeKPIs.length === 0) return null
+    const uniqueTotals = data?.portfolioRouteKPIs?.uniqueTotals
+    if (!uniqueTotals) return null
     return {
-      clientesTotal: routeKPIs.reduce((sum, r) => sum + r.clientesTotal, 0),
-      pagandoPromedio: routeKPIs.reduce((sum, r) => sum + r.pagandoPromedio, 0),
-      cvPromedio: routeKPIs.reduce((sum, r) => sum + r.cvPromedio, 0),
+      clientesTotal: uniqueTotals.clientesTotal,
+      // For averages, we use the totals from backend
+      pagandoPromedio: uniqueTotals.pagandoTotal,
+      cvPromedio: uniqueTotals.cvTotal,
     }
-  }, [routeKPIs])
+  }, [data])
 
   return {
     routeKPIs,

@@ -43,6 +43,7 @@ export function useAbonosQueries({
   }, [selectedDate])
 
   // Query for active loans
+  // API returns only ACTIVE loans for the selected lead
   const {
     data: loansData,
     loading: loansLoading,
@@ -83,36 +84,18 @@ export function useAbonosQueries({
   const [updateLeadPaymentReceived] = useMutation(UPDATE_LEAD_PAYMENT_RECEIVED)
 
   // Process loans data
+  // API now returns only ACTIVE loans, no need to filter by status on the frontend
   const loans: ActiveLoan[] = useMemo(() => {
     const rawLoans =
       loansData?.loans?.edges?.map((edge: { node: ActiveLoan }) => edge.node) || []
 
-    // Filter loans:
-    // - ACTIVE loans: always show (can receive new payments)
-    // - FINISHED loans: only show if they have a payment on the selected date
-    const filteredLoans = rawLoans.filter((loan: ActiveLoan) => {
-      if (loan.status === 'ACTIVE') {
-        return true
-      }
-      // For FINISHED loans, check if there's a payment on the selected date
-      // This handles cases where a loan was finished/renewed but had a payment registered that same day
-      if (loan.status === 'FINISHED') {
-        const hasPaymentOnDate = loan.payments?.some((payment) =>
-          isSameDay(new Date(payment.receivedAt), selectedDate)
-        )
-        return hasPaymentOnDate
-      }
-      // Other statuses (CANCELLED) - don't show
-      return false
-    })
-
     // Sort by sign date (oldest first)
-    return filteredLoans.sort((a: ActiveLoan, b: ActiveLoan) => {
+    return rawLoans.sort((a: ActiveLoan, b: ActiveLoan) => {
       const dateA = new Date(a.signDate || '1970-01-01').getTime()
       const dateB = new Date(b.signDate || '1970-01-01').getTime()
       return dateA - dateB
     })
-  }, [loansData, selectedDate])
+  }, [loansData])
 
   // Map of loanId -> payments registered today (supports multiple payments per loan per day)
   const registeredPaymentsMap = useMemo(() => {

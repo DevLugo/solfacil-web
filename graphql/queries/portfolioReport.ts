@@ -133,7 +133,7 @@ export const GET_PORTFOLIO_REPORT_MONTHLY = gql`
   ${PORTFOLIO_REPORT_FRAGMENT}
 `
 
-// Query: Get simplified route KPIs (only 3 metrics per route)
+// Query: Get simplified route KPIs (only 3 metrics per route) with unique totals
 export const GET_PORTFOLIO_ROUTE_KPIS = gql`
   query GetPortfolioRouteKPIs(
     $year: Int!
@@ -141,11 +141,18 @@ export const GET_PORTFOLIO_ROUTE_KPIS = gql`
     $filters: PortfolioFiltersInput
   ) {
     portfolioRouteKPIs(year: $year, month: $month, filters: $filters) {
-      routeId
-      routeName
-      clientesTotal
-      pagandoPromedio
-      cvPromedio
+      routes {
+        routeId
+        routeName
+        clientesTotal
+        pagandoPromedio
+        cvPromedio
+      }
+      uniqueTotals {
+        clientesTotal
+        pagandoTotal
+        cvTotal
+      }
     }
   }
 `
