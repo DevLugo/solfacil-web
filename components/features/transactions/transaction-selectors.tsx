@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useLazyQuery } from '@apollo/client'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -80,6 +80,8 @@ function getLeadLabel(lead: Lead): string {
 }
 
 export function TransactionSelectors() {
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+
   const {
     selectedRouteId,
     selectedLeadId,
@@ -179,7 +181,7 @@ export function TransactionSelectors() {
         {/* Date Picker */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Popover>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -199,7 +201,12 @@ export function TransactionSelectors() {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date)
+                    setDatePickerOpen(false)
+                  }
+                }}
                 initialFocus
                 locale={es}
               />
