@@ -298,9 +298,13 @@ export function CreateLoansModal({
           })
         }
       } else {
-        setSelectedLoanTypeId('')
-        setRequestedAmount('')
-        setComissionAmount('')
+        // Only clear loan type and amount when selecting an existing client without active loan
+        // When creating a NEW client, preserve the current loan type and amount selection
+        if (borrower?.clientState !== 'new') {
+          setSelectedLoanTypeId('')
+          setRequestedAmount('')
+          setComissionAmount('')
+        }
         setSelectedAval(null)
       }
     }
