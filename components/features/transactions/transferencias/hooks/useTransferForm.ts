@@ -34,8 +34,6 @@ interface UseTransferFormResult {
   setDescription: (value: string) => void
   // State
   isSubmitting: boolean
-  showSuccessDialog: boolean
-  setShowSuccessDialog: (value: boolean) => void
   // Validation
   isAmountValid: boolean
   isFormValid: boolean
@@ -60,7 +58,6 @@ export function useTransferForm({
   // Form state
   const [formData, setFormData] = useState<TransferFormData>(getInitialFormData())
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
 
   // Mutation
   const [createTransaction] = useMutation(CREATE_TRANSACTION)
@@ -182,9 +179,8 @@ export function useTransferForm({
         })
       }
 
-      // Reset form and show success
+      // Reset form and notify parent
       resetForm()
-      setShowSuccessDialog(true)
 
       // Notify parent
       onSuccess()
@@ -218,8 +214,6 @@ export function useTransferForm({
     setAmount,
     setDescription,
     isSubmitting,
-    showSuccessDialog,
-    setShowSuccessDialog,
     isAmountValid,
     isFormValid,
     availableBalance,

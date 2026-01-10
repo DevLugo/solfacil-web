@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { MapPin, Banknote, Plus } from 'lucide-react'
@@ -155,6 +155,21 @@ export function GastosTab() {
     )
   }, [accounts, showExtraAccountTypes])
 
+  // Inicializar con un row de gasto vacio cuando se cargan las cuentas
+  useEffect(() => {
+    if (accounts.length > 0 && newExpenses.length === 0) {
+      const defaultAccount = accounts.find((acc) => acc.type === 'EMPLOYEE_CASH_FUND')
+      setNewExpenses([
+        {
+          amount: '',
+          expenseSource: '',
+          description: '',
+          sourceAccountId: defaultAccount?.id || '',
+        },
+      ])
+    }
+  }, [accounts]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Calcular totales
   const totals: ExpenseTotals = useMemo(() => {
     const existingTotal = filteredExpenses.reduce(
@@ -191,9 +206,11 @@ export function GastosTab() {
     field: keyof NewExpense,
     value: string
   ) => {
-    const updated = [...newExpenses]
-    updated[index] = { ...updated[index], [field]: value }
-    setNewExpenses(updated)
+    setNewExpenses((prev) => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], [field]: value }
+      return updated
+    })
   }
 
   const handleRemoveNewExpense = (index: number) => {

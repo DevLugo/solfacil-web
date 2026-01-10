@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { EXPENSE_TYPES } from '../constants'
+import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
 import type { Expense, Account } from '../types'
 
 interface EditExpenseModalProps {
@@ -89,21 +89,12 @@ export function EditExpenseModal({
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="expenseSource">Tipo de Gasto</Label>
-            <Select value={expenseSource} onValueChange={setExpenseSource}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPENSE_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <div className="flex items-center gap-2">
-                      <type.icon className="h-4 w-4" />
-                      {type.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ExpenseTypeCombobox
+              value={expenseSource}
+              onValueChange={setExpenseSource}
+              placeholder="Seleccionar tipo"
+              className="w-full"
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="amount">Monto</Label>

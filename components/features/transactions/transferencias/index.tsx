@@ -8,7 +8,6 @@ import {
   AccountBalanceCard,
   TransferForm,
   TransferHistoryTable,
-  SuccessDialog,
   BatchOperationsBar,
 } from './components'
 import { useTransferQueries, useTransferForm } from './hooks'
@@ -115,8 +114,6 @@ export function TransferenciasTab() {
     setAmount,
     setDescription,
     isSubmitting,
-    showSuccessDialog,
-    setShowSuccessDialog,
     isAmountValid,
     isFormValid,
     availableBalance,
@@ -177,13 +174,6 @@ export function TransferenciasTab() {
             transfers={transfers}
             loading={transfersLoading}
             selectedDate={selectedDate}
-          />
-
-          {/* Success Dialog */}
-          <SuccessDialog
-            open={showSuccessDialog}
-            onOpenChange={setShowSuccessDialog}
-            isCapitalInvestment={formData.isCapitalInvestment}
           />
         </>
       )}

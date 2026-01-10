@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLazyQuery } from '@apollo/client'
 import { User, ChevronsUpDown, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 import {
   Command,
   CommandEmpty,
@@ -57,6 +58,7 @@ export function UnifiedClientAutocomplete({
   const [isEditSaving, setIsEditSaving] = useState(false)
 
   const { updateBorrower, updatePersonalData, updatePhone } = useClientMutations()
+  const { toast } = useToast()
 
   const defaultPlaceholder = mode === 'borrower' ? 'Buscar cliente...' : 'Buscar aval...'
 
@@ -348,7 +350,11 @@ export function UnifiedClientAutocomplete({
         })
       } catch (error) {
         console.error('Error updating client:', error)
-        alert('Error al actualizar la información del cliente')
+        toast({
+          title: 'Error',
+          description: 'Error al actualizar la información del cliente',
+          variant: 'destructive',
+        })
       } finally {
         setIsEditSaving(false)
       }

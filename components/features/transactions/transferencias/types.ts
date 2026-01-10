@@ -42,7 +42,6 @@ export interface TransferFormData {
 
 export interface TransferFormState extends TransferFormData {
   isSubmitting: boolean
-  showSuccessDialog: boolean
 }
 
 export interface TransferValidation {

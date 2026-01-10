@@ -3,7 +3,6 @@
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { TableCell, TableRow } from '@/components/ui/table'
 import {
   Select,
@@ -12,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { EXPENSE_TYPES, EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
+import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
+import { EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
 import type { NewExpense, Account } from '../types'
 
 interface NewExpenseRowProps {
@@ -34,33 +34,27 @@ export function NewExpenseRow({
     onUpdate(index, 'expenseSource', value)
 
     // Auto-seleccionar cuenta basada en el tipo de gasto
+    // Prioridad: cuenta preferida → EMPLOYEE_CASH_FUND → primera cuenta disponible
     const preferredAccountType = EXPENSE_TO_ACCOUNT_TYPE[value]
-    if (preferredAccountType) {
-      const preferredAccount = accounts.find((acc) => acc.type === preferredAccountType)
-      if (preferredAccount) {
-        onUpdate(index, 'sourceAccountId', preferredAccount.id)
-      }
+    const preferredAccount = preferredAccountType
+      ? accounts.find((acc) => acc.type === preferredAccountType)
+      : null
+    const fallbackAccount = accounts.find((acc) => acc.type === 'EMPLOYEE_CASH_FUND')
+    const selectedAccount = preferredAccount || fallbackAccount || accounts[0]
+
+    if (selectedAccount) {
+      onUpdate(index, 'sourceAccountId', selectedAccount.id)
     }
   }
 
   return (
     <TableRow className="bg-amber-50/50 dark:bg-amber-950/20">
       <TableCell>
-        <Select value={expense.expenseSource} onValueChange={handleExpenseTypeChange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Tipo de gasto" />
-          </SelectTrigger>
-          <SelectContent>
-            {EXPENSE_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                <div className="flex items-center gap-2">
-                  <type.icon className="h-4 w-4" />
-                  {type.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ExpenseTypeCombobox
+          value={expense.expenseSource}
+          onValueChange={handleExpenseTypeChange}
+          placeholder="Tipo de gasto"
+        />
       </TableCell>
       <TableCell>
         <Input

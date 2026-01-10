@@ -96,8 +96,10 @@ export const DEFAULT_VISIBLE_ACCOUNT_TYPES: AccountType[] = [
 export const EXTRA_ACCOUNT_TYPES: AccountType[] = ['BANK', 'OFFICE_CASH_FUND']
 
 // Auto-selection mapping: expense type -> preferred account type
+// Gasoline -> Toka (PREPAID_GAS)
+// Accommodation -> Connect (TRAVEL_EXPENSES)
+// Everything else -> defaults to EMPLOYEE_CASH_FUND in the selection logic
 export const EXPENSE_TO_ACCOUNT_TYPE: Partial<Record<string, AccountType>> = {
   GASOLINE: 'PREPAID_GAS',
-  VIATIC: 'TRAVEL_EXPENSES',
   ACCOMMODATION: 'TRAVEL_EXPENSES',
 }

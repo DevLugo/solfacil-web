@@ -27,7 +27,6 @@ import {
   ActionBar,
   DistributionModal,
   MultaModal,
-  SuccessDialog,
   LoanPaymentRow,
   FalcosPendientesDrawer,
   RegisteredSectionHeader,
@@ -53,8 +52,6 @@ export function AbonosTab() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingEdits, setIsSavingEdits] = useState(false)
   const [savingProgress, setSavingProgress] = useState<{ current: number; total: number } | null>(null)
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
-  const [savedCount, setSavedCount] = useState(0)
 
   // Falco state
   const [falcoEnabled, setFalcoEnabled] = useState(false)
@@ -337,9 +334,7 @@ export function AbonosTab() {
       }
 
       setSavingProgress({ current: 1, total: 1 })
-      setSavedCount(newPaymentsToSave.length)
       setShowDistributionModal(false)
-      setShowSuccessDialog(true)
 
       // Refetch first, then reset to ensure clean state with fresh data
       await refetchAll()
@@ -1169,12 +1164,6 @@ export function AbonosTab() {
         onFalcoEnabledChange={setFalcoEnabled}
         onFalcoAmountChange={setFalcoAmount}
         isEditingDistributionOnly={isEditingDistributionOnly}
-      />
-
-      <SuccessDialog
-        open={showSuccessDialog}
-        onOpenChange={setShowSuccessDialog}
-        savedCount={savedCount}
       />
 
       <MultaModal

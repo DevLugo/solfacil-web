@@ -14,18 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ROUTES_WITH_ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
 import { formatCurrency } from '@/lib/utils'
 import { RouteSelector } from './RouteSelector'
-import { EXPENSE_TYPES, EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
+import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
+import { EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
 import { distributeAmount } from '../utils'
 import type { AccountType } from '../types'
 
@@ -154,21 +148,12 @@ export function DistributedExpenseModal({
           {/* Expense Type */}
           <div className="grid gap-2">
             <Label>Tipo de Gasto</Label>
-            <Select value={expenseSource} onValueChange={setExpenseSource}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPENSE_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <div className="flex items-center gap-2">
-                      <type.icon className="h-4 w-4" />
-                      {type.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ExpenseTypeCombobox
+              value={expenseSource}
+              onValueChange={setExpenseSource}
+              placeholder="Seleccionar tipo"
+              className="w-full"
+            />
           </div>
 
           {/* Total Amount */}
