@@ -510,10 +510,11 @@ export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
 // ============================================================
 
 export const EXPENSES_BY_DATE_QUERY = gql`
-  query ExpensesByDate($fromDate: DateTime!, $toDate: DateTime!, $routeId: ID!) {
+  query ExpensesByDate($fromDate: DateTime!, $toDate: DateTime!, $routeId: ID!, $leadId: ID) {
     transactions(
       type: EXPENSE
       routeId: $routeId
+      leadId: $leadId
       fromDate: $fromDate
       toDate: $toDate
       limit: 100

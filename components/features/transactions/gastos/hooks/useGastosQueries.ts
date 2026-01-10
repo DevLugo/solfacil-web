@@ -16,6 +16,7 @@ import type { Expense, Account } from '../types'
 
 interface UseGastosQueriesOptions {
   selectedRouteId: string | null
+  selectedLeadId: string | null
   selectedDate: Date
 }
 
@@ -23,8 +24,10 @@ interface TransactionEdge {
   node: Expense
 }
 
-export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQueriesOptions) {
+export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate }: UseGastosQueriesOptions) {
   // Query para obtener los gastos del dia
+  // Si hay leadId, filtra por ese lead específico
+  // Si no hay leadId, trae todos los de la ruta (para filtrar en frontend los generales)
   const {
     data: expensesData,
     loading: expensesLoadingRaw,
@@ -34,6 +37,7 @@ export function useGastosQueries({ selectedRouteId, selectedDate }: UseGastosQue
       fromDate: startOfDay(selectedDate).toISOString(),
       toDate: endOfDay(selectedDate).toISOString(),
       routeId: selectedRouteId,
+      leadId: selectedLeadId || undefined,
     },
     skip: !selectedRouteId,
     fetchPolicy: 'network-only',

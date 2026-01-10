@@ -135,15 +135,29 @@ export function GastosTab() {
     deleteTransaction,
   } = useGastosQueries({
     selectedRouteId,
+    selectedLeadId,
     selectedDate,
   })
 
-  // Filtrar gastos por lider si esta seleccionado
-  // Si hay localidad seleccionada: mostrar solo gastos de esa localidad
+  // Filtrar gastos por lider y por tipo de cuenta
+  // Si hay localidad seleccionada: la API ya filtra por leadId, no necesitamos filtrar aquí
   // Si no hay localidad: mostrar solo gastos generales (sin lider asignado)
-  const filteredExpenses = selectedLeadId
-    ? expenses.filter((e) => e.lead?.id === selectedLeadId)
-    : expenses.filter((e) => !e.lead?.id)
+  // Además, filtrar por tipo de cuenta (excluir BANK/OFFICE_CASH_FUND por defecto)
+  const filteredExpenses = useMemo(() => {
+    let result = selectedLeadId
+      ? expenses // La API ya filtra por leadId
+      : expenses.filter((e) => !e.lead?.id)
+
+    // Filtrar por tipo de cuenta si no se muestran los tipos extra
+    if (!showExtraAccountTypes) {
+      result = result.filter((e) => {
+        const accountType = e.sourceAccount?.type
+        return !accountType || DEFAULT_VISIBLE_ACCOUNT_TYPES.includes(accountType as AccountType)
+      })
+    }
+
+    return result
+  }, [expenses, selectedLeadId, showExtraAccountTypes])
 
   // Filter accounts based on toggle
   const filteredAccounts = useMemo(() => {
