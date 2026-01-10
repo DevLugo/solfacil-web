@@ -206,6 +206,7 @@ export function UnifiedClientAutocomplete({
             ? parseFloat(activeLoan.pendingAmountStored || '0')
             : b.pendingDebtAmount ? parseFloat(b.pendingDebtAmount) : undefined,
           activeLoan: activeLoanData,
+          lastFinishedLoan: b.lastFinishedLoan,
           clientState: 'existing',
           action: 'connect',
         }
@@ -465,7 +466,7 @@ export function UnifiedClientAutocomplete({
             placeholder="Escribe para buscar..."
             value={searchTerm}
             onValueChange={setSearchTerm}
-            className="h-9 text-sm"
+            className="h-8 text-sm"
           />
           <CommandList className="max-h-[45vh]">
             {loading && (

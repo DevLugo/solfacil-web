@@ -824,6 +824,20 @@ export const SEARCH_BORROWERS_QUERY = gql`
       locationId
       locationName
       isFromCurrentLocation
+      lastFinishedLoan {
+        id
+        requestedAmount
+        loantypeId
+        loantypeName
+        weekDuration
+        rate
+        signDate
+        collaterals {
+          id
+          fullName
+          phone
+        }
+      }
     }
   }
 `

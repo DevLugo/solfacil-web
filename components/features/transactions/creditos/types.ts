@@ -20,6 +20,25 @@ export interface ActiveLoanData {
   leaderName?: string
 }
 
+// Collateral data from last finished loan
+export interface LastFinishedLoanCollateral {
+  id: string
+  fullName: string
+  phone?: string | null
+}
+
+// Last finished loan data for reintegro (pre-populate form)
+export interface LastFinishedLoanData {
+  id: string
+  requestedAmount: string
+  loantypeId: string
+  loantypeName: string
+  weekDuration: number
+  rate: string
+  signDate: string
+  collaterals: LastFinishedLoanCollateral[]
+}
+
 // Unified value type that can represent either borrower or personal data (aval)
 export interface UnifiedClientValue {
   id?: string
@@ -35,6 +54,8 @@ export interface UnifiedClientValue {
   pendingDebtAmount?: number // Total pending debt (for display)
   // Active loan data for renewals
   activeLoan?: ActiveLoanData
+  // Last finished loan for reintegro (pre-populate form)
+  lastFinishedLoan?: LastFinishedLoanData
   // For tracking changes
   originalFullName?: string
   originalPhone?: string
@@ -85,6 +106,7 @@ export interface BorrowerSearchResult {
   locationId?: string
   locationName?: string
   isFromCurrentLocation: boolean
+  lastFinishedLoan?: LastFinishedLoanData
 }
 
 export interface LoanPayment {

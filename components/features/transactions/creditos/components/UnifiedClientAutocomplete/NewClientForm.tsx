@@ -57,7 +57,7 @@ export function NewClientForm({
             value={name}
             onChange={(e) => onNameChange(e.target.value.toUpperCase())}
             placeholder="Nombre"
-            className="mt-1 h-10 text-sm uppercase"
+            className="mt-1 h-8 text-sm uppercase"
             autoFocus
           />
         </div>
@@ -68,7 +68,7 @@ export function NewClientForm({
             onChange={(e) => onPhoneChange(e.target.value)}
             placeholder="Teléfono"
             inputMode="tel"
-            className="mt-1 h-10 text-sm"
+            className="mt-1 h-8 text-sm"
           />
         </div>
       </div>

@@ -142,6 +142,28 @@ export function CreateLoansModal({
     }
   }, [calculatedWeeklyPayment, includeFirstPayment, selectedLoanType?.loanPaymentComission])
 
+  // Pre-populate form when selecting a reintegro client (has lastFinishedLoan but no activeLoan)
+  useEffect(() => {
+    if (selectedBorrower?.lastFinishedLoan && !selectedBorrower?.activeLoan) {
+      const lastLoan = selectedBorrower.lastFinishedLoan
+      setSelectedLoanTypeId(lastLoan.loantypeId)
+      setRequestedAmount(lastLoan.requestedAmount)
+      // Pre-populate aval if exists
+      if (lastLoan.collaterals?.length > 0) {
+        const collateral = lastLoan.collaterals[0]
+        setSelectedAval({
+          id: collateral.id,
+          personalDataId: collateral.id,
+          fullName: collateral.fullName,
+          phone: collateral.phone || undefined,
+          isFromCurrentLocation: true,
+          clientState: 'existing',
+          action: 'connect',
+        })
+      }
+    }
+  }, [selectedBorrower])
+
   // Handler for first payment toggle - pre-fill with weekly payment and commission
   const handleFirstPaymentToggle = (enabled: boolean) => {
     setIncludeFirstPayment(enabled)
@@ -258,55 +280,71 @@ export function CreateLoansModal({
     }
   }
 
+  // Determina si el cambio de borrower es una edición del mismo cliente
+  const isClientEdit = (
+    newBorrower: UnifiedClientValue | null,
+    currentBorrower: UnifiedClientValue | null
+  ): boolean => {
+    return newBorrower?.clientState === 'edited' ||
+      Boolean(currentBorrower?.id && newBorrower?.id && currentBorrower.id === newBorrower.id)
+  }
+
+  // Auto-completa datos del préstamo activo cuando se selecciona un cliente para renovación
+  const autoFillFromActiveLoan = (activeLoan: any) => {
+    if (activeLoan.loantype?.id) {
+      setSelectedLoanTypeId(activeLoan.loantype.id)
+      const loantype = loanTypes.find(lt => lt.id === activeLoan.loantype?.id)
+      if (loantype) {
+        setComissionAmount(loantype.loanGrantedComission || '0')
+      }
+    }
+
+    setRequestedAmount(activeLoan.requestedAmount)
+
+    if (activeLoan.collaterals?.length > 0) {
+      const collateral = activeLoan.collaterals[0]
+      setSelectedAval({
+        id: collateral.id,
+        personalDataId: collateral.id,
+        phoneId: collateral.phones?.[0]?.id,
+        fullName: collateral.fullName,
+        phone: collateral.phones?.[0]?.number,
+        isFromCurrentLocation: true,
+        clientState: 'existing',
+        action: 'connect',
+      })
+    }
+  }
+
+  // Limpia datos del formulario cuando se selecciona cliente sin préstamo activo
+  const clearLoanDataIfNeeded = (borrower: UnifiedClientValue | null) => {
+    // Solo limpiar cuando es cliente existente sin préstamo activo
+    // Preservar datos cuando se crea un cliente nuevo
+    if (borrower?.clientState !== 'new') {
+      setSelectedLoanTypeId('')
+      setRequestedAmount('')
+      setComissionAmount('')
+    }
+    setSelectedAval(null)
+  }
+
   // Handle selecting a borrower - auto-fill if they have an active loan
   const handleBorrowerChange = (borrower: UnifiedClientValue | null) => {
-    // Detect if this is an edit of the same client (not a new selection)
-    // An edit is when clientState is 'edited' OR when it's the same client ID
-    const isClientEdit = borrower?.clientState === 'edited' ||
-      (selectedBorrower?.id && borrower?.id && selectedBorrower.id === borrower.id)
+    const isEdit = isClientEdit(borrower, selectedBorrower)
 
-    if (editingLoanId && !isClientEdit) {
+    if (editingLoanId && !isEdit) {
       setEditingLoanId(null)
     }
 
     setSelectedBorrower(borrower)
 
-    // Only auto-fill/clear values when it's a NEW selection, not when editing the same client
-    // This preserves user-modified values (like requestedAmount) when editing client name/phone
-    if (!isClientEdit) {
-      if (borrower?.activeLoan) {
-        const activeLoan = borrower.activeLoan
-        if (activeLoan.loantype?.id) {
-          setSelectedLoanTypeId(activeLoan.loantype.id)
-          const loantype = loanTypes.find(lt => lt.id === activeLoan.loantype?.id)
-          if (loantype) {
-            setComissionAmount(loantype.loanGrantedComission || '0')
-          }
-        }
-        setRequestedAmount(activeLoan.requestedAmount)
-        if (activeLoan.collaterals && activeLoan.collaterals.length > 0) {
-          const collateral = activeLoan.collaterals[0]
-          setSelectedAval({
-            id: collateral.id,
-            personalDataId: collateral.id,
-            phoneId: collateral.phones?.[0]?.id,
-            fullName: collateral.fullName,
-            phone: collateral.phones?.[0]?.number,
-            isFromCurrentLocation: true,
-            clientState: 'existing',
-            action: 'connect',
-          })
-        }
-      } else {
-        // Only clear loan type and amount when selecting an existing client without active loan
-        // When creating a NEW client, preserve the current loan type and amount selection
-        if (borrower?.clientState !== 'new') {
-          setSelectedLoanTypeId('')
-          setRequestedAmount('')
-          setComissionAmount('')
-        }
-        setSelectedAval(null)
-      }
+    // Solo auto-completar valores en selecciones nuevas, no al editar el mismo cliente
+    if (isEdit) return
+
+    if (borrower?.activeLoan) {
+      autoFillFromActiveLoan(borrower.activeLoan)
+    } else {
+      clearLoanDataIfNeeded(borrower)
     }
   }
 
@@ -320,110 +358,126 @@ export function CreateLoansModal({
     )
   }, [pendingLoans, editingLoanId])
 
-  // Add or update loan in pending list
-  const handleAddLoan = () => {
+  // Valida que no haya datos faltantes para agregar/editar préstamo
+  const validateLoanData = (borrower: UnifiedClientValue | null): boolean => {
     if (!selectedLoanTypeId || !requestedAmount) {
       toast({
         title: 'Error',
         description: 'Selecciona un tipo de préstamo y monto',
         variant: 'destructive',
       })
-      return
+      return false
     }
 
-    if (!selectedBorrower) {
+    if (!borrower) {
       toast({
         title: 'Error',
         description: 'Selecciona un cliente',
         variant: 'destructive',
       })
-      return
+      return false
     }
 
-    // Prevent duplicate renewals - check if borrower is already in pending loans
-    // (but allow if we're editing the same loan)
-    if (
-      selectedBorrower.id &&
-      pendingBorrowerIds.has(selectedBorrower.id) &&
-      !editingLoanId
-    ) {
+    return true
+  }
+
+  // Valida que no haya duplicados de clientes en la lista de préstamos pendientes
+  const validateNoDuplicateBorrower = (
+    borrower: UnifiedClientValue,
+    editingId: string | null
+  ): boolean => {
+    if (!borrower.id) return true
+
+    // Nuevo préstamo: no debe existir el cliente en la lista
+    if (!editingId && pendingBorrowerIds.has(borrower.id)) {
       toast({
         title: 'Cliente duplicado',
-        description: `${selectedBorrower.fullName} ya tiene un crédito pendiente en la lista`,
+        description: `${borrower.fullName} ya tiene un crédito pendiente en la lista`,
         variant: 'destructive',
       })
-      return
+      return false
     }
 
-    // Also check if editing a different loan and changing to an existing borrower
-    if (
-      selectedBorrower.id &&
-      editingLoanId
-    ) {
-      const otherLoansWithSameBorrower = pendingLoans.filter(
-        (loan) => loan.borrowerId === selectedBorrower.id && loan.tempId !== editingLoanId
+    // Edición: el cliente no debe aparecer en otros préstamos (excepto el que se está editando)
+    if (editingId) {
+      const hasDuplicate = pendingLoans.some(
+        (loan) => loan.borrowerId === borrower.id && loan.tempId !== editingId
       )
-      if (otherLoansWithSameBorrower.length > 0) {
+      if (hasDuplicate) {
         toast({
           title: 'Cliente duplicado',
-          description: `${selectedBorrower.fullName} ya tiene un crédito pendiente en la lista`,
+          description: `${borrower.fullName} ya tiene un crédito pendiente en la lista`,
           variant: 'destructive',
         })
-        return
+        return false
       }
     }
 
-    // Determine borrower info
-    let borrowerId: string | undefined
-    let borrowerPersonalDataId: string | undefined
-    let borrowerPhoneId: string | undefined
-    let borrowerName: string
-    let borrowerPhone: string | undefined
-    let newBorrower: PendingLoan['newBorrower']
+    return true
+  }
 
-    if (selectedBorrower.action === 'create') {
-      borrowerName = selectedBorrower.fullName
-      borrowerPhone = selectedBorrower.phone
-      newBorrower = {
-        personalData: {
-          fullName: selectedBorrower.fullName,
-          phones: selectedBorrower.phone ? [{ number: selectedBorrower.phone }] : undefined,
-          addresses: locationId ? [{ street: '', locationId }] : undefined,
-        },
-      }
-    } else {
-      borrowerId = selectedBorrower.id
-      borrowerPersonalDataId = selectedBorrower.personalDataId
-      borrowerPhoneId = selectedBorrower.phoneId
-      borrowerName = selectedBorrower.fullName
-      borrowerPhone = selectedBorrower.phone
-    }
+  // Add or update loan in pending list
+  const handleAddLoan = () => {
+    if (!validateLoanData(selectedBorrower)) return
+    if (!selectedBorrower) return // Type guard for TypeScript
+    if (!validateNoDuplicateBorrower(selectedBorrower, editingLoanId)) return
 
-    // Determine collateral/aval info
-    let collateralIds: string[] = []
-    let collateralPersonalDataId: string | undefined
-    let collateralPhoneId: string | undefined
-    let collateralName: string | undefined
-    let collateralPhone: string | undefined
-    let newCollateral: PendingLoan['newCollateral']
-
-    if (selectedAval) {
-      if (selectedAval.action === 'create') {
-        collateralName = selectedAval.fullName
-        collateralPhone = selectedAval.phone
-        newCollateral = {
-          fullName: selectedAval.fullName,
-          phones: selectedAval.phone ? [{ number: selectedAval.phone }] : undefined,
-          addresses: locationId ? [{ street: '', locationId }] : undefined,
+    // Construir datos del borrower según si es nuevo o existente
+    const borrowerData = selectedBorrower.action === 'create'
+      ? {
+          borrowerId: undefined,
+          borrowerPersonalDataId: undefined,
+          borrowerPhoneId: undefined,
+          borrowerName: selectedBorrower.fullName,
+          borrowerPhone: selectedBorrower.phone,
+          newBorrower: {
+            personalData: {
+              fullName: selectedBorrower.fullName,
+              phones: selectedBorrower.phone ? [{ number: selectedBorrower.phone }] : undefined,
+              addresses: locationId ? [{ street: '', locationId }] : undefined,
+            },
+          },
         }
-      } else if (selectedAval.id) {
-        collateralIds = [selectedAval.id]
-        collateralPersonalDataId = selectedAval.personalDataId
-        collateralPhoneId = selectedAval.phoneId
-        collateralName = selectedAval.fullName
-        collateralPhone = selectedAval.phone
-      }
-    }
+      : {
+          borrowerId: selectedBorrower.id,
+          borrowerPersonalDataId: selectedBorrower.personalDataId,
+          borrowerPhoneId: selectedBorrower.phoneId,
+          borrowerName: selectedBorrower.fullName,
+          borrowerPhone: selectedBorrower.phone,
+          newBorrower: undefined,
+        }
+
+    // Construir datos del aval según si es nuevo, existente o no hay aval
+    const avalData = !selectedAval
+      ? {
+          collateralIds: [],
+          collateralPersonalDataId: undefined,
+          collateralPhoneId: undefined,
+          collateralName: undefined,
+          collateralPhone: undefined,
+          newCollateral: undefined,
+        }
+      : selectedAval.action === 'create'
+      ? {
+          collateralIds: [],
+          collateralPersonalDataId: undefined,
+          collateralPhoneId: undefined,
+          collateralName: selectedAval.fullName,
+          collateralPhone: selectedAval.phone,
+          newCollateral: {
+            fullName: selectedAval.fullName,
+            phones: selectedAval.phone ? [{ number: selectedAval.phone }] : undefined,
+            addresses: locationId ? [{ street: '', locationId }] : undefined,
+          },
+        }
+      : {
+          collateralIds: [selectedAval.id!],
+          collateralPersonalDataId: selectedAval.personalDataId,
+          collateralPhoneId: selectedAval.phoneId,
+          collateralName: selectedAval.fullName,
+          collateralPhone: selectedAval.phone,
+          newCollateral: undefined,
+        }
 
     // When editing, preserve the previousLoanId from the existing pending loan
     // if we don't have a new activeLoan selected (fixes renewal data loss on edit)
@@ -441,18 +495,8 @@ export function CreateLoansModal({
       weekDuration: selectedLoanType?.weekDuration || 0,
       comissionAmount: comissionAmount || '0',
       previousLoanId,
-      borrowerId,
-      borrowerPersonalDataId,
-      borrowerPhoneId,
-      borrowerName,
-      borrowerPhone,
-      newBorrower,
-      collateralIds,
-      collateralPersonalDataId,
-      collateralPhoneId,
-      collateralName,
-      collateralPhone,
-      newCollateral,
+      ...borrowerData,
+      ...avalData,
       firstPayment: includeFirstPayment && firstPaymentAmount
         ? { amount: firstPaymentAmount, comission: firstPaymentComission || '0', paymentMethod: 'CASH' }
         : undefined,

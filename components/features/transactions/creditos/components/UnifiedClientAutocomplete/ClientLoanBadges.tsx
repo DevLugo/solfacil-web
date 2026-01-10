@@ -22,11 +22,11 @@ export function ClientLoanBadges({ client, mode }: ClientLoanBadgesProps) {
     const pendingAmount = parseFloat(client.activeLoan.pendingAmountStored || '0')
     const hasDebt = pendingAmount > 0
     return (
-      <div className="flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-0.5">
         {/* Location badge */}
         {client.activeLoan.leadLocationName && (
-          <Badge variant="outline" className="text-xs font-normal gap-1">
-            <MapPin className="h-2.5 w-2.5" />
+          <Badge variant="outline" className="text-[10px] font-normal gap-0.5 py-0 px-1.5 h-4">
+            <MapPin className="h-2 w-2" />
             {client.activeLoan.leadLocationName}
           </Badge>
         )}
@@ -34,12 +34,12 @@ export function ClientLoanBadges({ client, mode }: ClientLoanBadgesProps) {
         <Badge
           variant={hasDebt ? 'destructive' : 'outline'}
           className={cn(
-            'text-xs font-normal gap-1',
+            'text-[10px] font-normal gap-0.5 py-0 px-1.5 h-4',
             !hasDebt && successBadgeStyle
           )}
         >
-          <DollarSign className="h-2.5 w-2.5" />
-          {hasDebt ? `Debe: ${formatCurrency(pendingAmount)}` : 'Sin deuda'}
+          <DollarSign className="h-2 w-2" />
+          {hasDebt ? formatCurrency(pendingAmount) : 'Sin deuda'}
         </Badge>
       </div>
     )
@@ -48,23 +48,23 @@ export function ClientLoanBadges({ client, mode }: ClientLoanBadgesProps) {
   // Has active loan but no detailed data (fallback)
   if (client.hasActiveLoans) {
     return (
-      <div className="flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-0.5">
         {/* Show client's location if available */}
         {client.locationName && (
-          <Badge variant="outline" className="text-xs font-normal gap-1">
-            <MapPin className="h-2.5 w-2.5" />
+          <Badge variant="outline" className="text-[10px] font-normal gap-0.5 py-0 px-1.5 h-4">
+            <MapPin className="h-2 w-2" />
             {client.locationName}
           </Badge>
         )}
         {/* Debt badge */}
         {client.pendingDebtAmount && client.pendingDebtAmount > 0 ? (
-          <Badge variant="destructive" className="text-xs font-normal gap-1">
-            <DollarSign className="h-2.5 w-2.5" />
-            Debe: {formatCurrency(client.pendingDebtAmount)}
+          <Badge variant="destructive" className="text-[10px] font-normal gap-0.5 py-0 px-1.5 h-4">
+            <DollarSign className="h-2 w-2" />
+            {formatCurrency(client.pendingDebtAmount)}
           </Badge>
         ) : (
-          <Badge variant="outline" className={cn('text-xs font-normal gap-1', successBadgeStyle)}>
-            <DollarSign className="h-2.5 w-2.5" />
+          <Badge variant="outline" className={cn('text-[10px] font-normal gap-0.5 py-0 px-1.5 h-4', successBadgeStyle)}>
+            <DollarSign className="h-2 w-2" />
             Sin deuda
           </Badge>
         )}
@@ -75,16 +75,16 @@ export function ClientLoanBadges({ client, mode }: ClientLoanBadgesProps) {
   // Has completed loans but no active ones
   if (client.loanFinishedCount && client.loanFinishedCount > 0) {
     return (
-      <Badge variant="outline" className={cn('text-xs font-normal', successBadgeStyle)}>
-        <History className="h-3 w-3 mr-1" />
-        {client.loanFinishedCount} completados
+      <Badge variant="outline" className={cn('text-[10px] font-normal py-0 px-1.5 h-4', successBadgeStyle)}>
+        <History className="h-2 w-2 mr-0.5" />
+        Reintegro
       </Badge>
     )
   }
 
   // New client (no loans)
   return (
-    <Badge variant="secondary" className="text-xs font-normal">
+    <Badge variant="secondary" className="text-[10px] font-normal py-0 px-1.5 h-4">
       Sin historial
     </Badge>
   )
