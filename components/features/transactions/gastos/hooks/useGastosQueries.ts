@@ -4,6 +4,7 @@ import { useQuery, useMutation } from '@apollo/client'
 import { startOfDay, endOfDay } from 'date-fns'
 import {
   EXPENSES_BY_DATE_QUERY,
+  ALL_EXPENSES_BY_DATE_QUERY,
   ACCOUNTS_QUERY,
 } from '@/graphql/queries/transactions'
 import {
@@ -18,16 +19,15 @@ interface UseGastosQueriesOptions {
   selectedRouteId: string | null
   selectedLeadId: string | null
   selectedDate: Date
+  showAllExpenses?: boolean
 }
 
 interface TransactionEdge {
   node: Expense
 }
 
-export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate }: UseGastosQueriesOptions) {
-  // Query para obtener los gastos del dia
-  // Si hay leadId, filtra por ese lead específico
-  // Si no hay leadId, trae todos los de la ruta (para filtrar en frontend los generales)
+export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate, showAllExpenses = false }: UseGastosQueriesOptions) {
+  // Query para obtener los gastos del dia (filtrado por ruta)
   const {
     data: expensesData,
     loading: expensesLoadingRaw,
@@ -39,7 +39,22 @@ export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate
       routeId: selectedRouteId,
       leadId: selectedLeadId || undefined,
     },
-    skip: !selectedRouteId,
+    skip: !selectedRouteId || showAllExpenses,
+    fetchPolicy: 'network-only',
+    notifyOnNetworkStatusChange: true,
+  })
+
+  // Query para ver TODOS los gastos (sin filtro de ruta) - temporal para limpiar huérfanos
+  const {
+    data: allExpensesData,
+    loading: allExpensesLoading,
+    refetch: refetchAllExpenses,
+  } = useQuery(ALL_EXPENSES_BY_DATE_QUERY, {
+    variables: {
+      fromDate: startOfDay(selectedDate).toISOString(),
+      toDate: endOfDay(selectedDate).toISOString(),
+    },
+    skip: !showAllExpenses,
     fetchPolicy: 'network-only',
     notifyOnNetworkStatusChange: true,
   })
@@ -70,11 +85,14 @@ export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate
     'LOAN_CANCELLED_BANK_REVERSAL', // Reversión bancaria por cancelación
   ]
 
-  // Filter out automatic expenses - only show manual expenses
-  const allExpenses: Expense[] =
-    expensesData?.transactions?.edges?.map((edge: TransactionEdge) => edge.node) || []
+  // Select the correct data source based on showAllExpenses flag
+  const rawExpensesData = showAllExpenses ? allExpensesData : expensesData
 
-  const expenses: Expense[] = allExpenses.filter(
+  // Filter out automatic expenses - only show manual expenses
+  const rawExpenses: Expense[] =
+    rawExpensesData?.transactions?.edges?.map((edge: TransactionEdge) => edge.node) || []
+
+  const expenses: Expense[] = rawExpenses.filter(
     (expense) => !AUTOMATIC_EXPENSE_SOURCES.includes(expense.expenseSource || '')
   )
 
@@ -82,18 +100,22 @@ export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate
 
   // Helper function to refetch all data
   const refetchAll = async () => {
-    await Promise.all([refetchExpenses(), refetchAccounts()])
+    if (showAllExpenses) {
+      await Promise.all([refetchAllExpenses(), refetchAccounts()])
+    } else {
+      await Promise.all([refetchExpenses(), refetchAccounts()])
+    }
   }
 
   // Handle date change refetch
   const { isRefetching } = useDateChangeRefetch({
     selectedDate,
-    enabled: !!selectedRouteId,
-    refetchFn: refetchExpenses,
+    enabled: showAllExpenses || !!selectedRouteId,
+    refetchFn: showAllExpenses ? refetchAllExpenses : refetchExpenses,
   })
 
   // Combine loading states
-  const expensesLoading = expensesLoadingRaw || isRefetching
+  const expensesLoading = expensesLoadingRaw || allExpensesLoading || isRefetching
 
   return {
     expenses,

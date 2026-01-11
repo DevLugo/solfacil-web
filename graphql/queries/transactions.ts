@@ -523,8 +523,6 @@ export const EXPENSES_BY_DATE_QUERY = gql`
         node {
           id
           amount
-          date
-          type
           expenseSource
           description
           sourceAccount {
@@ -532,16 +530,33 @@ export const EXPENSES_BY_DATE_QUERY = gql`
             name
             type
           }
-          route {
+          createdAt
+        }
+      }
+      totalCount
+    }
+  }
+`
+
+// Query para ver TODOS los gastos (sin filtro de ruta) - temporal para limpiar gastos huérfanos
+export const ALL_EXPENSES_BY_DATE_QUERY = gql`
+  query AllExpensesByDate($fromDate: DateTime!, $toDate: DateTime!) {
+    transactions(
+      type: EXPENSE
+      fromDate: $fromDate
+      toDate: $toDate
+      limit: 500
+    ) {
+      edges {
+        node {
+          id
+          amount
+          expenseSource
+          description
+          sourceAccount {
             id
             name
-          }
-          lead {
-            id
-            personalData {
-              id
-              fullName
-            }
+            type
           }
           createdAt
         }

@@ -3,9 +3,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { MapPin, Banknote, Plus } from 'lucide-react'
+import { MapPin, Banknote, Plus, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Card,
   CardContent,
@@ -123,6 +125,7 @@ export function GastosTab() {
   const [showExtraAccountTypes, setShowExtraAccountTypes] = useState(false)
   const [distributedModalOpen, setDistributedModalOpen] = useState(false)
   const [isDistributedSaving, setIsDistributedSaving] = useState(false)
+  const [showAllExpenses, setShowAllExpenses] = useState(false)
 
   // Queries and mutations
   const {
@@ -137,27 +140,21 @@ export function GastosTab() {
     selectedRouteId,
     selectedLeadId,
     selectedDate,
+    showAllExpenses,
   })
 
-  // Filtrar gastos por lider y por tipo de cuenta
-  // Si hay localidad seleccionada: la API ya filtra por leadId, no necesitamos filtrar aquí
-  // Si no hay localidad: mostrar solo gastos generales (sin lider asignado)
-  // Además, filtrar por tipo de cuenta (excluir BANK/OFFICE_CASH_FUND por defecto)
+  // Filtrar gastos por tipo de cuenta
+  // La API ya filtra por leadId (cuando está seleccionado) o devuelve solo gastos de ruta
+  // Aquí solo filtramos por tipo de cuenta (excluir BANK/OFFICE_CASH_FUND por defecto)
   const filteredExpenses = useMemo(() => {
-    let result = selectedLeadId
-      ? expenses // La API ya filtra por leadId
-      : expenses.filter((e) => !e.lead?.id)
-
-    // Filtrar por tipo de cuenta si no se muestran los tipos extra
-    if (!showExtraAccountTypes) {
-      result = result.filter((e) => {
-        const accountType = e.sourceAccount?.type
-        return !accountType || DEFAULT_VISIBLE_ACCOUNT_TYPES.includes(accountType as AccountType)
-      })
+    if (showExtraAccountTypes) {
+      return expenses
     }
-
-    return result
-  }, [expenses, selectedLeadId, showExtraAccountTypes])
+    return expenses.filter((e) => {
+      const accountType = e.sourceAccount?.type
+      return !accountType || DEFAULT_VISIBLE_ACCOUNT_TYPES.includes(accountType as AccountType)
+    })
+  }, [expenses, showExtraAccountTypes])
 
   // Filter accounts based on toggle
   const filteredAccounts = useMemo(() => {
@@ -397,13 +394,28 @@ export function GastosTab() {
   }
 
   // Render states
-  if (!selectedRouteId) {
+  if (!selectedRouteId && !showAllExpenses) {
     return (
-      <EmptyState
-        icon={MapPin}
-        title="Selecciona una ruta"
-        description="Selecciona una ruta para ver y registrar los gastos del dia"
-      />
+      <div className="space-y-6">
+        {/* Checkbox para ver todos los gastos */}
+        <div className="flex items-center gap-2 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <Checkbox
+            id="showAllExpenses"
+            checked={showAllExpenses}
+            onCheckedChange={(checked) => setShowAllExpenses(checked === true)}
+          />
+          <Label htmlFor="showAllExpenses" className="flex items-center gap-2 text-amber-800 dark:text-amber-200 cursor-pointer">
+            <AlertTriangle className="h-4 w-4" />
+            Ver todos los gastos (sin filtro de ruta) - Para limpiar gastos huérfanos
+          </Label>
+        </div>
+
+        <EmptyState
+          icon={MapPin}
+          title="Selecciona una ruta"
+          description="Selecciona una ruta para ver y registrar los gastos del dia"
+        />
+      </div>
     )
   }
 
@@ -413,6 +425,19 @@ export function GastosTab() {
 
   return (
     <div className="space-y-6">
+      {/* Checkbox para ver todos los gastos */}
+      <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <Checkbox
+          id="showAllExpensesMain"
+          checked={showAllExpenses}
+          onCheckedChange={(checked) => setShowAllExpenses(checked === true)}
+        />
+        <Label htmlFor="showAllExpensesMain" className="flex items-center gap-2 text-amber-800 dark:text-amber-200 cursor-pointer text-sm">
+          <AlertTriangle className="h-4 w-4" />
+          Ver todos los gastos (sin filtro de ruta)
+        </Label>
+      </div>
+
       {/* KPI Bar */}
       <KPIBar
         totals={totals}

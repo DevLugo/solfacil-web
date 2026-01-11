@@ -3,31 +3,14 @@ import type { LucideIcon } from 'lucide-react'
 export interface Expense {
   id: string
   amount: string
-  date: string
-  type: string
   expenseSource: string | null
-  incomeSource: string | null
   description?: string | null
   sourceAccount: {
     id: string
     name: string
     type: string
-    amount: string
   } | null
-  destinationAccount: {
-    id: string
-    name: string
-  } | null
-  route: {
-    id: string
-    name: string
-  } | null
-  lead: {
-    id: string
-    personalData: {
-      fullName: string
-    }
-  } | null
+  createdAt: string
 }
 
 export interface Account {
