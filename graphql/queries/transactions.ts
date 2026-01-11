@@ -448,7 +448,7 @@ export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
 
 export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
   query ActiveLoansByLead($leadId: ID!) {
-    loans(leadId: $leadId, status: ACTIVE, limit: 500) {
+    loans(leadId: $leadId, status: ACTIVE, excludePortfolioCleanup: true, limit: 500) {
       edges {
         node {
           id

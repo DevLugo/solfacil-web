@@ -86,13 +86,23 @@ export function CreateLoansModal({
   )
 
   // Calculate the pending amount from active loan (deuda pendiente)
+  // Use activeLoan.pendingAmountStored if available, otherwise fall back to pendingDebtAmount
+  // (pendingDebtAmount comes from search when loan is in different locality)
   const renewalPendingAmount = useMemo(() => {
-    if (!selectedActiveLoan) return 0
-    return parseFloat(selectedActiveLoan.pendingAmountStored) || 0
-  }, [selectedActiveLoan])
+    if (selectedActiveLoan) {
+      return parseFloat(selectedActiveLoan.pendingAmountStored) || 0
+    }
+    // Fallback: use pendingDebtAmount from borrower search (loan in different locality)
+    if (selectedBorrower?.hasActiveLoans && selectedBorrower?.pendingDebtAmount) {
+      return selectedBorrower.pendingDebtAmount
+    }
+    return 0
+  }, [selectedActiveLoan, selectedBorrower?.hasActiveLoans, selectedBorrower?.pendingDebtAmount])
 
   // Check if this is a renewal (client has active loan)
-  const isRenewal = !!selectedActiveLoan
+  // Either has full activeLoan data OR has pending debt from search
+  const isRenewal = !!selectedActiveLoan ||
+    (!!selectedBorrower?.hasActiveLoans && (selectedBorrower?.pendingDebtAmount ?? 0) > 0)
 
   // Calculate "Monto Otorgado" (amount actually given to client)
   const calculatedAmountGived = useMemo(() => {
@@ -693,7 +703,7 @@ export function CreateLoansModal({
             </div>
 
             {/* Renewal summary */}
-            {isRenewal && selectedActiveLoan && (
+            {isRenewal && (
               <RenewalSummaryInline
                 activeLoan={selectedActiveLoan}
                 renewalPendingAmount={renewalPendingAmount}

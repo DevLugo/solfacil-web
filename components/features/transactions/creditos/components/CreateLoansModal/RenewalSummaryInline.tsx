@@ -8,7 +8,7 @@ interface ActiveLoanData {
 }
 
 interface RenewalSummaryInlineProps {
-  activeLoan: ActiveLoanData
+  activeLoan?: ActiveLoanData | null
   renewalPendingAmount: number
 }
 
@@ -18,9 +18,11 @@ export function RenewalSummaryInline({ activeLoan, renewalPendingAmount }: Renew
       <RefreshCw className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
       <div className="flex-1 min-w-0 flex items-center gap-3 text-xs">
         <span className="text-green-700 dark:text-green-400 font-medium">Renovación</span>
-        <span className="text-muted-foreground">
-          Pagado: <span className="text-green-600 font-medium">{formatCurrency(parseFloat(activeLoan.totalPaid || '0'))}</span>
-        </span>
+        {activeLoan?.totalPaid && (
+          <span className="text-muted-foreground">
+            Pagado: <span className="text-green-600 font-medium">{formatCurrency(parseFloat(activeLoan.totalPaid))}</span>
+          </span>
+        )}
         <span className="text-muted-foreground">
           Deuda: <span className="text-red-600 dark:text-red-400 font-medium">{formatCurrency(renewalPendingAmount)}</span>
         </span>
