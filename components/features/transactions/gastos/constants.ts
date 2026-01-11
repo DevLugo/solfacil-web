@@ -100,3 +100,10 @@ export const EXPENSE_TO_ACCOUNT_TYPE: Partial<Record<string, AccountType>> = {
   GASOLINE: 'PREPAID_GAS',
   ACCOMMODATION: 'TRAVEL_EXPENSES',
 }
+
+// Allowed account types per expense type
+// If expense type is not in this map, all DEFAULT_VISIBLE_ACCOUNT_TYPES are allowed
+export const EXPENSE_ALLOWED_ACCOUNT_TYPES: Partial<Record<string, AccountType[]>> = {
+  GASOLINE: ['PREPAID_GAS', 'EMPLOYEE_CASH_FUND'],
+  ACCOMMODATION: ['TRAVEL_EXPENSES', 'EMPLOYEE_CASH_FUND'],
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { DollarSign, Ban } from 'lucide-react'
@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { FALCOS_PENDIENTES_QUERY } from '@/graphql/queries/transactions'
 
 // Local imports
-import { useAbonosQueries, usePayments, useTotals } from './hooks'
+import { useAbonosQueries, usePayments, useTotals, type LoanWithKey } from './hooks'
 import {
   EmptyState,
   LoadingState,
@@ -30,6 +30,7 @@ import {
   LoanPaymentRow,
   FalcosPendientesDrawer,
   RegisteredSectionHeader,
+  ExtraCobranzaModal,
 } from './components'
 import { hasIncompleteAval, hasIncompletePhone } from './utils'
 import type { ActiveLoan } from './types'
@@ -53,10 +54,6 @@ export function AbonosTab() {
   const [isSavingEdits, setIsSavingEdits] = useState(false)
   const [savingProgress, setSavingProgress] = useState<{ current: number; total: number } | null>(null)
 
-  // Falco state
-  const [falcoEnabled, setFalcoEnabled] = useState(false)
-  const [falcoAmount, setFalcoAmount] = useState('0')
-
   // Multa modal state
   const [showMultaModal, setShowMultaModal] = useState(false)
   const [multaAmount, setMultaAmount] = useState('')
@@ -65,6 +62,14 @@ export function AbonosTab() {
 
   // Falcos drawer state
   const [showFalcosDrawer, setShowFalcosDrawer] = useState(false)
+  const [isCreatingFalco, setIsCreatingFalco] = useState(false)
+  const [isDeletingFalco, setIsDeletingFalco] = useState(false)
+
+  // Extra cobranza state - loans added from the modal for additional payments
+  // Each entry has a unique instanceId to support multiple payments per loan
+  const [extraLoans, setExtraLoans] = useState<Array<{ instanceId: string; loan: ActiveLoan }>>([])
+  // Counter for generating unique instanceIds (more reliable than Date.now())
+  const extraLoanCounter = useRef(0)
 
   // Queries
   const {
@@ -98,7 +103,73 @@ export function AbonosTab() {
 
   const falcosPendientes = falcosData?.falcosPendientes || []
 
-  // Payments management
+  // Combine query loans with extra loans (loans added from the modal)
+  // Extra loans go FIRST so they appear at the top of the list
+  // Each extra loan has a unique instanceId for payment tracking
+  // Also create entries for additional registered payments (2nd, 3rd, etc.)
+  const allLoansWithKeys = useMemo(() => {
+    const result: Array<{
+      rowKey: string
+      loan: ActiveLoan
+      isExtra: boolean
+      // For registered payment rows beyond the first, store the payment index
+      registeredPaymentIndex?: number
+    }> = []
+
+    // Main loans use their loan.id as the rowKey (shows first registered payment)
+    loans.forEach((loan) => {
+      // First entry for the loan (shows first payment or is pending)
+      result.push({
+        rowKey: loan.id,
+        loan,
+        isExtra: false,
+      })
+
+      // For additional registered payments (2nd, 3rd, etc.), create extra rows
+      const loanPayments = registeredPaymentsMap.get(loan.id) || []
+      if (loanPayments.length > 1) {
+        // Create entries for payments beyond the first
+        for (let i = 1; i < loanPayments.length; i++) {
+          result.push({
+            rowKey: `registered_${loanPayments[i].id}`,
+            loan,
+            isExtra: false, // Not user-added extra, but a registered payment row
+            registeredPaymentIndex: i,
+          })
+        }
+      }
+    })
+
+    // Extra loans (user-added) use their instanceId as the rowKey
+    const extraLoansWithKeys = extraLoans.map(({ instanceId, loan }) => ({
+      rowKey: instanceId,
+      loan,
+      isExtra: true,
+    }))
+
+    // Extra loans first, then regular loans (with their additional payment rows)
+    return [...extraLoansWithKeys, ...result]
+  }, [loans, extraLoans, registeredPaymentsMap])
+
+  // For backward compatibility - just the loans array
+  const allLoans = useMemo(() => {
+    return allLoansWithKeys.map((item) => item.loan)
+  }, [allLoansWithKeys])
+
+  // Handler to add a loan from the extra cobranza modal
+  // Always allows adding, even if the same loan is already in the list
+  const handleAddExtraLoan = React.useCallback((loan: ActiveLoan) => {
+    extraLoanCounter.current++
+    const instanceId = `extra_${loan.id}_${extraLoanCounter.current}`
+    setExtraLoans((prev) => [...prev, { instanceId, loan }])
+  }, [])
+
+  // Clear extra loans when lead changes
+  React.useEffect(() => {
+    setExtraLoans([])
+  }, [selectedLeadId])
+
+  // Payments management - use allLoansWithKeys (query loans + extra loans with unique keys)
   const {
     payments,
     editedPayments,
@@ -118,7 +189,7 @@ export function AbonosTab() {
     resetPayments,
     setLastSelectedIndex,
   } = usePayments({
-    loans,
+    loansWithKeys: allLoansWithKeys,
     selectedLeadId,
     selectedDate,
     globalCommission,
@@ -139,53 +210,66 @@ export function AbonosTab() {
 
   // Filter and sort loans - pending (not captured) first, captured last
   // If the day is captured (leadPaymentReceivedId exists), ALL loans are captured
-  const filteredLoans = useMemo(() => {
-    let filtered = loans
+  const filteredLoansWithKeys = useMemo(() => {
+    let filtered = allLoansWithKeys
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
       filtered = filtered.filter(
-        (loan) =>
+        ({ loan }) =>
           loan.borrower.personalData?.fullName?.toLowerCase().includes(term) ||
           loan.collaterals?.some((c) => c.fullName?.toLowerCase().includes(term))
       )
     }
 
     if (showOnlyIncomplete) {
-      filtered = filtered.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan))
+      filtered = filtered.filter(({ loan }) => hasIncompleteAval(loan) || hasIncompletePhone(loan))
     }
 
     // Keep original order (by signDate) always - don't group by registered/pending
     // This allows comparing against manual PDFs from workers
     return filtered
-  }, [loans, searchTerm, showOnlyIncomplete])
+  }, [allLoansWithKeys, searchTerm, showOnlyIncomplete])
+
+  // For backward compatibility - just the loans array
+  const filteredLoans = useMemo(() => {
+    return filteredLoansWithKeys.map((item) => item.loan)
+  }, [filteredLoansWithKeys])
 
   // Separate loans into pending and captured for rendering
   // A loan is "captured" if:
   // 1. It has a registered payment, OR
   // 2. The day was captured (leadPaymentReceivedId exists) but no payment for this loan (it was a "falta")
-  const { pendingLoans, capturedLoans } = useMemo(() => {
-    const pending: ActiveLoan[] = []
-    const captured: ActiveLoan[] = []
+  // Note: Extra loans are ALWAYS pending (they're new rows for additional payments)
+  const { pendingLoansWithKeys, capturedLoansWithKeys } = useMemo(() => {
+    const pending: LoanWithKey[] = []
+    const captured: LoanWithKey[] = []
     const isDayCaptured = !!leadPaymentReceivedId
 
-    filteredLoans.forEach((loan) => {
+    filteredLoansWithKeys.forEach((item) => {
+      const { loan, isExtra } = item
+      // Extra loans are always pending (new rows for additional payments)
+      if (isExtra) {
+        pending.push(item)
+        return
+      }
+
       const hasRegisteredPayment = registeredPaymentsMap.has(loan.id)
-      // If day is captured, ALL loans are considered captured (either with payment or as "falta")
+      // If day is captured, ALL regular loans are considered captured (either with payment or as "falta")
       if (hasRegisteredPayment || isDayCaptured) {
-        captured.push(loan)
+        captured.push(item)
       } else {
-        pending.push(loan)
+        pending.push(item)
       }
     })
 
-    return { pendingLoans: pending, capturedLoans: captured }
-  }, [filteredLoans, registeredPaymentsMap, leadPaymentReceivedId])
+    return { pendingLoansWithKeys: pending, capturedLoansWithKeys: captured }
+  }, [filteredLoansWithKeys, registeredPaymentsMap, leadPaymentReceivedId])
 
   // Counts
   const incompleteCount = useMemo(() => {
-    return loans.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan)).length
-  }, [loans])
+    return allLoans.filter((loan) => hasIncompleteAval(loan) || hasIncompletePhone(loan)).length
+  }, [allLoans])
 
   // Count total registered payments (not just loans with payments)
   const registeredCount = useMemo(() => {
@@ -198,6 +282,9 @@ export function AbonosTab() {
   const hasEditedPayments = Object.keys(editedPayments).length > 0
   const editedCount = Object.values(editedPayments).filter((p) => !p.isDeleted).length
   const deletedCount = Object.values(editedPayments).filter((p) => p.isDeleted).length
+
+  // Memoize existing loan IDs for ExtraCobranzaModal to avoid re-renders
+  const existingLoanIds = useMemo(() => new Set(allLoans.map((l) => l.id)), [allLoans])
 
   // Handlers
   const handleSaveAll = () => {
@@ -215,8 +302,6 @@ export function AbonosTab() {
     }
 
     setBankTransferAmount('0')
-    setFalcoEnabled(false)
-    setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
@@ -246,7 +331,6 @@ export function AbonosTab() {
 
     try {
       const bankTransferValue = parseFloat(bankTransferAmount || '0')
-      const falcoValue = falcoEnabled ? parseFloat(falcoAmount || '0') : 0
 
       // If there's already a LeadPaymentReceived for this day, update it instead of creating a new one
       if (leadPaymentReceivedId) {
@@ -298,7 +382,7 @@ export function AbonosTab() {
         const existingCashPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.cashPaidAmount || '0')
         const existingBankPaid = parseFloat(leadPaymentData?.leadPaymentReceivedByLeadAndDate?.bankPaidAmount || '0')
 
-        const totalCash = existingCashPaid + newCash - bankTransferValue - falcoValue
+        const totalCash = existingCashPaid + newCash - bankTransferValue
         const totalBank = existingBankPaid + newBank + bankTransferValue
 
         await updateLeadPaymentReceived({
@@ -314,7 +398,7 @@ export function AbonosTab() {
         })
       } else {
         // No existing LeadPaymentReceived, create a new one
-        const cashValue = totals.cash - bankTransferValue - falcoValue
+        const cashValue = totals.cash - bankTransferValue
 
         await createLeadPaymentReceived({
           variables: {
@@ -325,7 +409,6 @@ export function AbonosTab() {
               paidAmount: totals.total.toString(),
               cashPaidAmount: cashValue.toString(),
               bankPaidAmount: (totals.bank + bankTransferValue).toString(),
-              falcoAmount: falcoValue.toString(),
               paymentDate: selectedDate.toISOString(),
               payments: newPaymentsToSave,
             },
@@ -395,8 +478,6 @@ export function AbonosTab() {
     if (allPaymentsDeleted) {
       // Reset distribution state since there will be no cash to transfer
       setBankTransferAmount('0')
-      setFalcoEnabled(false)
-      setFalcoAmount('0')
       setShowDistributionModal(true)
       return
     }
@@ -450,8 +531,6 @@ export function AbonosTab() {
       setBankTransferAmount('0')
     }
 
-    setFalcoEnabled(false)
-    setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
@@ -580,8 +659,6 @@ export function AbonosTab() {
     setEditDistributionData({ originalCash, moneyTransferSum })
     // Pre-load with the current transfer amount (what the leader already transferred from cash)
     setBankTransferAmount(cashToBank.toString())
-    setFalcoEnabled(false)
-    setFalcoAmount('0')
     setShowDistributionModal(true)
   }
 
@@ -958,6 +1035,79 @@ export function AbonosTab() {
     }
   }
 
+  // Handler to create a new Falco on the current LPR
+  const handleCreateFalco = async (amount: number) => {
+    if (!leadPaymentReceivedId) {
+      toast({
+        title: 'Error',
+        description: 'No hay un registro de pagos para este día. Primero guarda los abonos.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsCreatingFalco(true)
+
+    try {
+      await updateLeadPaymentReceived({
+        variables: {
+          id: leadPaymentReceivedId,
+          input: {
+            falcoAmount: amount.toString(),
+          },
+        },
+      })
+
+      await Promise.all([refetchAll(), refetchFalcos()])
+
+      toast({
+        title: 'Falco registrado',
+        description: `Se registró un faltante de caja de $${amount.toFixed(2)}.`,
+      })
+    } catch (error) {
+      console.error('Error al crear falco:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo registrar el faltante. Intenta de nuevo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsCreatingFalco(false)
+    }
+  }
+
+  // Handler to delete a Falco (set falcoAmount to 0)
+  const handleDeleteFalco = async (lprId: string) => {
+    setIsDeletingFalco(true)
+
+    try {
+      await updateLeadPaymentReceived({
+        variables: {
+          id: lprId,
+          input: {
+            falcoAmount: '0',
+          },
+        },
+      })
+
+      await Promise.all([refetchAll(), refetchFalcos()])
+
+      toast({
+        title: 'Falco eliminado',
+        description: 'El faltante de caja ha sido eliminado.',
+      })
+    } catch (error) {
+      console.error('Error al eliminar falco:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar el faltante. Intenta de nuevo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeletingFalco(false)
+    }
+  }
+
   // Early returns
   if (!selectedRouteId || !selectedLeadId) {
     return <EmptyState />
@@ -1000,11 +1150,18 @@ export function AbonosTab() {
               globalCommission={globalCommission}
               onGlobalCommissionChange={setGlobalCommission}
               onApplyGlobalCommission={() => handleApplyGlobalCommission(globalCommission)}
-              onSetAllWeekly={() => handleSetAllWeekly(filteredLoans)}
-              onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoans, registeredPaymentsMap)}
+              onSetAllWeekly={() => handleSetAllWeekly(filteredLoansWithKeys)}
+              onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoansWithKeys, registeredPaymentsMap)}
               onClearAll={handleClearAll}
               onOpenMultaModal={handleOpenMultaModal}
               onOpenFalcosDrawer={() => setShowFalcosDrawer(true)}
+              extraCobranzaSlot={
+                <ExtraCobranzaModal
+                  leadId={selectedLeadId}
+                  existingLoanIds={existingLoanIds}
+                  onSelectLoan={handleAddExtraLoan}
+                />
+              }
               falcosPendientesCount={falcosPendientes.length}
               onSaveAll={handleSaveAll}
               onSaveEditedPayments={handleSaveEditedPayments}
@@ -1054,37 +1211,42 @@ export function AbonosTab() {
               </TableHeader>
               <TableBody>
                 {/* Pending loan rows (not yet registered) */}
-                {pendingLoans.map((loan, index) => {
-                  const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
-                  const loanPayments = registeredPaymentsMap.get(loan.id) || []
-                  const firstPayment = loanPayments[0]
+                {pendingLoansWithKeys.map(({ rowKey, loan, isExtra, registeredPaymentIndex }, index) => {
+                  const globalIndex = filteredLoansWithKeys.findIndex((l) => l.rowKey === rowKey)
+                  // Extra loans are NEW payments - they don't have a registeredPayment
+                  // Only regular loans can have registered payments to edit
+                  const loanPayments = isExtra ? [] : (registeredPaymentsMap.get(loan.id) || [])
+                  // Use registeredPaymentIndex if set (for additional payment rows), otherwise first payment
+                  const paymentIndex = registeredPaymentIndex ?? 0
+                  const registeredPayment = loanPayments[paymentIndex]
                   return (
                     <LoanPaymentRow
-                      key={loan.id}
+                      key={rowKey}
                       loan={loan}
                       index={globalIndex}
                       displayIndex={index + 1}
-                      payment={payments[loan.id]}
-                      registeredPayment={firstPayment}
-                      editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
-                      leadPaymentReceivedId={leadPaymentReceivedId}
+                      payment={payments[rowKey]}
+                      registeredPayment={registeredPayment}
+                      editedPayment={registeredPayment ? editedPayments[registeredPayment.id] : undefined}
+                      leadPaymentReceivedId={isExtra ? null : leadPaymentReceivedId}
                       isAdmin={isAdmin}
-                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
-                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
-                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
-                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                      onStartEdit={(startDeleted) => handleStartEditPayment(loan.id, firstPayment!, startDeleted)}
-                      onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
-                      onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
-                      onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
+                      isExtra={isExtra}
+                      onPaymentChange={(amount) => handlePaymentChange(rowKey, amount)}
+                      onCommissionChange={(commission) => handleCommissionChange(rowKey, commission)}
+                      onPaymentMethodChange={(method) => handlePaymentMethodChange(rowKey, method)}
+                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(rowKey, globalIndex, shiftKey, filteredLoansWithKeys)}
+                      onStartEdit={(startDeleted) => registeredPayment && handleStartEditPayment(loan.id, registeredPayment, startDeleted)}
+                      onEditChange={(field, value) => registeredPayment && handleEditPaymentChange(registeredPayment.id, field, value)}
+                      onToggleDelete={() => registeredPayment && handleToggleDeletePayment(registeredPayment.id)}
+                      onCancelEdit={() => registeredPayment && handleCancelEditPayment(registeredPayment.id)}
                     />
                   )
                 })}
 
                 {/* Section header for captured payments */}
-                {capturedLoans.length > 0 && (
+                {capturedLoansWithKeys.length > 0 && (
                   <RegisteredSectionHeader
-                    registeredCount={capturedLoans.length}
+                    registeredCount={capturedLoansWithKeys.length}
                     isAdmin={isAdmin}
                     hasDistribution={!!leadPaymentData?.leadPaymentReceivedByLeadAndDate}
                     onEditDistribution={handleEditDistribution}
@@ -1092,30 +1254,35 @@ export function AbonosTab() {
                 )}
 
                 {/* Captured loan rows (already registered or marked as falta) */}
-                {capturedLoans.map((loan, index) => {
-                  const globalIndex = filteredLoans.findIndex((l) => l.id === loan.id)
-                  const loanPayments = registeredPaymentsMap.get(loan.id) || []
-                  const firstPayment = loanPayments[0]
+                {capturedLoansWithKeys.map(({ rowKey, loan, isExtra, registeredPaymentIndex }, index) => {
+                  const globalIndex = filteredLoansWithKeys.findIndex((l) => l.rowKey === rowKey)
+                  // Extra loans are NEW payments - they don't have a registeredPayment
+                  // Only regular loans can have registered payments to edit
+                  const loanPayments = isExtra ? [] : (registeredPaymentsMap.get(loan.id) || [])
+                  // Use registeredPaymentIndex if set (for additional payment rows), otherwise first payment
+                  const paymentIndex = registeredPaymentIndex ?? 0
+                  const registeredPayment = loanPayments[paymentIndex]
 
                   return (
                     <LoanPaymentRow
-                      key={loan.id}
+                      key={rowKey}
                       loan={loan}
                       index={globalIndex}
-                      displayIndex={pendingLoans.length + index + 1}
-                      payment={payments[loan.id]}
-                      registeredPayment={firstPayment}
-                      editedPayment={firstPayment ? editedPayments[firstPayment.id] : undefined}
-                      leadPaymentReceivedId={leadPaymentReceivedId}
+                      displayIndex={pendingLoansWithKeys.length + index + 1}
+                      payment={payments[rowKey]}
+                      registeredPayment={registeredPayment}
+                      editedPayment={registeredPayment ? editedPayments[registeredPayment.id] : undefined}
+                      leadPaymentReceivedId={isExtra ? null : leadPaymentReceivedId}
                       isAdmin={isAdmin}
-                      onPaymentChange={(amount) => handlePaymentChange(loan.id, amount)}
-                      onCommissionChange={(commission) => handleCommissionChange(loan.id, commission)}
-                      onPaymentMethodChange={(method) => handlePaymentMethodChange(loan.id, method)}
-                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(loan.id, globalIndex, shiftKey, filteredLoans)}
-                      onStartEdit={(startDeleted) => handleStartEditPayment(loan.id, firstPayment!, startDeleted)}
-                      onEditChange={(field, value) => handleEditPaymentChange(firstPayment!.id, field, value)}
-                      onToggleDelete={() => handleToggleDeletePayment(firstPayment!.id)}
-                      onCancelEdit={() => handleCancelEditPayment(firstPayment!.id)}
+                      isExtra={isExtra}
+                      onPaymentChange={(amount) => handlePaymentChange(rowKey, amount)}
+                      onCommissionChange={(commission) => handleCommissionChange(rowKey, commission)}
+                      onPaymentMethodChange={(method) => handlePaymentMethodChange(rowKey, method)}
+                      onToggleNoPayment={(shiftKey) => handleToggleNoPaymentWithShift(rowKey, globalIndex, shiftKey, filteredLoansWithKeys)}
+                      onStartEdit={(startDeleted) => registeredPayment && handleStartEditPayment(loan.id, registeredPayment, startDeleted)}
+                      onEditChange={(field, value) => registeredPayment && handleEditPaymentChange(registeredPayment.id, field, value)}
+                      onToggleDelete={() => registeredPayment && handleToggleDeletePayment(registeredPayment.id)}
+                      onCancelEdit={() => registeredPayment && handleCancelEditPayment(registeredPayment.id)}
                     />
                   )
                 })}
@@ -1159,10 +1326,6 @@ export function AbonosTab() {
             ? handleConfirmDistributionOnly
             : (hasEditedPayments ? handleConfirmSaveEdits : handleConfirmSave)
         }
-        falcoEnabled={falcoEnabled}
-        falcoAmount={falcoAmount}
-        onFalcoEnabledChange={setFalcoEnabled}
-        onFalcoAmountChange={setFalcoAmount}
         isEditingDistributionOnly={isEditingDistributionOnly}
       />
 
@@ -1185,6 +1348,15 @@ export function AbonosTab() {
         falcosPendientes={falcosPendientes}
         isLoading={falcosLoading}
         onCompensationCreated={() => refetchFalcos()}
+        currentLprData={leadPaymentReceivedId ? {
+          id: leadPaymentReceivedId,
+          cashPaidAmount: leadPaymentData?.leadPaymentReceivedByLeadAndDate?.cashPaidAmount || '0',
+          falcoAmount: leadPaymentData?.leadPaymentReceivedByLeadAndDate?.falcoAmount || '0',
+        } : null}
+        isCreatingFalco={isCreatingFalco}
+        onCreateFalco={handleCreateFalco}
+        isDeletingFalco={isDeletingFalco}
+        onDeleteFalco={handleDeleteFalco}
       />
     </div>
   )

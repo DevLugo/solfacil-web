@@ -6,7 +6,6 @@ import {
   ROUTES_QUERY,
   TRANSACTIONS_SUMMARY_BY_LOCATION_QUERY,
 } from '@/graphql/queries/transactions'
-import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import { createDateRange } from '../utils'
 import type { Route } from '../types'
 
@@ -121,15 +120,8 @@ export function useSummaryQueries({
     notifyOnNetworkStatusChange: true,
   })
 
-  // Handle date change refetch
-  const { isRefetching } = useDateChangeRefetch({
-    selectedDate,
-    enabled: !!selectedRoute,
-    refetchFn: refetch,
-  })
-
-  // Combine loading states
-  const loading = loadingRaw || isRefetching
+  // Loading state - query has date in variables, Apollo auto-refetches when date changes
+  const loading = loadingRaw
 
   const summaryData = useMemo<TransactionSummaryResponse | null>(() => {
     if (!data?.transactionsSummaryByLocation) {

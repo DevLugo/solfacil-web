@@ -960,6 +960,62 @@ export const ACTIVE_LOANS_FOR_RENEWAL_QUERY = gql`
 `
 
 // ============================================================
+// EXTRA COBRANZA - Todos los préstamos activos (incluyendo portfolio cleanup)
+// ============================================================
+
+export const ALL_ACTIVE_LOANS_BY_LEAD_QUERY = gql`
+  query AllActiveLoansByLead($leadId: ID!) {
+    loans(leadId: $leadId, status: ACTIVE, limit: 500) {
+      edges {
+        node {
+          id
+          requestedAmount
+          amountGived
+          signDate
+          expectedWeeklyPayment
+          totalPaid
+          pendingAmountStored
+          status
+          badDebtDate
+          loantype {
+            id
+            name
+            weekDuration
+            loanPaymentComission
+          }
+          collaterals {
+            id
+            fullName
+            phones {
+              id
+              number
+            }
+          }
+          borrower {
+            id
+            personalData {
+              id
+              fullName
+              phones {
+                number
+              }
+            }
+          }
+          payments {
+            id
+            amount
+            comission
+            receivedAt
+            paymentMethod
+          }
+        }
+      }
+      totalCount
+    }
+  }
+`
+
+// ============================================================
 // FALCOS PENDIENTES - Para Modal de Compensación
 // ============================================================
 

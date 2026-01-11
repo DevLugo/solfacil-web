@@ -40,6 +40,7 @@ interface LoanPaymentRowProps {
   editedPayment: EditedPayment | undefined
   leadPaymentReceivedId: string | null
   isAdmin?: boolean
+  isExtra?: boolean
   onPaymentChange: (amount: string) => void
   onCommissionChange: (commission: string) => void
   onPaymentMethodChange: (method: 'CASH' | 'MONEY_TRANSFER') => void
@@ -59,6 +60,7 @@ export function LoanPaymentRow({
   editedPayment,
   leadPaymentReceivedId,
   isAdmin,
+  isExtra,
   onPaymentChange,
   onCommissionChange,
   onPaymentMethodChange,
@@ -110,9 +112,18 @@ export function LoanPaymentRow({
   const isIncompletePhone = hasIncompletePhone(loan)
 
   // === ROW STYLING ===
-  // Simple 2-color scheme: green (has payment) or red (no payment)
-  // Captured = muted colors, Pending = vivid colors
+  // Color scheme:
+  // - Extra (recently added): blue background
+  // - Captured with payment: muted green
+  // - Captured without payment: muted red
+  // - Pending with payment: vivid green
+  // - Pending without payment: vivid red
   const getRowStyle = () => {
+    // Extra loans always get blue styling (recently added via Extra Cobranza)
+    if (isExtra) {
+      return 'bg-blue-100/80 dark:bg-blue-950/60 border-l-4 border-l-blue-500 dark:border-l-blue-400'
+    }
+
     if (isCaptured) {
       // Captured rows - muted colors
       if (showAsNoPayment) {
@@ -183,7 +194,7 @@ export function LoanPaymentRow({
       className={cn(
         'transition-colors select-none cursor-pointer',
         getRowStyle(),
-        showAsNoPayment && 'line-through opacity-80'
+        showAsNoPayment && !isExtra && 'line-through opacity-80'
       )}
       onClick={handleRowClick}
     >

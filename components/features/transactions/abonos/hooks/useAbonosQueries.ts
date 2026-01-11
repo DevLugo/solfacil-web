@@ -15,7 +15,6 @@ import {
   UPDATE_LEAD_PAYMENT_RECEIVED,
   CREATE_TRANSACTION,
 } from '@/graphql/mutations/transactions'
-import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { ActiveLoan, LoanPayment, Account } from '../types'
 
 interface UseAbonosQueriesParams {
@@ -45,6 +44,7 @@ export function useAbonosQueries({
 
   // Query for active loans
   // API returns only ACTIVE loans for the selected lead
+  // Using cache-and-network to avoid duplicate fetches while still getting fresh data
   const {
     data: loansData,
     loading: loansLoading,
@@ -53,8 +53,7 @@ export function useAbonosQueries({
   } = useQuery(ACTIVE_LOANS_BY_LEAD_QUERY, {
     variables: { leadId: selectedLeadId },
     skip: !selectedLeadId,
-    fetchPolicy: 'network-only',
-    notifyOnNetworkStatusChange: true,
+    fetchPolicy: 'cache-and-network',
   })
 
   // Query for accounts
@@ -75,7 +74,6 @@ export function useAbonosQueries({
       },
       skip: !selectedLeadId,
       fetchPolicy: 'network-only',
-      notifyOnNetworkStatusChange: true,
     }
   )
 
@@ -96,7 +94,6 @@ export function useAbonosQueries({
     },
     skip: !selectedLeadId || !isDayCaptured,
     fetchPolicy: 'network-only',
-    notifyOnNetworkStatusChange: true,
   })
 
   // Mutations
@@ -211,15 +208,10 @@ export function useAbonosQueries({
     return result.data?.leadPaymentReceivedById
   }
 
-  // Handle date change refetch
-  const { isRefetching } = useDateChangeRefetch({
-    selectedDate,
-    enabled: !!selectedLeadId,
-    refetchFn: [refetchLoans, refetchLeadPayment],
-  })
-
-  // Combine loading states
-  const isLoading = loansLoading || paymentsLoading || isRefetching
+  // Loading state - no need for useDateChangeRefetch since queries with date
+  // in their variables (LEAD_PAYMENT_RECEIVED_BY_DATE_QUERY, LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY)
+  // automatically refetch when startDateUTC/endDateUTC change
+  const isLoading = loansLoading || paymentsLoading
 
   return {
     // Data

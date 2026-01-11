@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import {
   Search,
   Loader2,
@@ -43,6 +44,7 @@ interface ActionBarProps {
   onClearAll: () => void
   onOpenMultaModal: () => void
   onOpenFalcosDrawer: () => void
+  extraCobranzaSlot?: ReactNode
   falcosPendientesCount: number
   onSaveAll: () => void
   onSaveEditedPayments: () => void
@@ -67,6 +69,7 @@ export function ActionBar({
   onClearAll,
   onOpenMultaModal,
   onOpenFalcosDrawer,
+  extraCobranzaSlot,
   falcosPendientesCount,
   onSaveAll,
   onSaveEditedPayments,
@@ -182,6 +185,8 @@ export function ActionBar({
           <div className="h-5 w-px bg-border" />
 
           {/* Acciones Especiales */}
+          {extraCobranzaSlot}
+
           <Button
             size="sm"
             variant="outline"

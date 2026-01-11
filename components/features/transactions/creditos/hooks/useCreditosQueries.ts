@@ -8,7 +8,6 @@ import {
   ACTIVE_LOANS_FOR_RENEWAL_QUERY,
 } from '@/graphql/queries/transactions'
 import { ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
-import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Loan, LoanType, Account, PreviousLoan } from '../types'
 
 interface UseCreditosQueriesParams {
@@ -138,15 +137,8 @@ export function useCreditosQueries({
   // Get default account (first one)
   const defaultAccount = accounts[0] || null
 
-  // Handle date change refetch
-  const { isRefetching } = useDateChangeRefetch({
-    selectedDate,
-    enabled: !!selectedLeadId,
-    refetchFn: refetchLoans,
-  })
-
-  // Combine loading states
-  const loansLoading = loansLoadingRaw || isRefetching
+  // Loading state - query has date in variables, Apollo auto-refetches when date changes
+  const loansLoading = loansLoadingRaw
 
   return {
     loansToday,

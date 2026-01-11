@@ -12,7 +12,6 @@ import {
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
 } from '@/graphql/mutations/transactions'
-import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Expense, Account } from '../types'
 
 interface UseGastosQueriesOptions {
@@ -107,15 +106,8 @@ export function useGastosQueries({ selectedRouteId, selectedLeadId, selectedDate
     }
   }
 
-  // Handle date change refetch
-  const { isRefetching } = useDateChangeRefetch({
-    selectedDate,
-    enabled: showAllExpenses || !!selectedRouteId,
-    refetchFn: showAllExpenses ? refetchAllExpenses : refetchExpenses,
-  })
-
-  // Combine loading states
-  const expensesLoading = expensesLoadingRaw || allExpensesLoading || isRefetching
+  // Loading state - queries with date in their variables automatically refetch when date changes
+  const expensesLoading = expensesLoadingRaw || allExpensesLoading
 
   return {
     expenses,

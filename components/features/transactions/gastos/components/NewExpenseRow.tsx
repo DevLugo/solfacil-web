@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,8 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
-import { EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
-import type { NewExpense, Account } from '../types'
+import { EXPENSE_TO_ACCOUNT_TYPE, EXPENSE_ALLOWED_ACCOUNT_TYPES, DEFAULT_VISIBLE_ACCOUNT_TYPES } from '../constants'
+import type { NewExpense, Account, AccountType } from '../types'
 
 interface NewExpenseRowProps {
   expense: NewExpense
@@ -30,17 +31,42 @@ export function NewExpenseRow({
   onUpdate,
   onRemove,
 }: NewExpenseRowProps) {
+  // Filter accounts based on selected expense type
+  const filteredAccounts = useMemo(() => {
+    if (!expense.expenseSource) {
+      // No expense type selected, show all accounts
+      return accounts
+    }
+
+    const allowedTypes = EXPENSE_ALLOWED_ACCOUNT_TYPES[expense.expenseSource]
+    if (!allowedTypes) {
+      // No specific filter for this expense type, show default visible types
+      return accounts.filter((acc) =>
+        DEFAULT_VISIBLE_ACCOUNT_TYPES.includes(acc.type as AccountType)
+      )
+    }
+
+    // Filter to only allowed account types for this expense
+    return accounts.filter((acc) => allowedTypes.includes(acc.type as AccountType))
+  }, [accounts, expense.expenseSource])
+
   const handleExpenseTypeChange = (value: string) => {
     onUpdate(index, 'expenseSource', value)
+
+    // Get allowed accounts for this expense type
+    const allowedTypes = EXPENSE_ALLOWED_ACCOUNT_TYPES[value]
+    const allowedAccounts = allowedTypes
+      ? accounts.filter((acc) => allowedTypes.includes(acc.type as AccountType))
+      : accounts
 
     // Auto-seleccionar cuenta basada en el tipo de gasto
     // Prioridad: cuenta preferida → EMPLOYEE_CASH_FUND → primera cuenta disponible
     const preferredAccountType = EXPENSE_TO_ACCOUNT_TYPE[value]
     const preferredAccount = preferredAccountType
-      ? accounts.find((acc) => acc.type === preferredAccountType)
+      ? allowedAccounts.find((acc) => acc.type === preferredAccountType)
       : null
-    const fallbackAccount = accounts.find((acc) => acc.type === 'EMPLOYEE_CASH_FUND')
-    const selectedAccount = preferredAccount || fallbackAccount || accounts[0]
+    const fallbackAccount = allowedAccounts.find((acc) => acc.type === 'EMPLOYEE_CASH_FUND')
+    const selectedAccount = preferredAccount || fallbackAccount || allowedAccounts[0]
 
     if (selectedAccount) {
       onUpdate(index, 'sourceAccountId', selectedAccount.id)
@@ -75,7 +101,7 @@ export function NewExpenseRow({
             <SelectValue placeholder="Cuenta" />
           </SelectTrigger>
           <SelectContent>
-            {accounts.map((account) => (
+            {filteredAccounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
               </SelectItem>

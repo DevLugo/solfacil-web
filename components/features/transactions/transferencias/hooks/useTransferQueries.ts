@@ -3,7 +3,6 @@
 import { useQuery } from '@apollo/client'
 import { startOfDay, endOfDay } from 'date-fns'
 import { ACCOUNTS_QUERY, TRANSFERS_AND_INVESTMENTS_BY_DATE_QUERY } from '@/graphql/queries/transactions'
-import { useDateChangeRefetch } from '@/hooks/use-date-change-refetch'
 import type { Account, Transfer } from '../types'
 import { INCOME_SOURCES } from '../constants'
 
@@ -60,15 +59,8 @@ export function useTransferQueries({
     }
   }
 
-  // Handle date change refetch
-  const { isRefetching } = useDateChangeRefetch({
-    selectedDate,
-    enabled: !!selectedRouteId,
-    refetchFn: refetchTransfers,
-  })
-
-  // Combine loading states
-  const transfersLoading = transfersLoadingRaw || isRefetching
+  // Loading state - query has date in variables, Apollo auto-refetches when date changes
+  const transfersLoading = transfersLoadingRaw
 
   // Combine transfers and capital investments (MONEY_INVESTMENT only)
   const transfersList: Transfer[] =
