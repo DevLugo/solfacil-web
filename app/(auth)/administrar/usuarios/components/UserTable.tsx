@@ -25,6 +25,7 @@ import {
   User as UserIcon,
   MessageCircle,
   Briefcase,
+  Key,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { User } from '../types'
@@ -34,9 +35,10 @@ interface UserTableProps {
   users: User[]
   onEdit: (user: User) => void
   onDelete: (user: User) => void
+  onChangePassword: (user: User) => void
 }
 
-export function UserTable({ users, onEdit, onDelete }: UserTableProps) {
+export function UserTable({ users, onEdit, onDelete, onChangePassword }: UserTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -120,6 +122,10 @@ export function UserTable({ users, onEdit, onDelete }: UserTableProps) {
                   <DropdownMenuItem onClick={() => onEdit(user)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onChangePassword(user)}>
+                    <Key className="mr-2 h-4 w-4" />
+                    Cambiar Contraseña
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => onDelete(user)}

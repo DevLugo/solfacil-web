@@ -25,8 +25,8 @@ import {
 import { Users, Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { GET_USERS, CREATE_USER, UPDATE_USER, DELETE_USER } from './queries'
-import { UserFormDialog, UserTable } from './components'
+import { GET_USERS, CREATE_USER, UPDATE_USER, DELETE_USER, ADMIN_SET_PASSWORD } from './queries'
+import { UserFormDialog, UserTable, ChangePasswordDialog } from './components'
 import type { UserFormData } from './components'
 import type { User } from './types'
 import { ROLE_LABELS } from './types'
@@ -38,6 +38,8 @@ export default function AdministrarUsuariosPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [userToChangePassword, setUserToChangePassword] = useState<User | null>(null)
 
   // Query users
   const { data, loading, refetch } = useQuery<{ users: User[] }>(GET_USERS, {
@@ -50,6 +52,7 @@ export default function AdministrarUsuariosPage() {
   const [createUser, { loading: creating }] = useMutation(CREATE_USER)
   const [updateUser, { loading: updating }] = useMutation(UPDATE_USER)
   const [deleteUser, { loading: deleting }] = useMutation(DELETE_USER)
+  const [adminSetPassword, { loading: changingPassword }] = useMutation(ADMIN_SET_PASSWORD)
 
   const users = data?.users || []
 
@@ -66,6 +69,42 @@ export default function AdministrarUsuariosPage() {
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user)
     setDeleteDialogOpen(true)
+  }
+
+  const handleChangePasswordClick = (user: User) => {
+    setUserToChangePassword(user)
+    setPasswordDialogOpen(true)
+  }
+
+  const handleChangePassword = async (newPassword: string) => {
+    if (!userToChangePassword) return
+
+    try {
+      await adminSetPassword({
+        variables: {
+          userId: userToChangePassword.id,
+          newPassword,
+        },
+      })
+
+      const userName = userToChangePassword.name || userToChangePassword.email
+
+      toast({
+        title: 'Contraseña actualizada',
+        description: `La contraseña de ${userName} ha sido cambiada`,
+      })
+
+      setPasswordDialogOpen(false)
+      setUserToChangePassword(null)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo cambiar la contraseña'
+
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      })
+    }
   }
 
   const handleSubmit = async (formData: UserFormData) => {
@@ -132,9 +171,11 @@ export default function AdministrarUsuariosPage() {
       setSelectedUser(null)
       refetch()
     } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo guardar el usuario'
+
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'No se pudo guardar el usuario',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -157,9 +198,11 @@ export default function AdministrarUsuariosPage() {
       setUserToDelete(null)
       refetch()
     } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo eliminar el usuario'
+
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'No se pudo eliminar el usuario',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -271,6 +314,7 @@ export default function AdministrarUsuariosPage() {
               users={users}
               onEdit={handleEditUser}
               onDelete={handleDeleteClick}
+              onChangePassword={handleChangePasswordClick}
             />
           )}
         </CardContent>
@@ -308,6 +352,15 @@ export default function AdministrarUsuariosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Change Password Dialog */}
+      <ChangePasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        userName={userToChangePassword?.name || userToChangePassword?.email || ''}
+        onSubmit={handleChangePassword}
+        loading={changingPassword}
+      />
     </div>
   )
 }

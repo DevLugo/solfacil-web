@@ -92,3 +92,9 @@ export const DELETE_USER = gql`
     deleteUser(id: $id)
   }
 `
+
+export const ADMIN_SET_PASSWORD = gql`
+  mutation AdminSetPassword($userId: ID!, $newPassword: String!) {
+    adminSetPassword(userId: $userId, newPassword: $newPassword)
+  }
+`
