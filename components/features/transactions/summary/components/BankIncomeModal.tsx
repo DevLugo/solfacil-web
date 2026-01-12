@@ -206,7 +206,7 @@ export function BankIncomeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] !grid !grid-rows-[auto_auto_auto_1fr]">
         <DialogHeader className="pb-4 border-b">
           <div className="flex items-center justify-between">
             <div>
@@ -342,7 +342,7 @@ export function BankIncomeModal({
         </div>
 
         {/* Transactions List */}
-        <ScrollArea className="flex-1 min-h-0 pr-4">
+        <div className="min-h-0 overflow-y-auto max-h-[calc(90vh-380px)]">
           {loading ? (
             <div className="space-y-3 py-4">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -360,7 +360,7 @@ export function BankIncomeModal({
               <p>No hay entradas al banco en este periodo</p>
             </div>
           ) : (
-            <div className="space-y-2 py-4">
+            <div className="space-y-2 py-4 pr-2">
               {/* Confirm All Header */}
               {transactions.length > 0 && (
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg mb-3">
@@ -448,7 +448,7 @@ export function BankIncomeModal({
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   )
