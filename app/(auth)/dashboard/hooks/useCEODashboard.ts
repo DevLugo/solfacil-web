@@ -9,6 +9,8 @@ const GET_CEO_DASHBOARD_DATA = gql`
   query CEODashboardData(
     $routeIds: [ID!]!
     $routeId: ID
+    $expenseRouteIds: [ID!]!
+    $portfolioRouteIds: [ID!]
     $year: Int!
     $month: Int!
     $prevYear: Int!
@@ -16,6 +18,12 @@ const GET_CEO_DASHBOARD_DATA = gql`
     $fromDate: DateTime!
     $toDate: DateTime!
     $limit: Int
+    $currentWeekStart: DateTime!
+    $currentWeekEnd: DateTime!
+    $previousWeekStart: DateTime!
+    $previousWeekEnd: DateTime!
+    $skipExpenseSummary: Boolean!
+    $weeksWithoutPaymentMin: Int!
   ) {
     financialReport(routeIds: $routeIds, year: $year, month: $month) {
       summary {
@@ -67,8 +75,9 @@ const GET_CEO_DASHBOARD_DATA = gql`
         paymentsCount
       }
     }
-    portfolioReportMonthly(year: $year, month: $month, filters: {}) {
+    portfolioReportMonthly(year: $year, month: $month, filters: { routeIds: $portfolioRouteIds }) {
       summary {
+        clientesActivosInicio
         totalClientesActivos
         clientesAlCorriente
         clientesEnCV
@@ -88,6 +97,18 @@ const GET_CEO_DASHBOARD_DATA = gql`
           cvChange
           balanceChange
         }
+      }
+      weeklyData {
+        weekRange {
+          start
+          end
+          weekNumber
+          year
+        }
+        clientesActivos
+        clientesEnCV
+        balance
+        isCompleted
       }
       renovationKPIs {
         totalRenovaciones
@@ -184,6 +205,86 @@ const GET_CEO_DASHBOARD_DATA = gql`
         pendingAmount
       }
     }
+    previousPortfolioReport: portfolioReportMonthly(year: $prevYear, month: $prevMonth, filters: { routeIds: $portfolioRouteIds }) {
+      summary {
+        clientesActivosInicio
+        totalClientesActivos
+        clientesEnCV
+      }
+      weeklyData {
+        weekRange {
+          start
+          end
+          weekNumber
+          year
+        }
+        clientesActivos
+        clientesEnCV
+        balance
+        isCompleted
+      }
+      byLocation {
+        locationId
+        locationName
+        routeId
+        routeName
+        clientesActivos
+        clientesAlCorriente
+        clientesEnCV
+        balance
+      }
+    }
+    criticalClients: deadDebtLoans(weeksWithoutPaymentMin: $weeksWithoutPaymentMin, routeId: $routeId) {
+      loans {
+        id
+        pendingAmountStored
+        weeksWithoutPayment
+        borrower {
+          fullName
+          clientCode
+        }
+        lead {
+          fullName
+          locality
+          route
+        }
+        payments {
+          receivedAt
+          amount
+        }
+      }
+      summary {
+        totalLoans
+        totalPendingAmount
+      }
+    }
+    currentWeekSummary: transactionsSummaryByLocation(
+      routeIds: $expenseRouteIds
+      startDate: $currentWeekStart
+      endDate: $currentWeekEnd
+    ) @skip(if: $skipExpenseSummary) {
+      executiveSummary {
+        totalExpenses
+        totalLoansGranted
+        loansGrantedCount
+      }
+      localities {
+        expenses {
+          source
+          sourceLabel
+          amount
+        }
+      }
+    }
+    previousWeekSummary: transactionsSummaryByLocation(
+      routeIds: $expenseRouteIds
+      startDate: $previousWeekStart
+      endDate: $previousWeekEnd
+    ) @skip(if: $skipExpenseSummary) {
+      executiveSummary {
+        totalExpenses
+      }
+    }
   }
 `
 
@@ -210,6 +311,44 @@ export interface RecoveredDeadDebtSummary {
 export interface RecoveredDeadDebtData {
   summary: RecoveredDeadDebtSummary
   payments: RecoveredDeadDebtPayment[]
+}
+
+export interface CriticalClientPayment {
+  receivedAt: string | null
+  amount: string
+}
+
+export interface CriticalClient {
+  id: string
+  pendingAmountStored: string
+  weeksWithoutPayment: number
+  borrower: {
+    fullName: string
+    clientCode: string
+  }
+  lead: {
+    fullName: string
+    locality: string
+    route: string
+  }
+  payments: CriticalClientPayment[]
+}
+
+export interface CriticalClientsSummary {
+  totalLoans: number
+  totalPendingAmount: string
+}
+
+export interface CriticalClientsData {
+  loans: CriticalClient[]
+  summary: CriticalClientsSummary
+}
+
+export interface ExpensesByCategory {
+  gasolina: number
+  nomina: number
+  viaticos: number
+  otros: number
 }
 
 export interface WeeklyData {
@@ -286,11 +425,26 @@ export interface Route {
 
 export type Trend = 'UP' | 'DOWN' | 'STABLE'
 
+export interface PortfolioWeeklyData {
+  weekRange: {
+    start: string
+    end: string
+    weekNumber: number
+    year: number
+  }
+  clientesActivos: number
+  clientesEnCV: number
+  balance: number
+  isCompleted: boolean
+}
+
 interface UseCEODashboardParams {
   year: number
   month: number
   selectedRouteId?: string | null
   allRouteIds: string[]
+  weeksWithoutPaymentMin?: number
+  selectedWeekMonday?: Date
 }
 
 export function useCEODashboard({
@@ -298,6 +452,8 @@ export function useCEODashboard({
   month,
   selectedRouteId,
   allRouteIds,
+  weeksWithoutPaymentMin = 3,
+  selectedWeekMonday,
 }: UseCEODashboardParams) {
   // Calculate previous month/year
   const { prevYear, prevMonth } = useMemo(() => {
@@ -317,13 +473,65 @@ export function useCEODashboard({
     }
   }, [year, month])
 
+  // Calculate dates for selected week and previous week (for expenses query)
+  const { currentWeekStart, currentWeekEnd, previousWeekStart, previousWeekEnd } = useMemo(() => {
+    // Use selectedWeekMonday if provided, otherwise use current date
+    const baseMonday = selectedWeekMonday || new Date()
+
+    const getMondayOfWeek = (date: Date): Date => {
+      const dayOfWeek = date.getDay()
+      const daysToSubtract = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+      const monday = new Date(date)
+      monday.setDate(date.getDate() + daysToSubtract)
+      monday.setHours(0, 0, 0, 0)
+      return monday
+    }
+
+    const getWeekRange = (startDate: Date) => {
+      const start = new Date(startDate)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(startDate)
+      end.setDate(start.getDate() + 6)
+      end.setHours(23, 59, 59, 999)
+      return { start, end }
+    }
+
+    // If selectedWeekMonday is provided, use it directly as Monday
+    // Otherwise, calculate Monday from baseMonday
+    const currentMonday = selectedWeekMonday
+      ? new Date(selectedWeekMonday.getTime())
+      : getMondayOfWeek(baseMonday)
+    currentMonday.setHours(0, 0, 0, 0)
+
+    const currentWeek = getWeekRange(currentMonday)
+
+    const previousMonday = new Date(currentMonday)
+    previousMonday.setDate(currentMonday.getDate() - 7)
+    const previousWeek = getWeekRange(previousMonday)
+
+    return {
+      currentWeekStart: currentWeek.start.toISOString(),
+      currentWeekEnd: currentWeek.end.toISOString(),
+      previousWeekStart: previousWeek.start.toISOString(),
+      previousWeekEnd: previousWeek.end.toISOString(),
+    }
+  }, [selectedWeekMonday])
+
   const routeIdsToUse = selectedRouteId ? [selectedRouteId] : allRouteIds
   const routeIdForAccounts = selectedRouteId || null
+  // For expense queries - use selected route if specified, otherwise all routes
+  const expenseRouteIds = selectedRouteId ? [selectedRouteId] : allRouteIds
+  // For portfolio queries - use selected route if specified, otherwise null (no filter = all routes)
+  const portfolioRouteIds = selectedRouteId ? [selectedRouteId] : null
+  // Only skip if we don't have ANY route IDs available
+  const skipExpenseSummary = allRouteIds.length === 0
 
   const { data, loading, error, refetch } = useQuery(GET_CEO_DASHBOARD_DATA, {
     variables: {
       routeIds: routeIdsToUse,
       routeId: routeIdForAccounts,
+      expenseRouteIds,
+      portfolioRouteIds,
       year,
       month,
       prevYear,
@@ -331,6 +539,12 @@ export function useCEODashboard({
       fromDate,
       toDate,
       limit: 8,
+      currentWeekStart,
+      currentWeekEnd,
+      previousWeekStart,
+      previousWeekEnd,
+      skipExpenseSummary,
+      weeksWithoutPaymentMin,
     },
     skip: routeIdsToUse.length === 0,
     fetchPolicy: 'cache-and-network',
@@ -352,6 +566,13 @@ export function useCEODashboard({
   const portfolioSummary = portfolioReport?.summary
   const renovationKPIs = portfolioReport?.renovationKPIs
   const locationBreakdown: LocationBreakdown[] = portfolioReport?.byLocation || []
+  const portfolioWeeklyData: PortfolioWeeklyData[] = portfolioReport?.weeklyData || []
+
+  // Previous month portfolio data (for cross-month week comparison)
+  const previousPortfolioReport = data?.previousPortfolioReport
+  const previousPortfolioWeeklyData: PortfolioWeeklyData[] = previousPortfolioReport?.weeklyData || []
+  const previousPortfolioStats = previousPortfolioReport?.summary || null
+  const previousLocationBreakdown: LocationBreakdown[] = previousPortfolioReport?.byLocation || []
 
   // New locations
   const newLocations: LocationCreated[] = data?.locationsCreatedInPeriod || []
@@ -371,24 +592,66 @@ export function useCEODashboard({
       }
     : null
 
+  // Critical clients (4+ weeks without payment)
+  const criticalClients: CriticalClientsData | null = data?.criticalClients || null
+
+  // Current and previous week expenses
+  const currentWeekExpenses = data?.currentWeekSummary || null
+  const previousWeekExpenses = data?.previousWeekSummary || null
+
+  // Calculate expenses by category
+  const expensesByCategory = useMemo<ExpensesByCategory | null>(() => {
+    if (!currentWeekExpenses?.localities) return null
+
+    const GASOLINE_SOURCES = new Set(['GASOLINE', 'GASOLINE_TOKA'])
+    const NOMINA_SOURCES = new Set(['NOMINA_SALARY', 'EXTERNAL_SALARY'])
+    const VIATIC_SOURCES = new Set(['VIATIC', 'TRAVEL_EXPENSES'])
+
+    const categories: ExpensesByCategory = {
+      gasolina: 0,
+      nomina: 0,
+      viaticos: 0,
+      otros: 0,
+    }
+
+    currentWeekExpenses.localities.forEach((locality: { expenses?: { source: string; amount: string }[] }) => {
+      locality.expenses?.forEach((expense: { source: string; amount: string }) => {
+        const amount = parseFloat(expense.amount || '0')
+
+        if (GASOLINE_SOURCES.has(expense.source)) {
+          categories.gasolina += amount
+        } else if (NOMINA_SOURCES.has(expense.source)) {
+          categories.nomina += amount
+        } else if (VIATIC_SOURCES.has(expense.source)) {
+          categories.viaticos += amount
+        } else {
+          categories.otros += amount
+        }
+      })
+    })
+
+    return categories
+  }, [currentWeekExpenses])
+
   // Computed stats
   const stats = useMemo(() => {
     if (!summary) return null
 
     const now = new Date()
-    const completedWeeks = weeklyData.filter((w) => new Date(w.date) <= now)
+    const completedWeeks = weeklyData.filter((week) => new Date(week.date) <= now)
     const activeWeeks = completedWeeks.length
 
-    const weeklyAveragePayments =
-      activeWeeks > 0
-        ? completedWeeks.reduce((sum, w) => sum + parseFloat(w.paymentsReceived || '0'), 0) /
-          activeWeeks
-        : 0
+    const calculateWeeklyAverage = (getValue: (week: WeeklyData) => number) => {
+      if (activeWeeks === 0) return 0
+      return completedWeeks.reduce((sum, week) => sum + getValue(week), 0) / activeWeeks
+    }
 
-    const weeklyAverageClients =
-      activeWeeks > 0
-        ? completedWeeks.reduce((sum, w) => sum + (w.paymentsCount || 0), 0) / activeWeeks
-        : 0
+    const weeklyAveragePayments = calculateWeeklyAverage(
+      (week) => parseFloat(week.paymentsReceived || '0')
+    )
+    const weeklyAverageClients = calculateWeeklyAverage(
+      (week) => week.paymentsCount || 0
+    )
 
     const growthPercent = comparison?.growth ? parseFloat(comparison.growth).toFixed(1) : '0'
     const trend = comparison?.trend || 'STABLE'
@@ -415,83 +678,50 @@ export function useCEODashboard({
   // Weekly comparison with previous month
   const weeklyComparison = useMemo(() => {
     const now = new Date()
-
-    // Current month - only completed weeks
-    const currentCompletedWeeks = weeklyData.filter((w) => new Date(w.date) <= now)
+    const currentCompletedWeeks = weeklyData.filter((week) => new Date(week.date) <= now)
     const currentWeeksCount = currentCompletedWeeks.length
 
-    // Previous month - all weeks (month is complete)
-    const prevWeeksCount = prevWeeklyData.length
+    if (currentWeeksCount === 0) return null
 
-    if (currentWeeksCount === 0) {
-      return null
+    const calculateAverageAndTotal = (weeks: WeeklyData[]) => {
+      const weeksCount = weeks.length
+      if (weeksCount === 0) {
+        return { avgCobranza: 0, avgClientes: 0, totalCobranza: 0, totalClientes: 0 }
+      }
+
+      const totalCobranza = weeks.reduce((sum, week) => sum + parseFloat(week.paymentsReceived || '0'), 0)
+      const totalClientes = weeks.reduce((sum, week) => sum + (week.paymentsCount || 0), 0)
+
+      return {
+        avgCobranza: totalCobranza / weeksCount,
+        avgClientes: totalClientes / weeksCount,
+        totalCobranza,
+        totalClientes,
+      }
     }
 
-    // Current month averages
-    const currentAvgCobranza = currentCompletedWeeks.reduce(
-      (sum, w) => sum + parseFloat(w.paymentsReceived || '0'), 0
-    ) / currentWeeksCount
+    const current = calculateAverageAndTotal(currentCompletedWeeks)
+    const previous = calculateAverageAndTotal(prevWeeklyData)
 
-    const currentAvgClientes = currentCompletedWeeks.reduce(
-      (sum, w) => sum + (w.paymentsCount || 0), 0
-    ) / currentWeeksCount
-
-    const currentTotalCobranza = currentCompletedWeeks.reduce(
-      (sum, w) => sum + parseFloat(w.paymentsReceived || '0'), 0
-    )
-
-    const currentTotalClientes = currentCompletedWeeks.reduce(
-      (sum, w) => sum + (w.paymentsCount || 0), 0
-    )
-
-    // Previous month averages (if data exists)
-    let prevAvgCobranza = 0
-    let prevAvgClientes = 0
-    let prevTotalCobranza = 0
-    let prevTotalClientes = 0
-
-    if (prevWeeksCount > 0) {
-      prevAvgCobranza = prevWeeklyData.reduce(
-        (sum, w) => sum + parseFloat(w.paymentsReceived || '0'), 0
-      ) / prevWeeksCount
-
-      prevAvgClientes = prevWeeklyData.reduce(
-        (sum, w) => sum + (w.paymentsCount || 0), 0
-      ) / prevWeeksCount
-
-      prevTotalCobranza = prevWeeklyData.reduce(
-        (sum, w) => sum + parseFloat(w.paymentsReceived || '0'), 0
-      )
-
-      prevTotalClientes = prevWeeklyData.reduce(
-        (sum, w) => sum + (w.paymentsCount || 0), 0
-      )
+    const calculatePercentChange = (current: number, previous: number) => {
+      return previous > 0 ? ((current - previous) / previous) * 100 : 0
     }
-
-    // Calculate changes
-    const avgCobranzaChange = prevAvgCobranza > 0
-      ? ((currentAvgCobranza - prevAvgCobranza) / prevAvgCobranza) * 100
-      : 0
-
-    const avgClientesChange = prevAvgClientes > 0
-      ? ((currentAvgClientes - prevAvgClientes) / prevAvgClientes) * 100
-      : 0
 
     return {
       currentWeeksCount,
-      prevWeeksCount,
+      prevWeeksCount: prevWeeklyData.length,
       // Weekly averages
-      currentAvgCobranza,
-      currentAvgClientes,
-      prevAvgCobranza,
-      prevAvgClientes,
-      avgCobranzaChange,
-      avgClientesChange,
-      // Monthly totals (current only has completed weeks)
-      currentTotalCobranza,
-      currentTotalClientes,
-      prevTotalCobranza,
-      prevTotalClientes,
+      currentAvgCobranza: current.avgCobranza,
+      currentAvgClientes: current.avgClientes,
+      prevAvgCobranza: previous.avgCobranza,
+      prevAvgClientes: previous.avgClientes,
+      avgCobranzaChange: calculatePercentChange(current.avgCobranza, previous.avgCobranza),
+      avgClientesChange: calculatePercentChange(current.avgClientes, previous.avgClientes),
+      // Monthly totals
+      currentTotalCobranza: current.totalCobranza,
+      currentTotalClientes: current.totalClientes,
+      prevTotalCobranza: previous.totalCobranza,
+      prevTotalClientes: previous.totalClientes,
       // Previous month label
       prevMonthLabel: prevMonth,
       prevYear,
@@ -503,6 +733,7 @@ export function useCEODashboard({
     if (!portfolioSummary) return null
 
     return {
+      clientesActivosInicio: portfolioSummary.clientesActivosInicio,
       totalClientesActivos: portfolioSummary.totalClientesActivos,
       clientesAlCorriente: portfolioSummary.clientesAlCorriente,
       clientesEnCV: portfolioSummary.clientesEnCV,
@@ -524,15 +755,26 @@ export function useCEODashboard({
     // Data
     stats,
     portfolioStats,
+    previousPortfolioStats,
     renovationKPIs,
     weeklyData,
+    portfolioWeeklyData,
+    previousPortfolioWeeklyData,
     weeklyComparison,
     accounts,
     transactions,
     newLocations,
     topLocations,
+    locationBreakdown,
+    previousLocationBreakdown,
     routes,
     recoveredDeadDebt,
+    criticalClients,
+    currentWeekExpenses,
+    previousWeekExpenses,
+    expensesByCategory,
+    currentWeekStart,
+    currentWeekEnd,
     // State
     loading,
     error,
