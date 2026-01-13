@@ -4,6 +4,7 @@ export {
   usePeriodNavigation,
   useLocalityReport,
   useLocalityClients,
+  useFinishedClients,
   useAnnualPortfolioData,
   useRecoveredDeadDebt,
   useRouteKPIs,
@@ -31,6 +32,8 @@ export type {
   LocalityBreakdownDetail,
   LocalityReport,
   LocalityClientDetail,
+  // Finished clients types
+  FinishedClientDetail,
   // Annual data types
   AnnualPortfolioDataPoint,
   // Recovered dead debt types

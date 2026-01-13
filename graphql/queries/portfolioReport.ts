@@ -326,3 +326,29 @@ export const GET_LOCALITY_CLIENTS = gql`
     }
   }
 `
+
+// Query: Get finished clients without renewal for a locality (drill-down for debugging)
+export const GET_FINISHED_CLIENTS_WITHOUT_RENEWAL = gql`
+  query GetFinishedClientsWithoutRenewal(
+    $localityId: ID!
+    $year: Int!
+    $month: Int!
+    $weekNumber: Int
+  ) {
+    finishedClientsWithoutRenewal(
+      localityId: $localityId
+      year: $year
+      month: $month
+      weekNumber: $weekNumber
+    ) {
+      loanId
+      clientName
+      clientCode
+      amountGived
+      totalPaid
+      finishedDate
+      loanType
+      hadPendingDebt
+    }
+  }
+`

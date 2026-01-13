@@ -662,6 +662,85 @@ export function useLocalityClients() {
 }
 
 // =============================================================================
+// FINISHED CLIENTS WITHOUT RENEWAL HOOK
+// =============================================================================
+
+export interface FinishedClientDetail {
+  loanId: string
+  clientName: string
+  clientCode: string
+  amountGived: number
+  totalPaid: number
+  finishedDate: string
+  loanType: string
+  hadPendingDebt: boolean
+}
+
+interface UseFinishedClientsParams {
+  localityId: string
+  year: number
+  month: number
+  weekNumber?: number
+}
+
+export function useFinishedClients() {
+  const [fetchClients, { data, loading, error }] = useLazyQuery(
+    gql`
+      query GetFinishedClientsWithoutRenewal(
+        $localityId: ID!
+        $year: Int!
+        $month: Int!
+        $weekNumber: Int
+      ) {
+        finishedClientsWithoutRenewal(
+          localityId: $localityId
+          year: $year
+          month: $month
+          weekNumber: $weekNumber
+        ) {
+          loanId
+          clientName
+          clientCode
+          amountGived
+          totalPaid
+          finishedDate
+          loanType
+          hadPendingDebt
+        }
+      }
+    `,
+    {
+      fetchPolicy: 'network-only',
+    }
+  )
+
+  const clients: FinishedClientDetail[] = useMemo(() => {
+    return data?.finishedClientsWithoutRenewal ?? []
+  }, [data])
+
+  const getClients = useCallback(
+    async (params: UseFinishedClientsParams) => {
+      await fetchClients({
+        variables: {
+          localityId: params.localityId,
+          year: params.year,
+          month: params.month,
+          weekNumber: params.weekNumber,
+        },
+      })
+    },
+    [fetchClients]
+  )
+
+  return {
+    clients,
+    loading,
+    error,
+    getClients,
+  }
+}
+
+// =============================================================================
 // RECOVERED DEAD DEBT HOOK
 // =============================================================================
 

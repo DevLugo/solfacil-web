@@ -16,9 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
   MapPin,
@@ -28,13 +28,15 @@ import {
   UserMinus,
   AlertCircle,
   Loader2,
+  LogOut,
 } from 'lucide-react'
 import type {
   LocalityBreakdownDetail,
   LocalityClientDetail,
   ClientCategory,
+  FinishedClientDetail,
 } from '../hooks'
-import { useLocalityClients } from '../hooks'
+import { useLocalityClients, useFinishedClients } from '../hooks'
 import { formatCurrency, formatDateWithYear } from '../utils'
 
 interface LocalityDetailModalProps {
@@ -161,13 +163,33 @@ function ClientRow({ client }: { client: LocalityClientDetail }) {
   )
 }
 
-function TableSkeleton() {
+function FinishedClientRow({ client }: { client: FinishedClientDetail }) {
   return (
-    <div className="space-y-2">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-12 w-full" />
-      ))}
-    </div>
+    <TableRow>
+      <TableCell>
+        <div>
+          <p className="font-medium">{client.clientName}</p>
+          <p className="text-xs text-muted-foreground">{client.clientCode}</p>
+        </div>
+      </TableCell>
+      <TableCell className="text-right">{formatCurrency(client.amountGived)}</TableCell>
+      <TableCell className="text-right">{formatCurrency(client.totalPaid)}</TableCell>
+      <TableCell className="text-sm">
+        {formatDateWithYear(client.finishedDate)}
+      </TableCell>
+      <TableCell>
+        {client.hadPendingDebt ? (
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400 border-0">
+            Con deuda
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-0">
+            Pagó todo
+          </Badge>
+        )}
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{client.loanType}</TableCell>
+    </TableRow>
   )
 }
 
@@ -179,20 +201,33 @@ export function LocalityDetailModal({
   onClose,
 }: LocalityDetailModalProps) {
   const [selectedCategory, setSelectedCategory] = useState<ClientCategory | 'ALL'>('ALL')
+  const [activeTab, setActiveTab] = useState<'active' | 'finished'>('active')
   const { clients, stats, loading, getClients } = useLocalityClients()
+  const {
+    clients: finishedClients,
+    loading: finishedLoading,
+    getClients: getFinishedClients
+  } = useFinishedClients()
 
   // Fetch clients and reset filter when locality or weekNumber changes
   useEffect(() => {
     if (locality) {
       setSelectedCategory('ALL') // Reset filter when locality changes
+      setActiveTab('active') // Reset to active tab
       getClients({
         localityId: locality.localityId,
         year,
         month,
-        weekNumber, // Pass the specific week number if provided
+        weekNumber,
+      })
+      getFinishedClients({
+        localityId: locality.localityId,
+        year,
+        month,
+        weekNumber,
       })
     }
-  }, [locality, year, month, weekNumber, getClients])
+  }, [locality, year, month, weekNumber, getClients, getFinishedClients])
 
   // Filter clients by category
   const filteredClients =
@@ -212,96 +247,133 @@ export function LocalityDetailModal({
             {locality?.routeName && locality.routeName !== locality.localityName && (
               <span>Ruta: {locality.routeName} &bull; </span>
             )}
-            {stats.total} clientes en el período
+            {stats.total} clientes activos, {finishedClients.length} finalizados sin renovar
           </DialogDescription>
         </DialogHeader>
 
-        {/* Category Filters */}
-        <div className="flex flex-wrap gap-2 py-2">
-          <Button
-            variant={selectedCategory === 'ALL' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelectedCategory('ALL')}
-          >
-            <Users className="h-4 w-4 mr-1" />
-            Todos ({stats.total})
-          </Button>
-          {(Object.keys(CATEGORY_CONFIG) as ClientCategory[]).map((category) => {
-            const config = CATEGORY_CONFIG[category]
-            const count = stats.byCategory[category]
-            if (count === 0) return null
-            const Icon = config.icon
-            return (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'finished')} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="active" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Activos ({stats.total})
+            </TabsTrigger>
+            <TabsTrigger value="finished" className="flex items-center gap-2">
+              <LogOut className="h-4 w-4" />
+              Finalizados sin renovar ({finishedClients.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="flex-1 flex flex-col min-h-0 mt-4">
+            {/* Category Filters */}
+            <div className="flex flex-wrap gap-2 py-2">
               <Button
-                key={category}
-                variant={selectedCategory === category ? 'default' : 'outline'}
+                variant={selectedCategory === 'ALL' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setSelectedCategory(category)}
-                className={cn(
-                  selectedCategory !== category && config.color
-                )}
+                onClick={() => setSelectedCategory('ALL')}
               >
-                <Icon className="h-4 w-4 mr-1" />
-                {config.label} ({count})
+                <Users className="h-4 w-4 mr-1" />
+                Todos ({stats.total})
               </Button>
-            )
-          })}
-        </div>
+              {(Object.keys(CATEGORY_CONFIG) as ClientCategory[]).map((category) => {
+                const config = CATEGORY_CONFIG[category]
+                const count = stats.byCategory[category]
+                if (count === 0) return null
+                const Icon = config.icon
+                return (
+                  <Button
+                    key={category}
+                    variant={selectedCategory === category ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedCategory(category)}
+                    className={cn(
+                      selectedCategory !== category && config.color
+                    )}
+                  >
+                    <Icon className="h-4 w-4 mr-1" />
+                    {config.label} ({count})
+                  </Button>
+                )
+              })}
+            </div>
 
-        {/* Clients Table */}
-        <div className="flex-1 overflow-auto min-h-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            {/* Clients Table */}
+            <div className="flex-1 overflow-auto min-h-0">
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredClients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-semibold">Sin clientes</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No hay clientes en esta categoría
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead className="text-right">Pendiente</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Pagado / Esperado</TableHead>
+                      <TableHead className="text-center">Días s/pago</TableHead>
+                      <TableHead>Tipo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredClients.map((client) => (
+                      <ClientRow key={client.loanId} client={client} />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
-          ) : filteredClients.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold">Sin clientes</h3>
-              <p className="text-sm text-muted-foreground">
-                No hay clientes en esta categoría
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-right">Pendiente</TableHead>
-                  <TableHead>Categoría</TableHead>
-                  <TableHead className="text-right">Pagado / Esperado</TableHead>
-                  <TableHead className="text-center">Días s/pago</TableHead>
-                  <TableHead>Tipo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <ClientRow key={client.loanId} client={client} />
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+          </TabsContent>
 
-        {/* Summary Footer */}
-        {!loading && filteredClients.length > 0 && (
-          <div className="border-t pt-3 flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Mostrando {filteredClients.length} de {stats.total} clientes
-            </span>
-            <div className="flex items-center gap-4">
-              <span>
-                Total Pendiente:{' '}
-                <span className="font-medium text-foreground">
-                  {formatCurrency(
-                    filteredClients.reduce((sum, c) => sum + c.pendingAmount, 0)
-                  )}
-                </span>
-              </span>
+          <TabsContent value="finished" className="flex-1 flex flex-col min-h-0 mt-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Clientes que terminaron de pagar en este período y no renovaron (salen del portafolio)
+            </p>
+
+            {/* Finished Clients Table */}
+            <div className="flex-1 overflow-auto min-h-0">
+              {finishedLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : finishedClients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <LogOut className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-semibold">Sin finalizados</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No hay clientes que hayan terminado sin renovar en este período
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Monto Otorgado</TableHead>
+                      <TableHead className="text-right">Total Pagado</TableHead>
+                      <TableHead>Fecha Fin</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Tipo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {finishedClients.map((client) => (
+                      <FinishedClientRow key={client.loanId} client={client} />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )
