@@ -10,6 +10,7 @@ export { WeeklyExpensesCard } from './WeeklyExpensesCard'
 // Alert/Critical Components
 export { LocalityAlertsCard, type LocalityAlert } from './LocalityAlertsCard'
 export { CriticalClientsCard } from './CriticalClientsCard'
+export { ExpensesDetailModal } from './ExpensesDetailModal'
 
 // Chart Components
 export { WeeklyActivityChart } from './WeeklyActivityChart'

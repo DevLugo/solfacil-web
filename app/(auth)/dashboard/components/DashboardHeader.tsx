@@ -77,7 +77,6 @@ export function DashboardHeader({
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Semana:</span>
           <WeekSelector
             year={selectedYear}
             weekNumber={selectedWeekNumber}

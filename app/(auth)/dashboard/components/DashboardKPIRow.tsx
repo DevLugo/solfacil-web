@@ -30,6 +30,7 @@ interface DashboardKPIRowProps {
   // Gastos Semana
   totalExpenses: number
   expensesChangePercent?: number
+  onExpensesClick?: () => void
 }
 
 export function DashboardKPIRow({
@@ -43,6 +44,7 @@ export function DashboardKPIRow({
   weeksWithoutPaymentMin,
   totalExpenses,
   expensesChangePercent,
+  onExpensesClick,
 }: DashboardKPIRowProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -82,6 +84,7 @@ export function DashboardKPIRow({
         format="currency"
         deltaVsPreviousWeek={expensesChangePercent}
         variant="default"
+        onViewMore={onExpensesClick}
       />
     </div>
   )

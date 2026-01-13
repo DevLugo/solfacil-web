@@ -1,6 +1,6 @@
 'use client'
 
-import { type LucideIcon } from 'lucide-react'
+import { type LucideIcon, ChevronRight } from 'lucide-react'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -13,6 +13,8 @@ interface KPICardProps {
   variant?: 'default' | 'success' | 'danger' | 'warning'
   format?: 'number' | 'currency' | 'percent'
   subtitle?: string
+  onViewMore?: () => void
+  viewMoreLabel?: string
 }
 
 function formatValue(value: number | string, format: 'number' | 'currency' | 'percent' = 'number'): string {
@@ -36,6 +38,8 @@ export function KPICard({
   variant = 'default',
   format = 'number',
   subtitle,
+  onViewMore,
+  viewMoreLabel = 'Ver más',
 }: KPICardProps) {
   const variantClasses = {
     default: 'bg-card border-border',
@@ -79,6 +83,16 @@ export function KPICard({
           >
             {deltaVsPreviousWeek > 0 ? '+' : ''}{deltaVsPreviousWeek} vs {previousWeekLabel}
           </Badge>
+        )}
+
+        {onViewMore && (
+          <button
+            onClick={onViewMore}
+            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium mt-1 transition-colors"
+          >
+            {viewMoreLabel}
+            <ChevronRight className="h-3 w-3" />
+          </button>
         )}
       </div>
     </div>

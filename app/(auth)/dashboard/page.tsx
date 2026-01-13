@@ -20,6 +20,7 @@ import {
   // Alert Components
   LocalityAlertsCard,
   CriticalClientsCard,
+  ExpensesDetailModal,
   // Chart Components
   WeeklyActivityChart,
   // Location Components
@@ -86,6 +87,7 @@ export default function DashboardPage() {
   // ---------------------------------------------------------------------------
   const { selectedRouteId, setSelectedRouteId } = useTransactionContext()
   const [showRecoveredDeadDebtModal, setShowRecoveredDeadDebtModal] = useState(false)
+  const [showExpensesModal, setShowExpensesModal] = useState(false)
   const [weeksWithoutPaymentMin, setWeeksWithoutPaymentMin] = useState(3)
 
   // Initialize year/week from getCurrentWeek()
@@ -162,6 +164,10 @@ export default function DashboardPage() {
     currentWeekExpenses,
     previousWeekExpenses,
     expensesByCategory,
+    currentWeekStart,
+    currentWeekEnd,
+    previousWeekStart,
+    previousWeekEnd,
     loading,
     error,
     refetch,
@@ -390,7 +396,8 @@ export default function DashboardPage() {
   const expensesChangePercent = useMemo(() => {
     const current = parseFloat(currentWeekExpenses?.executiveSummary?.totalExpenses || '0')
     const previous = parseFloat(previousWeekExpenses?.executiveSummary?.totalExpenses || '0')
-    if (previous === 0) return current > 0 ? 100 : undefined
+    // Si no hay datos de semana anterior, no mostrar cambio
+    if (previous === 0) return undefined
     return Math.round(((current - previous) / previous) * 100)
   }, [currentWeekExpenses, previousWeekExpenses])
 
@@ -467,6 +474,7 @@ export default function DashboardPage() {
           ? parseFloat(currentWeekExpenses.executiveSummary.totalExpenses)
           : 0}
         expensesChangePercent={expensesChangePercent}
+        onExpensesClick={() => setShowExpensesModal(true)}
       />
 
       {/* ===== COMPARISON TABLE + TRANSACTIONS ===== */}
@@ -543,6 +551,20 @@ export default function DashboardPage() {
         onOpenChange={setShowRecoveredDeadDebtModal}
         payments={recoveredDeadDebt?.payments || []}
         title="Cartera Muerta Recuperada - Detalle"
+      />
+
+      {/* Expenses Detail Modal */}
+      <ExpensesDetailModal
+        open={showExpensesModal}
+        onOpenChange={setShowExpensesModal}
+        routes={routesData?.routes || []}
+        allRouteIds={allRouteIds}
+        weekStart={currentWeekStart}
+        weekEnd={currentWeekEnd}
+        previousWeekStart={previousWeekStart}
+        previousWeekEnd={previousWeekEnd}
+        weekLabel={`S${selectedWeekNumber}`}
+        initialRouteId={selectedRouteId}
       />
 
       {/* ===== WEEKLY ACTIVITY CHART ===== */}

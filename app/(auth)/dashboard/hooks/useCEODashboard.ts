@@ -775,6 +775,8 @@ export function useCEODashboard({
     expensesByCategory,
     currentWeekStart,
     currentWeekEnd,
+    previousWeekStart,
+    previousWeekEnd,
     // State
     loading,
     error,
