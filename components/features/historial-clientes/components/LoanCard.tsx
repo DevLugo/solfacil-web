@@ -82,6 +82,14 @@ export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
             </span>
           </div>
         </div>
+
+        {/* Row 3: Aval info */}
+        {loan.avalName && (
+          <div className="mt-1.5 pt-1.5 border-t text-xs text-muted-foreground">
+            <span>Aval: </span>
+            <span className="font-medium text-foreground">{loan.avalName}</span>
+          </div>
+        )}
       </div>
     </Card>
   )
