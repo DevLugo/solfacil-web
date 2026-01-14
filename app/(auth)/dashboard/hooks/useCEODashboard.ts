@@ -237,7 +237,7 @@ const GET_CEO_DASHBOARD_DATA = gql`
         balance
       }
     }
-    criticalClients: deadDebtLoans(weeksWithoutPaymentMin: $weeksWithoutPaymentMin, routeId: $routeId) {
+    criticalClients: deadDebtLoans(weeksWithoutPaymentMin: $weeksWithoutPaymentMin, routeId: $routeId, evaluationDate: $currentWeekEnd) {
       loans {
         id
         pendingAmountStored
