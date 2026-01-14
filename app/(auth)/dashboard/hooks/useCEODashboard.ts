@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
+import { getCurrentAndPreviousWeekRanges } from '../utils/weekUtils'
 
 // GraphQL Queries
 const GET_CEO_DASHBOARD_DATA = gql`
@@ -106,6 +107,7 @@ const GET_CEO_DASHBOARD_DATA = gql`
           year
         }
         clientesActivos
+        clientesAlCorriente
         clientesEnCV
         balance
         isCompleted
@@ -219,6 +221,7 @@ const GET_CEO_DASHBOARD_DATA = gql`
           year
         }
         clientesActivos
+        clientesAlCorriente
         clientesEnCV
         balance
         isCompleted
@@ -433,6 +436,7 @@ export interface PortfolioWeeklyData {
     year: number
   }
   clientesActivos: number
+  clientesAlCorriente: number
   clientesEnCV: number
   balance: number
   isCompleted: boolean
@@ -474,48 +478,10 @@ export function useCEODashboard({
   }, [year, month])
 
   // Calculate dates for selected week and previous week (for expenses query)
-  const { currentWeekStart, currentWeekEnd, previousWeekStart, previousWeekEnd } = useMemo(() => {
-    // Use selectedWeekMonday if provided, otherwise use current date
-    const baseMonday = selectedWeekMonday || new Date()
-
-    const getMondayOfWeek = (date: Date): Date => {
-      const dayOfWeek = date.getDay()
-      const daysToSubtract = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-      const monday = new Date(date)
-      monday.setDate(date.getDate() + daysToSubtract)
-      monday.setHours(0, 0, 0, 0)
-      return monday
-    }
-
-    const getWeekRange = (startDate: Date) => {
-      const start = new Date(startDate)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(startDate)
-      end.setDate(start.getDate() + 6)
-      end.setHours(23, 59, 59, 999)
-      return { start, end }
-    }
-
-    // If selectedWeekMonday is provided, use it directly as Monday
-    // Otherwise, calculate Monday from baseMonday
-    const currentMonday = selectedWeekMonday
-      ? new Date(selectedWeekMonday.getTime())
-      : getMondayOfWeek(baseMonday)
-    currentMonday.setHours(0, 0, 0, 0)
-
-    const currentWeek = getWeekRange(currentMonday)
-
-    const previousMonday = new Date(currentMonday)
-    previousMonday.setDate(currentMonday.getDate() - 7)
-    const previousWeek = getWeekRange(previousMonday)
-
-    return {
-      currentWeekStart: currentWeek.start.toISOString(),
-      currentWeekEnd: currentWeek.end.toISOString(),
-      previousWeekStart: previousWeek.start.toISOString(),
-      previousWeekEnd: previousWeek.end.toISOString(),
-    }
-  }, [selectedWeekMonday])
+  const { currentWeekStart, currentWeekEnd, previousWeekStart, previousWeekEnd } = useMemo(
+    () => getCurrentAndPreviousWeekRanges(selectedWeekMonday),
+    [selectedWeekMonday]
+  )
 
   const routeIdsToUse = selectedRouteId ? [selectedRouteId] : allRouteIds
   const routeIdForAccounts = selectedRouteId || null

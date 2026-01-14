@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, UserX, Skull, Receipt } from 'lucide-react'
+import { Users, UserCheck, UserX, Skull, Receipt } from 'lucide-react'
 import { KPICard } from './KPICard'
 
 // Utility function to format currency without decimals
@@ -19,6 +19,9 @@ interface DashboardKPIRowProps {
   // Clientes Activos
   clientesActivos: number
   clientesActivosVsPrev?: number
+  // Pagando (Al Corriente)
+  clientesAlCorriente: number
+  clientesAlCorrienteVsPrev?: number
   // Cartera Vencida
   clientesEnCV: number
   clientesEnCVVsPrev?: number
@@ -36,6 +39,8 @@ interface DashboardKPIRowProps {
 export function DashboardKPIRow({
   clientesActivos,
   clientesActivosVsPrev,
+  clientesAlCorriente,
+  clientesAlCorrienteVsPrev,
   clientesEnCV,
   clientesEnCVVsPrev,
   cvPercentage,
@@ -47,7 +52,7 @@ export function DashboardKPIRow({
   onExpensesClick,
 }: DashboardKPIRowProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {/* Clientes Activos */}
       <KPICard
         title="Clientes Activos"
@@ -55,6 +60,15 @@ export function DashboardKPIRow({
         icon={Users}
         deltaVsPreviousWeek={clientesActivosVsPrev}
         variant="default"
+      />
+
+      {/* Pagando (Al Corriente) */}
+      <KPICard
+        title="Pagando"
+        value={clientesAlCorriente}
+        icon={UserCheck}
+        deltaVsPreviousWeek={clientesAlCorrienteVsPrev}
+        variant="success"
       />
 
       {/* Cartera Vencida */}

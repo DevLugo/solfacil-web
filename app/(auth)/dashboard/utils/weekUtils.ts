@@ -107,3 +107,112 @@ export function getWeekOfDate(date: Date): { year: number; weekNumber: number } 
     weekNumber,
   }
 }
+
+// ============================================================================
+// Week Range Utilities
+// ============================================================================
+
+/**
+ * Get Monday of the week for a given date
+ * @param date - Any date within the week
+ * @returns The Monday of that week at 00:00:00
+ */
+export function getMondayOfWeek(date: Date): Date {
+  const dayOfWeek = date.getDay()
+  const daysToSubtract = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const monday = new Date(date)
+  monday.setDate(date.getDate() + daysToSubtract)
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
+
+/**
+ * Get the date range for a week starting from a Monday
+ * @param monday - The Monday of the week
+ * @returns Object with start (Monday 00:00) and end (Sunday 23:59:59.999)
+ */
+export function getWeekRange(monday: Date): { start: Date; end: Date } {
+  const start = new Date(monday)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(monday)
+  end.setDate(monday.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  return { start, end }
+}
+
+/**
+ * Get current and previous week date ranges as ISO strings
+ * @param selectedWeekMonday - Optional Monday to use as base (defaults to current date's week)
+ * @returns Object with ISO string dates for current and previous week ranges
+ */
+export function getCurrentAndPreviousWeekRanges(selectedWeekMonday?: Date): {
+  currentWeekStart: string
+  currentWeekEnd: string
+  previousWeekStart: string
+  previousWeekEnd: string
+} {
+  const baseMonday = selectedWeekMonday || new Date()
+  const currentMonday = selectedWeekMonday
+    ? new Date(selectedWeekMonday.getTime())
+    : getMondayOfWeek(baseMonday)
+  currentMonday.setHours(0, 0, 0, 0)
+
+  const currentWeek = getWeekRange(currentMonday)
+
+  const previousMonday = new Date(currentMonday)
+  previousMonday.setDate(currentMonday.getDate() - 7)
+  const previousWeek = getWeekRange(previousMonday)
+
+  return {
+    currentWeekStart: currentWeek.start.toISOString(),
+    currentWeekEnd: currentWeek.end.toISOString(),
+    previousWeekStart: previousWeek.start.toISOString(),
+    previousWeekEnd: previousWeek.end.toISOString(),
+  }
+}
+
+// ============================================================================
+// Month Utilities
+// ============================================================================
+
+/**
+ * Get business days (Mon-Fri) for a week starting from Monday
+ * @param monday - The Monday of the week
+ * @returns Array of 5 Date objects (Mon-Fri)
+ */
+export function getBusinessDaysFromMonday(monday: Date): Date[] {
+  return Array.from({ length: 5 }, (_, i) => {
+    const day = new Date(monday)
+    day.setDate(monday.getDate() + i)
+    return day
+  })
+}
+
+/**
+ * Determine the month that has the most business days from a week
+ * This is useful when a week spans two months
+ * @param monday - The Monday of the week
+ * @returns Object with month (1-12) and year
+ */
+export function getMajorityMonthFromWeek(monday: Date): { month: number; year: number } {
+  const businessDays = getBusinessDaysFromMonday(monday)
+
+  const monthCounts = new Map<string, number>()
+  for (const day of businessDays) {
+    const key = `${day.getFullYear()}-${day.getMonth() + 1}`
+    monthCounts.set(key, (monthCounts.get(key) || 0) + 1)
+  }
+
+  // Find month with max count
+  let maxKey = `${monday.getFullYear()}-${monday.getMonth() + 1}`
+  let maxCount = 0
+  for (const [key, count] of monthCounts) {
+    if (count > maxCount) {
+      maxCount = count
+      maxKey = key
+    }
+  }
+
+  const [year, month] = maxKey.split('-').map(Number)
+  return { month, year }
+}

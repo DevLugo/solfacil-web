@@ -34,7 +34,8 @@ import {
   type TopLocation,
   type WeeklyChartDataPoint,
 } from './components'
-import { getCurrentWeek } from './utils/weekUtils'
+import { getCurrentWeek, getMajorityMonthFromWeek } from './utils/weekUtils'
+import { buildLocalityAlerts, buildTopLocationsFromLeads } from './utils/alertsHelpers'
 
 // ============================================================================
 // CONSTANTS
@@ -112,32 +113,10 @@ export default function DashboardPage() {
   }, [selectedYear, selectedWeekNumber])
 
   // Calculate month from selected week for API calls
-  const { month: currentMonth, year: currentYear } = useMemo(() => {
-    const businessDays = []
-    for (let i = 0; i < 5; i++) {
-      const day = new Date(selectedWeekMonday)
-      day.setDate(selectedWeekMonday.getDate() + i)
-      businessDays.push(day)
-    }
-
-    const monthCounts = new Map<string, number>()
-    businessDays.forEach(day => {
-      const key = `${day.getFullYear()}-${day.getMonth() + 1}`
-      monthCounts.set(key, (monthCounts.get(key) || 0) + 1)
-    })
-
-    let maxMonth = `${selectedWeekMonday.getFullYear()}-${selectedWeekMonday.getMonth() + 1}`
-    let maxCount = 0
-    monthCounts.forEach((count, key) => {
-      if (count > maxCount) {
-        maxCount = count
-        maxMonth = key
-      }
-    })
-
-    const [year, month] = maxMonth.split('-').map(Number)
-    return { month, year }
-  }, [selectedWeekMonday])
+  const { month: currentMonth, year: currentYear } = useMemo(
+    () => getMajorityMonthFromWeek(selectedWeekMonday),
+    [selectedWeekMonday]
+  )
 
   // ---------------------------------------------------------------------------
   // DATA FETCHING
@@ -223,6 +202,7 @@ export default function DashboardPage() {
     if (!selectedWeekData) {
       return {
         clientesActivosVsPrev: 0,
+        clientesAlCorrienteVsPrev: 0,
         clientesEnCVVsPrev: 0,
         clientesActivosVsStart: 0,
         clientesEnCVVsStart: 0,
@@ -237,6 +217,9 @@ export default function DashboardPage() {
       clientesActivosVsPrev: previousWeekData
         ? selectedWeekData.clientesActivos - previousWeekData.clientesActivos
         : 0,
+      clientesAlCorrienteVsPrev: previousWeekData
+        ? selectedWeekData.clientesAlCorriente - previousWeekData.clientesAlCorriente
+        : 0,
       clientesEnCVVsPrev: previousWeekData
         ? selectedWeekData.clientesEnCV - previousWeekData.clientesEnCV
         : 0,
@@ -249,109 +232,25 @@ export default function DashboardPage() {
   // COMPUTED VALUES - Locality Alerts
   // ---------------------------------------------------------------------------
 
-  const localityAlerts = useMemo<LocalityAlert[]>(() => {
-    if (!criticalClients?.loans || criticalClients.loans.length === 0) return []
-
-    const previousCVByRoute = new Map<string, number>()
-    previousLocationBreakdown.forEach((loc) => {
-      if (loc.routeName) {
-        previousCVByRoute.set(loc.routeName, (previousCVByRoute.get(loc.routeName) || 0) + loc.clientesEnCV)
-      }
-    })
-
-    const currentCVByRoute = new Map<string, number>()
-    locationBreakdown.forEach((loc) => {
-      if (loc.routeName) {
-        currentCVByRoute.set(loc.routeName, (currentCVByRoute.get(loc.routeName) || 0) + loc.clientesEnCV)
-      }
-    })
-
-    const localityMap = new Map<string, {
-      locality: string
-      route: string
-      clientCount: number
-      totalPending: number
-    }>()
-
-    criticalClients.loans.forEach((client) => {
-      const locality = client.lead.locality || 'Sin localidad'
-      const route = client.lead.route || ''
-      const key = `${locality}-${route}`
-
-      if (!localityMap.has(key)) {
-        localityMap.set(key, { locality, route, clientCount: 0, totalPending: 0 })
-      }
-
-      const data = localityMap.get(key)!
-      data.clientCount += 1
-      data.totalPending += parseFloat(client.pendingAmountStored || '0')
-    })
-
-    const alerts: LocalityAlert[] = []
-
-    localityMap.forEach((data, key) => {
-      if (data.clientCount < MIN_CLIENTS_FOR_ALERT) return
-
-      const prevRouteCV = previousCVByRoute.get(data.route) || 0
-      const currRouteCV = currentCVByRoute.get(data.route) || 0
-      const cvChange = currRouteCV - prevRouteCV
-      const percentChange = prevRouteCV > 0
-        ? Math.round((cvChange / prevRouteCV) * 100)
-        : (cvChange > 0 ? 100 : 0)
-
-      const alert: LocalityAlert & { totalPending?: number } = {
-        locationId: key,
-        locationName: data.locality,
-        routeName: data.route,
-        metricType: 'CV',
-        previousValue: prevRouteCV,
-        currentValue: data.clientCount,
-        percentChange,
-        direction: cvChange >= 0 ? 'UP' : 'DOWN',
-        totalPending: data.totalPending,
-      }
-      alerts.push(alert)
-    })
-
-    return alerts
-      .sort((a, b) => b.currentValue - a.currentValue)
-      .slice(0, MAX_ALERTS_DISPLAYED)
-  }, [criticalClients, previousLocationBreakdown, locationBreakdown])
+  const localityAlerts = useMemo<LocalityAlert[]>(
+    () => buildLocalityAlerts(
+      criticalClients?.loans,
+      previousLocationBreakdown,
+      locationBreakdown,
+      MIN_CLIENTS_FOR_ALERT,
+      MAX_ALERTS_DISPLAYED
+    ),
+    [criticalClients, previousLocationBreakdown, locationBreakdown]
+  )
 
   // ---------------------------------------------------------------------------
   // COMPUTED VALUES - Top Locations
   // ---------------------------------------------------------------------------
 
-  const topLocationsFromLeads = useMemo<TopLocation[]>(() => {
-    if (!criticalClients?.loans || criticalClients.loans.length === 0) return []
-
-    const localityMap = new Map<string, TopLocation>()
-
-    criticalClients.loans.forEach((client) => {
-      const locality = client.lead.locality || 'Sin localidad'
-      const route = client.lead.route || ''
-      const key = `${locality}-${route}`
-
-      if (!localityMap.has(key)) {
-        localityMap.set(key, {
-          locationId: key,
-          locationName: locality,
-          routeName: route,
-          clientesActivos: 0,
-          clientesAlCorriente: 0,
-          clientesEnCV: 0,
-        })
-      }
-
-      const data = localityMap.get(key)!
-      data.clientesActivos += 1
-      data.clientesEnCV += 1
-    })
-
-    return Array.from(localityMap.values())
-      .sort((a, b) => b.clientesActivos - a.clientesActivos)
-      .slice(0, 6)
-  }, [criticalClients])
+  const topLocationsFromLeads = useMemo<TopLocation[]>(
+    () => buildTopLocationsFromLeads(criticalClients?.loans, 6),
+    [criticalClients]
+  )
 
   // ---------------------------------------------------------------------------
   // COMPUTED VALUES - Critical Clients Filter
@@ -462,6 +361,8 @@ export default function DashboardPage() {
       <DashboardKPIRow
         clientesActivos={selectedWeekData?.clientesActivos ?? portfolioStats?.totalClientesActivos ?? 0}
         clientesActivosVsPrev={weekComparisons.clientesActivosVsPrev}
+        clientesAlCorriente={selectedWeekData?.clientesAlCorriente ?? portfolioStats?.clientesAlCorriente ?? 0}
+        clientesAlCorrienteVsPrev={weekComparisons.clientesAlCorrienteVsPrev}
         clientesEnCV={selectedWeekData?.clientesEnCV ?? portfolioStats?.clientesEnCV ?? 0}
         clientesEnCVVsPrev={weekComparisons.clientesEnCVVsPrev}
         cvPercentage={selectedWeekData?.clientesActivos
