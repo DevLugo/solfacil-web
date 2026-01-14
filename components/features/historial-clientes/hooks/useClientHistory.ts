@@ -1,7 +1,7 @@
 'use client'
 
 import { useLazyQuery } from '@apollo/client'
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { GET_CLIENT_HISTORY_QUERY } from '@/graphql/queries/clients'
 import type { ClientHistoryData } from '../types'
 
@@ -14,12 +14,20 @@ interface UseClientHistoryReturn {
 }
 
 export function useClientHistory(): UseClientHistoryReturn {
+  const [clientData, setClientData] = useState<ClientHistoryData | null>(null)
   const [getClientHistory, { data, loading, error, client }] = useLazyQuery(
     GET_CLIENT_HISTORY_QUERY,
     {
       fetchPolicy: 'network-only',
     }
   )
+
+  // Sync Apollo data to local state
+  useEffect(() => {
+    if (data?.getClientHistory) {
+      setClientData(data.getClientHistory)
+    }
+  }, [data])
 
   const fetchClientHistory = useCallback(
     (clientId: string, routeId?: string, locationId?: string) => {
@@ -35,13 +43,15 @@ export function useClientHistory(): UseClientHistoryReturn {
   )
 
   const reset = useCallback(() => {
-    // Clear the cache for this query
+    // Clear local state immediately
+    setClientData(null)
+    // Also clear the cache
     client.cache.evict({ fieldName: 'getClientHistory' })
     client.cache.gc()
   }, [client])
 
   return {
-    data: data?.getClientHistory || null,
+    data: clientData,
     loading,
     error: error as Error | undefined,
     fetchClientHistory,
