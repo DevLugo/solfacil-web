@@ -290,6 +290,7 @@ export function CreateLoansModal({
   }
 
   // Helper para construir datos de borrower/aval (nuevo vs existente)
+  // Retorna estructuras diferentes para newBorrower (CreateBorrowerInput) y newCollateral (CreatePersonalDataInput)
   const buildPersonData = (client: UnifiedClientValue | null, locationId?: string) => {
     if (!client) {
       return {
@@ -298,24 +299,29 @@ export function CreateLoansModal({
         phoneId: undefined,
         name: undefined,
         phone: undefined,
-        newPerson: undefined,
+        newBorrowerData: undefined,
+        newCollateralData: undefined,
       }
     }
 
     if (client.action === 'create') {
+      // Datos base de la persona (para CreatePersonalDataInput)
+      const personalData = {
+        fullName: client.fullName,
+        phones: client.phone ? [{ number: client.phone }] : undefined,
+        addresses: locationId ? [{ street: '', locationId }] : undefined,
+      }
+
       return {
         id: undefined,
         personalDataId: undefined,
         phoneId: undefined,
         name: client.fullName,
         phone: client.phone,
-        newPerson: {
-          personalData: {
-            fullName: client.fullName,
-            phones: client.phone ? [{ number: client.phone }] : undefined,
-            addresses: locationId ? [{ street: '', locationId }] : undefined,
-          },
-        },
+        // Para newBorrower: CreateBorrowerInput (con wrapper personalData)
+        newBorrowerData: { personalData },
+        // Para newCollateral: CreatePersonalDataInput (directo, sin wrapper)
+        newCollateralData: personalData,
       }
     }
 
@@ -325,7 +331,8 @@ export function CreateLoansModal({
       phoneId: client.phoneId,
       name: client.fullName,
       phone: client.phone,
-      newPerson: undefined,
+      newBorrowerData: undefined,
+      newCollateralData: undefined,
     }
   }
 
@@ -476,13 +483,13 @@ export function CreateLoansModal({
       borrowerPhoneId: borrowerData.phoneId,
       borrowerName: borrowerData.name!,
       borrowerPhone: borrowerData.phone,
-      newBorrower: borrowerData.newPerson,
+      newBorrower: borrowerData.newBorrowerData,
       collateralIds: avalData.id ? [avalData.id] : [],
       collateralPersonalDataId: avalData.personalDataId,
       collateralPhoneId: avalData.phoneId,
       collateralName: avalData.name,
       collateralPhone: avalData.phone,
-      newCollateral: avalData.newPerson,
+      newCollateral: avalData.newCollateralData,
       firstPayment: includeFirstPayment && firstPaymentAmount
         ? { amount: firstPaymentAmount, comission: firstPaymentComission || '0', paymentMethod: 'CASH' }
         : undefined,
