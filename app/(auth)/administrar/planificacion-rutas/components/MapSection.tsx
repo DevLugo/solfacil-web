@@ -41,12 +41,13 @@ interface MapSectionProps {
   onDropLocation?: (locationId: string, lat: number, lng: number) => void
   droppingLocationId?: string | null
   droppingLocationName?: string | null
-  // Click-to-place workflow
   placingLocationId?: string | null
   placingLocationName?: string | null
   onMapClickToPlace?: (lat: number, lng: number) => void
   searchQuery?: string
   onSearchQueryChange?: (query: string) => void
+  hoveredRouteId?: string | null
+  onRouteHover?: (routeId: string | null) => void
 }
 
 export function MapSection({
@@ -65,6 +66,8 @@ export function MapSection({
   onMapClickToPlace,
   searchQuery,
   onSearchQueryChange,
+  hoveredRouteId,
+  onRouteHover,
 }: MapSectionProps) {
   const hasCoordinates = (location: MapSectionProps['locations'][0]) =>
     location.latitude !== null && location.longitude !== null
@@ -126,7 +129,7 @@ export function MapSection({
             onLocationClick={onLocationClick}
             onSelectMultiple={onSelectMultiple}
             onClearSelection={onClearSelection}
-            showConnections={true}
+            showConnections={false}
             className="h-full w-full"
             onDropLocation={onDropLocation}
             droppingLocationId={droppingLocationId}
@@ -136,6 +139,8 @@ export function MapSection({
             onMapClickToPlace={onMapClickToPlace}
             initialSearchQuery={searchQuery}
             onSearchQueryChange={onSearchQueryChange}
+            hoveredRouteId={hoveredRouteId}
+            onRouteHover={onRouteHover}
           />
 
           {/* Overlay for locations without coords */}

@@ -62,6 +62,10 @@ const Polyline = dynamic(
   () => import('react-leaflet').then((m) => m.Polyline),
   { ssr: false }
 )
+const Tooltip = dynamic(
+  () => import('react-leaflet').then((m) => m.Tooltip),
+  { ssr: false }
+)
 
 // Component to access map instance
 function MapController({
@@ -207,19 +211,23 @@ function createSelectedIcon(count: number, hasCV: boolean): L.DivIcon {
 }
 
 /** Create icon for default state (minimal dot) */
-function createDefaultIcon(routeColor: string, hasCV: boolean): L.DivIcon {
+function createDefaultIcon(routeColor: string, hasCV: boolean, isDimmed: boolean = false): L.DivIcon {
   const size = ICON_SIZE.DEFAULT
-  const bgColor = hasCV ? CV_WARNING_COLOR : routeColor
+  const bgColor = routeColor
   const shadowColor = hasCV ? 'rgba(245, 158, 11, 0.4)' : 'rgba(0,0,0,0.2)'
+  const opacity = isDimmed ? 0.3 : 1
+  const borderStyle = hasCV ? `border: 2px solid ${CV_WARNING_COLOR};` : 'border: 2px solid white;'
+
   const html = `
     <div style="
       width: ${size}px;
       height: ${size}px;
       background: ${bgColor};
       border-radius: 50%;
-      border: 2px solid white;
+      ${borderStyle}
       box-shadow: 0 2px 6px ${shadowColor};
-      transition: transform 0.2s ease;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      opacity: ${opacity};
     "></div>
   `
   return L.divIcon({
@@ -236,11 +244,12 @@ function createMarkerIcon(
   hasCV: boolean,
   count: number,
   isPlacing: boolean,
-  routeColor: string
+  routeColor: string,
+  isDimmed: boolean = false
 ): L.DivIcon {
   if (isPlacing) return createPlacingIcon(count)
   if (isSelected) return createSelectedIcon(count, hasCV)
-  return createDefaultIcon(routeColor, hasCV)
+  return createDefaultIcon(routeColor, hasCV, isDimmed)
 }
 
 interface RouteMapProps {
@@ -260,6 +269,9 @@ interface RouteMapProps {
   onMapClickToPlace?: (lat: number, lng: number) => void
   onSearchQueryChange?: (query: string) => void
   initialSearchQuery?: string
+  // Route hover highlight
+  hoveredRouteId?: string | null
+  onRouteHover?: (routeId: string | null) => void
 }
 
 interface SearchResult {
@@ -284,6 +296,8 @@ export function RouteMap({
   onMapClickToPlace,
   onSearchQueryChange,
   initialSearchQuery,
+  hoveredRouteId,
+  onRouteHover,
 }: RouteMapProps) {
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null)
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '')
@@ -299,10 +313,10 @@ export function RouteMap({
 
   // Build route color map from unique routes in locations
   const routeColorMap = useMemo(() => {
-    const uniqueRouteIds = [...new Set(locations.map((l) => l.routeId))]
+    const uniqueRouteNames = [...new Set(locations.map((l) => l.routeName))]
     const map = new Map<string, string>()
-    uniqueRouteIds.forEach((routeId, index) => {
-      map.set(routeId, ROUTE_COLORS[index % ROUTE_COLORS.length].bg)
+    uniqueRouteNames.forEach((routeName, index) => {
+      map.set(routeName, ROUTE_COLORS[index % ROUTE_COLORS.length].bg)
     })
     return map
   }, [locations])
@@ -311,11 +325,11 @@ export function RouteMap({
   const routeLegend = useMemo(() => {
     const uniqueRoutes = new Map<string, { id: string; name: string; color: string }>()
     locations.forEach((loc) => {
-      if (!uniqueRoutes.has(loc.routeId)) {
-        uniqueRoutes.set(loc.routeId, {
+      if (!uniqueRoutes.has(loc.routeName)) {
+        uniqueRoutes.set(loc.routeName, {
           id: loc.routeId,
           name: loc.routeName,
-          color: routeColorMap.get(loc.routeId) || ROUTE_COLORS[0].bg,
+          color: routeColorMap.get(loc.routeName) || ROUTE_COLORS[0].bg,
         })
       }
     })
@@ -612,23 +626,6 @@ export function RouteMap({
         </Button>
       </div>
 
-      {/* Route Legend */}
-      {routeLegend.length > 1 && (
-        <div className="flex-shrink-0 flex flex-wrap gap-2 mb-3">
-          {routeLegend.map((route) => (
-            <div
-              key={route.id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-muted/50 rounded text-xs"
-            >
-              <div
-                className="w-3 h-3 rounded-full border border-white shadow-sm"
-                style={{ backgroundColor: route.color }}
-              />
-              <span className="text-muted-foreground">{route.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Map Container with Drop Zone and Box Selection */}
       <div
@@ -673,6 +670,44 @@ export function RouteMap({
           </div>
         )}
 
+        {/* Route Legend Overlay */}
+        {routeLegend.length > 1 && (
+          <div className="absolute top-3 right-3 z-[1000] bg-card/95 backdrop-blur-sm rounded-lg shadow-lg border p-2 space-y-1">
+            {routeLegend.map((route) => {
+              const isHovered = hoveredRouteId === route.id
+              const locationCount = locations.filter(l => l.routeName === route.name).length
+              return (
+                <div
+                  key={route.id}
+                  onMouseEnter={() => onRouteHover?.(route.id)}
+                  onMouseLeave={() => onRouteHover?.(null)}
+                  className={cn(
+                    'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-all',
+                    isHovered ? 'bg-muted' : 'hover:bg-muted/50'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'w-3 h-3 rounded-full border-2 border-white shadow-sm transition-transform',
+                      isHovered && 'scale-125'
+                    )}
+                    style={{ backgroundColor: route.color }}
+                  />
+                  <span className={cn(
+                    'text-xs transition-colors',
+                    isHovered ? 'text-foreground font-medium' : 'text-muted-foreground'
+                  )}>
+                    {route.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground/70 font-mono">
+                    ({locationCount})
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         <MapContainer
           center={center}
           zoom={ZOOM.DEFAULT}
@@ -685,50 +720,59 @@ export function RouteMap({
           />
 
           {locations.filter(hasValidCoordinates).map((location) => {
-              const isPlacing = placingLocationId === location.id
-              const isSelected = selectedIds.has(location.id)
-              const routeColor = routeColorMap.get(location.routeId) || ROUTE_COLORS[0].bg
-              return (
-                <Marker
-                  key={location.id}
-                  position={[location.latitude, location.longitude]}
-                  icon={createMarkerIcon(
-                    isSelected,
-                    location.clientesEnCV > 0,
-                    location.clientesActivos,
-                    isPlacing,
-                    routeColor
-                  )}
-                  draggable={true}
-                  eventHandlers={{
-                    click: () => onLocationClick(location.id),
-                    dragend: (e) => {
-                      const marker = e.target
-                      const position = marker.getLatLng()
-                      if (onDropLocation) {
-                        onDropLocation(location.id, position.lat, position.lng)
-                      }
-                    },
-                  }}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-semibold">{location.name}</p>
-                      <p className="text-xs text-muted-foreground mb-1">{location.routeName}</p>
-                      <p>Activos: {location.clientesActivos}</p>
-                      {location.clientesEnCV > 0 && (
-                        <p className="text-orange-600">
-                          CV: {location.clientesEnCV}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Arrastra para reposicionar
+            const isPlacing = placingLocationId === location.id
+            const isSelected = selectedIds.has(location.id)
+            const routeColor = routeColorMap.get(location.routeName) || ROUTE_COLORS[0].bg
+            // Dim markers from other routes when hovering a specific route
+            const isDimmed = hoveredRouteId !== null && location.routeId !== hoveredRouteId
+            return (
+              <Marker
+                key={location.id}
+                position={[location.latitude, location.longitude]}
+                icon={createMarkerIcon(
+                  isSelected,
+                  location.clientesEnCV > 0,
+                  location.clientesActivos,
+                  isPlacing,
+                  routeColor,
+                  isDimmed
+                )}
+                draggable={true}
+                eventHandlers={{
+                  click: () => onLocationClick(location.id),
+                  dragend: (e) => {
+                    const marker = e.target
+                    const position = marker.getLatLng()
+                    if (onDropLocation) {
+                      onDropLocation(location.id, position.lat, position.lng)
+                    }
+                  },
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -10]} opacity={1}>
+                  <div className="text-xs font-medium">
+                    <p>{location.name}</p>
+                    <p className="text-muted-foreground">{location.routeName}</p>
+                  </div>
+                </Tooltip>
+                <Popup>
+                  <div className="text-sm">
+                    <p className="font-semibold">{location.name}</p>
+                    <p className="text-xs text-muted-foreground mb-1">{location.routeName}</p>
+                    <p>Activos: {location.clientesActivos}</p>
+                    {location.clientesEnCV > 0 && (
+                      <p className="text-orange-600">
+                        CV: {location.clientesEnCV}
                       </p>
-                    </div>
-                  </Popup>
-                </Marker>
-              )
-            })}
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Arrastra para reposicionar
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            )
+          })}
 
           {showConnections && polylinePositions.length > 1 && (
             <Polyline

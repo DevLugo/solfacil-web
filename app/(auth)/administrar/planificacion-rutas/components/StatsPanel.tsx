@@ -1,13 +1,6 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import {
   MapPin,
@@ -15,20 +8,16 @@ import {
   UserCheck,
   AlertTriangle,
   Navigation,
-  Calendar,
   TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { DayPlan, AggregatedStats } from '../hooks/useRoutePlanning'
-
-const DAY_NAMES = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado']
+import type { AggregatedStats, LocationForPlanning } from '../hooks/useRoutePlanning'
 
 interface StatsPanelProps {
   selectedCount: number
   stats: AggregatedStats | null
   loading: boolean
-  dayPlans: DayPlan[]
-  onAssignToDay: (locationId: string, dayOfWeek: number) => void
+  locations: LocationForPlanning[]
   selectedIds: Set<string>
 }
 
@@ -36,16 +25,13 @@ export function StatsPanel({
   selectedCount,
   stats,
   loading,
-  dayPlans,
-  onAssignToDay,
+  locations,
   selectedIds,
 }: StatsPanelProps) {
-  const handleAssignSelected = (day: string) => {
-    const dayIndex = parseInt(day, 10)
-    selectedIds.forEach((id) => onAssignToDay(id, dayIndex))
-  }
-
   const hasSelection = selectedCount > 0
+
+  // Get selected location details for the list
+  const selectedLocations = locations.filter((l) => selectedIds.has(l.locationId))
 
   return (
     <Card>
@@ -103,30 +89,30 @@ export function StatsPanel({
               />
             </div>
 
-            {/* Assign to Day */}
-            <div className="pt-2 border-t">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Asignar seleccion a dia
-              </label>
-              <div className="flex gap-2 mt-2">
-                <Select onValueChange={handleAssignSelected}>
-                  <SelectTrigger className="flex-1">
-                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder="Elegir dia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DAY_NAMES.map((name, index) => {
-                      const dayPlan = dayPlans.find((d) => d.dayOfWeek === index)
-                      return (
-                        <SelectItem key={index} value={index.toString()}>
-                          {name} ({dayPlan?.locationIds.length ?? 0} loc)
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
+            {/* Selected Locations List */}
+            {selectedLocations.length > 0 && (
+              <div className="pt-2 border-t">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                  Localidades
+                </p>
+                <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                  {selectedLocations.map((loc) => (
+                    <div
+                      key={loc.locationId}
+                      className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm"
+                    >
+                      <span className="font-medium truncate">{loc.locationName}</span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                        <span>{loc.clientesActivos} act</span>
+                        {loc.clientesEnCV > 0 && (
+                          <span className="text-warning">{loc.clientesEnCV} CV</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : (
           <div className="py-8 text-center">

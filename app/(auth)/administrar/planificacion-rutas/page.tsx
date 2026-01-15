@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2, Map, Route, Info, X, Filter } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Loader2, Map, Info, X, Filter } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +21,6 @@ import { GET_ROUTES } from '@/graphql/queries/reports'
 import { useRoutePlanning } from './hooks/useRoutePlanning'
 import { MapSection } from './components/MapSection'
 import { StatsPanel } from './components/StatsPanel'
-import { DayPlanningPanel } from './components/DayPlanningPanel'
 import { LocationCoordinatesPanel } from './components/LocationCoordinatesPanel'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -59,11 +58,12 @@ export default function PlanificacionRutasPage() {
     routes: RouteOption[]
   }>(GET_ROUTES)
 
+  // State for route hover highlight
+  const [hoveredRouteId, setHoveredRouteId] = useState<string | null>(null)
+
   const {
     locations,
-    availableRoutes,
     selectedIds,
-    dayPlans,
     aggregatedStats,
     loading,
     editingLocationId,
@@ -72,9 +72,6 @@ export default function PlanificacionRutasPage() {
     selectAll,
     clearSelection,
     addToSelection,
-    assignToDay,
-    removeFromDay,
-    calculateDistance,
     updateCoordinates,
     startEditingCoordinates,
     cancelEditingCoordinates,
@@ -88,6 +85,22 @@ export default function PlanificacionRutasPage() {
         : [...prev, routeId]
     )
   }
+
+  // ESC key to clear selection and placing mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (placingLocation) {
+          setPlacingLocation(null)
+          setSearchQuery('')
+        } else if (selectedIds.size > 0) {
+          clearSelection()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [placingLocation, selectedIds.size, clearSelection])
 
   if (routesLoading || loading) {
     return <LoadingState />
@@ -103,10 +116,10 @@ export default function PlanificacionRutasPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Planificacion de Rutas
+              Mapa de Localidades
             </h1>
             <p className="text-sm text-muted-foreground">
-              Organiza las visitas de cobranza por dia de la semana
+              Visualiza y gestiona las coordenadas de las localidades
             </p>
           </div>
         </div>
@@ -190,8 +203,7 @@ export default function PlanificacionRutasPage() {
               </TooltipTrigger>
               <TooltipContent side="left" className="max-w-xs">
                 <p>
-                  Selecciona localidades en el mapa y asignalas a dias de la
-                  semana para planificar tu ruta de cobranza.
+                  Click en localidades para ver info. Shift+drag para selección múltiple. ESC para limpiar selección.
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -201,78 +213,68 @@ export default function PlanificacionRutasPage() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Map Section - 2 columns on desktop */}
-          <div className="lg:col-span-2 space-y-4">
-            <MapSection
-              locations={locations}
-              selectedIds={selectedIds}
-              onLocationClick={toggleLocation}
-              onSelectMultiple={addToSelection}
-              onSelectAll={selectAll}
-              onClearSelection={clearSelection}
-              loading={loading}
-              onDropLocation={async (locationId, lat, lng) => {
-                await updateCoordinates(locationId, lat, lng)
-                setDraggingLocation(null)
-              }}
-              droppingLocationId={draggingLocation?.id}
-              droppingLocationName={draggingLocation?.name}
-              placingLocationId={placingLocation?.id}
-              placingLocationName={placingLocation?.name}
-              onMapClickToPlace={async (lat, lng) => {
-                if (placingLocation) {
-                  await updateCoordinates(placingLocation.id, lat, lng)
-                  setPlacingLocation(null)
-                  setSearchQuery('')
-                }
-              }}
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-            />
-          </div>
-
-          {/* Stats Panel - 1 column */}
-          <div className="space-y-4">
-            <StatsPanel
-              selectedCount={selectedIds.size}
-              stats={aggregatedStats}
-              loading={loading}
-              dayPlans={dayPlans}
-              onAssignToDay={assignToDay}
-              selectedIds={selectedIds}
-            />
-
-            {/* Location Coordinates Panel */}
-            <LocationCoordinatesPanel
-              locations={locations}
-              editingLocationId={editingLocationId}
-              updatingCoordinates={updatingCoordinates}
-              onStartEditing={startEditingCoordinates}
-              onCancelEditing={cancelEditingCoordinates}
-              onSaveCoordinates={updateCoordinates}
-              placingLocationId={placingLocation?.id}
-              onSelectForPlacing={(id, name) => {
-                setPlacingLocation({ id, name })
-                setSearchQuery(name) // Auto-fill search with location name
-              }}
-              onCancelPlacing={() => {
+        {/* Map Section - 2 columns on desktop */}
+        <div className="lg:col-span-2 space-y-4">
+          <MapSection
+            locations={locations}
+            selectedIds={selectedIds}
+            onLocationClick={toggleLocation}
+            onSelectMultiple={addToSelection}
+            onSelectAll={selectAll}
+            onClearSelection={clearSelection}
+            loading={loading}
+            onDropLocation={async (locationId, lat, lng) => {
+              await updateCoordinates(locationId, lat, lng)
+              setDraggingLocation(null)
+            }}
+            droppingLocationId={draggingLocation?.id}
+            droppingLocationName={draggingLocation?.name}
+            placingLocationId={placingLocation?.id}
+            placingLocationName={placingLocation?.name}
+            onMapClickToPlace={async (lat, lng) => {
+              if (placingLocation) {
+                await updateCoordinates(placingLocation.id, lat, lng)
                 setPlacingLocation(null)
                 setSearchQuery('')
-              }}
-            />
-          </div>
-
-          {/* Day Planning - Full width */}
-          <div className="lg:col-span-3">
-            <DayPlanningPanel
-              locations={locations}
-              dayPlans={dayPlans}
-              onAssignToDay={assignToDay}
-              onRemoveFromDay={removeFromDay}
-              calculateDistance={calculateDistance}
-            />
-          </div>
+              }
+            }}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            hoveredRouteId={hoveredRouteId}
+            onRouteHover={setHoveredRouteId}
+          />
         </div>
+
+        {/* Stats Panel - 1 column */}
+        <div className="space-y-4">
+          <StatsPanel
+            selectedCount={selectedIds.size}
+            stats={aggregatedStats}
+            loading={loading}
+            locations={locations}
+            selectedIds={selectedIds}
+          />
+
+          {/* Location Coordinates Panel */}
+          <LocationCoordinatesPanel
+            locations={locations}
+            editingLocationId={editingLocationId}
+            updatingCoordinates={updatingCoordinates}
+            onStartEditing={startEditingCoordinates}
+            onCancelEditing={cancelEditingCoordinates}
+            onSaveCoordinates={updateCoordinates}
+            placingLocationId={placingLocation?.id}
+            onSelectForPlacing={(id, name) => {
+              setPlacingLocation({ id, name })
+              setSearchQuery(name)
+            }}
+            onCancelPlacing={() => {
+              setPlacingLocation(null)
+              setSearchQuery('')
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }
