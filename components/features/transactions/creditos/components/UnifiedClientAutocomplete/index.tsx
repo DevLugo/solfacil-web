@@ -27,7 +27,7 @@ import { EditClientForm } from './EditClientForm'
 import { SelectedClientDisplay } from './SelectedClientDisplay'
 import { ClientSearchItem } from './ClientSearchItem'
 import type { UnifiedClientAutocompleteProps } from './types'
-import type { BorrowerSearchResult, PersonalData, UnifiedClientValue, ActiveLoanData, PreviousLoan } from '../../types'
+import type { BorrowerSearchResult, PersonalData, UnifiedClientValue, ActiveLoanData, PreviousLoan, ActiveLoanFromSearch } from '../../types'
 
 // Re-export types for convenience
 export type { ClientState, ClientAction, UnifiedClientValue } from '../../types'
@@ -161,6 +161,43 @@ export function UnifiedClientAutocomplete({
     return () => clearTimeout(timer)
   }, [searchTerm, searchBorrowers, searchPersonalData, locationId, excludeBorrowerId, mode])
 
+  // Helper to convert ActiveLoanFromSearch or PreviousLoan to ActiveLoanData
+  const convertSearchLoanToActiveLoanData = (
+    searchLoan: ActiveLoanFromSearch | undefined,
+    fallbackLoan: PreviousLoan | undefined
+  ): ActiveLoanData | undefined => {
+    const loan = searchLoan || fallbackLoan
+    if (!loan) return undefined
+
+    // Si es searchLoan, ya tiene leadLocationName
+    if (searchLoan) {
+      return {
+        id: loan.id,
+        requestedAmount: loan.requestedAmount,
+        amountGived: loan.amountGived,
+        pendingAmountStored: loan.pendingAmountStored,
+        expectedWeeklyPayment: loan.expectedWeeklyPayment,
+        totalPaid: loan.totalPaid,
+        loantype: loan.loantype,
+        collaterals: loan.collaterals,
+        leadLocationName: searchLoan.leadLocationName,
+      }
+    }
+
+    // Si es fallbackLoan, extraer leadLocationName del objeto lead
+    return {
+      id: loan.id,
+      requestedAmount: loan.requestedAmount,
+      amountGived: loan.amountGived,
+      pendingAmountStored: loan.pendingAmountStored,
+      expectedWeeklyPayment: loan.expectedWeeklyPayment,
+      totalPaid: loan.totalPaid,
+      loantype: loan.loantype,
+      collaterals: loan.collaterals,
+      leadLocationName: fallbackLoan?.lead?.personalData?.addresses?.[0]?.location?.name,
+    }
+  }
+
   // Transform results to unified format
   const results = useMemo(() => {
     if (mode === 'borrower') {
@@ -170,23 +207,9 @@ export function UnifiedClientAutocomplete({
         ? borrowers.filter((b) => !excludeBorrowerIds.has(b.id))
         : borrowers
       return filteredBorrowers.map((b): UnifiedClientValue => {
-        const activeLoan = activeLoansByBorrowerId.get(b.id)
-        let activeLoanData: ActiveLoanData | undefined
-
-        if (activeLoan) {
-          const leadLocation = activeLoan.lead?.personalData?.addresses?.[0]?.location
-          activeLoanData = {
-            id: activeLoan.id,
-            requestedAmount: activeLoan.requestedAmount,
-            amountGived: activeLoan.amountGived,
-            pendingAmountStored: activeLoan.pendingAmountStored,
-            expectedWeeklyPayment: activeLoan.expectedWeeklyPayment,
-            totalPaid: activeLoan.totalPaid,
-            loantype: activeLoan.loantype,
-            collaterals: activeLoan.collaterals,
-            leadLocationName: leadLocation?.name,
-          }
-        }
+        // Usar activeLoan del servidor (viene de searchBorrowers) o del mapa local como fallback
+        const localActiveLoan = activeLoansByBorrowerId.get(b.id)
+        const activeLoanData = convertSearchLoanToActiveLoanData(b.activeLoan, localActiveLoan)
 
         const borrowerLocationName = b.locationName || b.personalData?.addresses?.[0]?.location?.name
         const borrowerLocationId = b.locationId || b.personalData?.addresses?.[0]?.location?.id
@@ -201,9 +224,9 @@ export function UnifiedClientAutocomplete({
           locationName: borrowerLocationName,
           isFromCurrentLocation: b.isFromCurrentLocation,
           loanFinishedCount: b.loanFinishedCount,
-          hasActiveLoans: b.hasActiveLoans || !!activeLoan,
-          pendingDebtAmount: activeLoan
-            ? parseFloat(activeLoan.pendingAmountStored || '0')
+          hasActiveLoans: b.hasActiveLoans || !!activeLoanData,
+          pendingDebtAmount: activeLoanData
+            ? parseFloat(activeLoanData.pendingAmountStored || '0')
             : b.pendingDebtAmount ? parseFloat(b.pendingDebtAmount) : undefined,
           activeLoan: activeLoanData,
           lastFinishedLoan: b.lastFinishedLoan,

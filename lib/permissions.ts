@@ -27,6 +27,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRoleType[]> = {
   '/reportes/limpieza-cartera': ROLE_GROUPS.ADMIN_ONLY,
   '/reportes/cumpleanos-lideres': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/rutas': ROLE_GROUPS.ADMIN_ONLY,
+  '/administrar/planificacion-rutas': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/lideres/nuevo': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
   '/administrar/gastos': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/cartera-muerta': ROLE_GROUPS.ADMIN_ONLY,

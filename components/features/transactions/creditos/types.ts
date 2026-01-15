@@ -97,6 +97,22 @@ export interface Borrower {
   personalData: PersonalData
 }
 
+// Active loan data returned from search (for renewals)
+export interface ActiveLoanFromSearch {
+  id: string
+  requestedAmount: string
+  amountGived: string
+  pendingAmountStored: string
+  profitAmount: string
+  totalDebtAcquired: string
+  expectedWeeklyPayment: string
+  totalPaid: string
+  signDate: string
+  leadLocationName?: string
+  loantype: LoanType
+  collaterals: PersonalData[]
+}
+
 export interface BorrowerSearchResult {
   id: string
   personalData: PersonalData
@@ -107,6 +123,7 @@ export interface BorrowerSearchResult {
   locationName?: string
   isFromCurrentLocation: boolean
   lastFinishedLoan?: LastFinishedLoanData
+  activeLoan?: ActiveLoanFromSearch // Préstamo activo más reciente (para renovaciones)
 }
 
 export interface LoanPayment {

@@ -86,31 +86,23 @@ export function CreateLoansModal({
   )
 
   // Calculate the pending amount from active loan (deuda pendiente)
-  // Use activeLoan.pendingAmountStored if available, otherwise fall back to pendingDebtAmount
-  // (pendingDebtAmount comes from search when loan is in different locality)
   const renewalPendingAmount = useMemo(() => {
     if (selectedActiveLoan) {
       return parseFloat(selectedActiveLoan.pendingAmountStored) || 0
     }
     // Fallback: use pendingDebtAmount from borrower search (loan in different locality)
-    if (selectedBorrower?.hasActiveLoans && selectedBorrower?.pendingDebtAmount) {
-      return selectedBorrower.pendingDebtAmount
-    }
-    return 0
+    return selectedBorrower?.hasActiveLoans && selectedBorrower?.pendingDebtAmount
+      ? selectedBorrower.pendingDebtAmount
+      : 0
   }, [selectedActiveLoan, selectedBorrower?.hasActiveLoans, selectedBorrower?.pendingDebtAmount])
 
-  // Check if this is a renewal (client has active loan)
-  // Either has full activeLoan data OR has pending debt from search
-  const isRenewal = !!selectedActiveLoan ||
-    (!!selectedBorrower?.hasActiveLoans && (selectedBorrower?.pendingDebtAmount ?? 0) > 0)
+  // Check if this is a renewal (has active loan with pending debt)
+  const isRenewal = renewalPendingAmount > 0
 
   // Calculate "Monto Otorgado" (amount actually given to client)
   const calculatedAmountGived = useMemo(() => {
     const requested = parseFloat(requestedAmount) || 0
-    if (isRenewal && renewalPendingAmount > 0) {
-      return Math.max(0, requested - renewalPendingAmount)
-    }
-    return requested
+    return isRenewal ? Math.max(0, requested - renewalPendingAmount) : requested
   }, [requestedAmount, isRenewal, renewalPendingAmount])
 
   // Calculate weekly payment based on the total debt
@@ -122,11 +114,9 @@ export function CreateLoansModal({
     return totalDebt / selectedLoanType.weekDuration
   }, [selectedLoanType, requestedAmount])
 
-  // Check if borrower is from different location
-  const isBorrowerFromDifferentLocation = selectedBorrower && selectedBorrower.isFromCurrentLocation === false
-
-  // Check if aval is from different location
-  const isAvalFromDifferentLocation = selectedAval && selectedAval.isFromCurrentLocation === false
+  // Check if clients are from different location
+  const isBorrowerFromDifferentLocation = selectedBorrower?.isFromCurrentLocation === false
+  const isAvalFromDifferentLocation = selectedAval?.isFromCurrentLocation === false
 
   // Auto-calculate comission when loan type changes
   useEffect(() => {
@@ -299,6 +289,46 @@ export function CreateLoansModal({
       Boolean(currentBorrower?.id && newBorrower?.id && currentBorrower.id === newBorrower.id)
   }
 
+  // Helper para construir datos de borrower/aval (nuevo vs existente)
+  const buildPersonData = (client: UnifiedClientValue | null, locationId?: string) => {
+    if (!client) {
+      return {
+        id: undefined,
+        personalDataId: undefined,
+        phoneId: undefined,
+        name: undefined,
+        phone: undefined,
+        newPerson: undefined,
+      }
+    }
+
+    if (client.action === 'create') {
+      return {
+        id: undefined,
+        personalDataId: undefined,
+        phoneId: undefined,
+        name: client.fullName,
+        phone: client.phone,
+        newPerson: {
+          personalData: {
+            fullName: client.fullName,
+            phones: client.phone ? [{ number: client.phone }] : undefined,
+            addresses: locationId ? [{ street: '', locationId }] : undefined,
+          },
+        },
+      }
+    }
+
+    return {
+      id: client.id,
+      personalDataId: client.personalDataId,
+      phoneId: client.phoneId,
+      name: client.fullName,
+      phone: client.phone,
+      newPerson: undefined,
+    }
+  }
+
   // Auto-completa datos del préstamo activo cuando se selecciona un cliente para renovación
   const autoFillFromActiveLoan = (activeLoan: any) => {
     if (activeLoan.loantype?.id) {
@@ -370,19 +400,19 @@ export function CreateLoansModal({
 
   // Valida que no haya datos faltantes para agregar/editar préstamo
   const validateLoanData = (borrower: UnifiedClientValue | null): boolean => {
-    if (!selectedLoanTypeId || !requestedAmount) {
+    if (!borrower) {
       toast({
         title: 'Error',
-        description: 'Selecciona un tipo de préstamo y monto',
+        description: 'Selecciona un cliente',
         variant: 'destructive',
       })
       return false
     }
 
-    if (!borrower) {
+    if (!selectedLoanTypeId || !requestedAmount) {
       toast({
         title: 'Error',
-        description: 'Selecciona un cliente',
+        description: 'Selecciona un tipo de préstamo y monto',
         variant: 'destructive',
       })
       return false
@@ -398,29 +428,18 @@ export function CreateLoansModal({
   ): boolean => {
     if (!borrower.id) return true
 
-    // Nuevo préstamo: no debe existir el cliente en la lista
-    if (!editingId && pendingBorrowerIds.has(borrower.id)) {
+    // Verificar si el cliente ya existe (excepto el préstamo que se está editando)
+    const hasDuplicate = editingId
+      ? pendingLoans.some((loan) => loan.borrowerId === borrower.id && loan.tempId !== editingId)
+      : pendingBorrowerIds.has(borrower.id)
+
+    if (hasDuplicate) {
       toast({
         title: 'Cliente duplicado',
         description: `${borrower.fullName} ya tiene un crédito pendiente en la lista`,
         variant: 'destructive',
       })
       return false
-    }
-
-    // Edición: el cliente no debe aparecer en otros préstamos (excepto el que se está editando)
-    if (editingId) {
-      const hasDuplicate = pendingLoans.some(
-        (loan) => loan.borrowerId === borrower.id && loan.tempId !== editingId
-      )
-      if (hasDuplicate) {
-        toast({
-          title: 'Cliente duplicado',
-          description: `${borrower.fullName} ya tiene un crédito pendiente en la lista`,
-          variant: 'destructive',
-        })
-        return false
-      }
     }
 
     return true
@@ -432,62 +451,9 @@ export function CreateLoansModal({
     if (!selectedBorrower) return // Type guard for TypeScript
     if (!validateNoDuplicateBorrower(selectedBorrower, editingLoanId)) return
 
-    // Construir datos del borrower según si es nuevo o existente
-    const borrowerData = selectedBorrower.action === 'create'
-      ? {
-          borrowerId: undefined,
-          borrowerPersonalDataId: undefined,
-          borrowerPhoneId: undefined,
-          borrowerName: selectedBorrower.fullName,
-          borrowerPhone: selectedBorrower.phone,
-          newBorrower: {
-            personalData: {
-              fullName: selectedBorrower.fullName,
-              phones: selectedBorrower.phone ? [{ number: selectedBorrower.phone }] : undefined,
-              addresses: locationId ? [{ street: '', locationId }] : undefined,
-            },
-          },
-        }
-      : {
-          borrowerId: selectedBorrower.id,
-          borrowerPersonalDataId: selectedBorrower.personalDataId,
-          borrowerPhoneId: selectedBorrower.phoneId,
-          borrowerName: selectedBorrower.fullName,
-          borrowerPhone: selectedBorrower.phone,
-          newBorrower: undefined,
-        }
-
-    // Construir datos del aval según si es nuevo, existente o no hay aval
-    const avalData = !selectedAval
-      ? {
-          collateralIds: [],
-          collateralPersonalDataId: undefined,
-          collateralPhoneId: undefined,
-          collateralName: undefined,
-          collateralPhone: undefined,
-          newCollateral: undefined,
-        }
-      : selectedAval.action === 'create'
-      ? {
-          collateralIds: [],
-          collateralPersonalDataId: undefined,
-          collateralPhoneId: undefined,
-          collateralName: selectedAval.fullName,
-          collateralPhone: selectedAval.phone,
-          newCollateral: {
-            fullName: selectedAval.fullName,
-            phones: selectedAval.phone ? [{ number: selectedAval.phone }] : undefined,
-            addresses: locationId ? [{ street: '', locationId }] : undefined,
-          },
-        }
-      : {
-          collateralIds: [selectedAval.id!],
-          collateralPersonalDataId: selectedAval.personalDataId,
-          collateralPhoneId: selectedAval.phoneId,
-          collateralName: selectedAval.fullName,
-          collateralPhone: selectedAval.phone,
-          newCollateral: undefined,
-        }
+    // Construir datos del borrower y aval
+    const borrowerData = buildPersonData(selectedBorrower, locationId)
+    const avalData = buildPersonData(selectedAval, locationId)
 
     // When editing, preserve the previousLoanId from the existing pending loan
     // if we don't have a new activeLoan selected (fixes renewal data loss on edit)
@@ -505,8 +471,18 @@ export function CreateLoansModal({
       weekDuration: selectedLoanType?.weekDuration || 0,
       comissionAmount: comissionAmount || '0',
       previousLoanId,
-      ...borrowerData,
-      ...avalData,
+      borrowerId: borrowerData.id,
+      borrowerPersonalDataId: borrowerData.personalDataId,
+      borrowerPhoneId: borrowerData.phoneId,
+      borrowerName: borrowerData.name!,
+      borrowerPhone: borrowerData.phone,
+      newBorrower: borrowerData.newPerson,
+      collateralIds: avalData.id ? [avalData.id] : [],
+      collateralPersonalDataId: avalData.personalDataId,
+      collateralPhoneId: avalData.phoneId,
+      collateralName: avalData.name,
+      collateralPhone: avalData.phone,
+      newCollateral: avalData.newPerson,
       firstPayment: includeFirstPayment && firstPaymentAmount
         ? { amount: firstPaymentAmount, comission: firstPaymentComission || '0', paymentMethod: 'CASH' }
         : undefined,
@@ -572,6 +548,18 @@ export function CreateLoansModal({
       toast({
         title: 'Error',
         description: 'No hay cuenta de efectivo disponible para esta ruta',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validar que las renovaciones tengan previousLoanId
+    const invalidRenewals = pendingLoans.filter((loan) => loan.isRenewal && !loan.previousLoanId)
+
+    if (invalidRenewals.length > 0) {
+      toast({
+        title: 'Error de renovación',
+        description: `Los siguientes clientes tienen un error de renovación: ${invalidRenewals.map((l) => l.borrowerName).join(', ')}. Por favor, elimínalos y selecciónalos nuevamente desde la lista de "Clientes con préstamo activo".`,
         variant: 'destructive',
       })
       return

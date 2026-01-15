@@ -1758,8 +1758,8 @@ export type Query = {
   portfolioCleanups: Array<PortfolioCleanup>;
   portfolioReportMonthly: PortfolioReport;
   portfolioReportWeekly: PortfolioReport;
-  /** KPIs simplificados por ruta - retorna solo clientesTotal, pagandoPromedio, cvPromedio por cada ruta */
-  portfolioRouteKPIs: Array<RouteKpi>;
+  /** KPIs simplificados por ruta - retorna rutas con métricas y totales únicos (sin duplicar préstamos) */
+  portfolioRouteKPIs: RouteKpIsResponse;
   previewBulkDateMigration: BulkDateMigrationPreview;
   previewPortfolioCleanup: CleanupPreview;
   recoveredDeadDebt: RecoveredDeadDebtResult;
@@ -2335,6 +2335,26 @@ export type RouteKpi = {
   pagandoPromedio: Scalars['Float']['output'];
   routeId: Scalars['ID']['output'];
   routeName: Scalars['String']['output'];
+};
+
+/** Respuesta de KPIs por ruta con totales únicos */
+export type RouteKpIsResponse = {
+  __typename?: 'RouteKPIsResponse';
+  /** Lista de KPIs por cada ruta */
+  routes: Array<RouteKpi>;
+  /** Totales calculados sin duplicar préstamos en múltiples rutas */
+  uniqueTotals: RouteKpIsTotals;
+};
+
+/** Totales únicos (sin duplicar préstamos en múltiples rutas) */
+export type RouteKpIsTotals = {
+  __typename?: 'RouteKPIsTotals';
+  /** Total de clientes activos únicos (sin duplicados) */
+  clientesTotal: Scalars['Float']['output'];
+  /** Total de clientes en CV únicos */
+  cvTotal: Scalars['Float']['output'];
+  /** Total de clientes al corriente únicos */
+  pagandoTotal: Scalars['Float']['output'];
 };
 
 /** Route with calculated statistics for administration */
@@ -2983,6 +3003,8 @@ export type ResolversTypes = ResolversObject<{
   RouteAmountInput: RouteAmountInput;
   RouteInfo: ResolverTypeWrapper<RouteInfo>;
   RouteKPI: ResolverTypeWrapper<RouteKpi>;
+  RouteKPIsResponse: ResolverTypeWrapper<RouteKpIsResponse>;
+  RouteKPIsTotals: ResolverTypeWrapper<RouteKpIsTotals>;
   RouteWithStats: ResolverTypeWrapper<RouteWithStats>;
   SendDocumentNotificationInput: SendDocumentNotificationInput;
   SendNotificationResult: ResolverTypeWrapper<SendNotificationResult>;
@@ -3166,6 +3188,8 @@ export type ResolversParentTypes = ResolversObject<{
   RouteAmountInput: RouteAmountInput;
   RouteInfo: RouteInfo;
   RouteKPI: RouteKpi;
+  RouteKPIsResponse: RouteKpIsResponse;
+  RouteKPIsTotals: RouteKpIsTotals;
   RouteWithStats: RouteWithStats;
   SendDocumentNotificationInput: SendDocumentNotificationInput;
   SendNotificationResult: SendNotificationResult;
@@ -4302,7 +4326,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   portfolioCleanups?: Resolver<Array<ResolversTypes['PortfolioCleanup']>, ParentType, ContextType, Partial<QueryPortfolioCleanupsArgs>>;
   portfolioReportMonthly?: Resolver<ResolversTypes['PortfolioReport'], ParentType, ContextType, RequireFields<QueryPortfolioReportMonthlyArgs, 'month' | 'year'>>;
   portfolioReportWeekly?: Resolver<ResolversTypes['PortfolioReport'], ParentType, ContextType, RequireFields<QueryPortfolioReportWeeklyArgs, 'weekNumber' | 'year'>>;
-  portfolioRouteKPIs?: Resolver<Array<ResolversTypes['RouteKPI']>, ParentType, ContextType, RequireFields<QueryPortfolioRouteKpIsArgs, 'month' | 'year'>>;
+  portfolioRouteKPIs?: Resolver<ResolversTypes['RouteKPIsResponse'], ParentType, ContextType, RequireFields<QueryPortfolioRouteKpIsArgs, 'month' | 'year'>>;
   previewBulkDateMigration?: Resolver<ResolversTypes['BulkDateMigrationPreview'], ParentType, ContextType, RequireFields<QueryPreviewBulkDateMigrationArgs, 'input'>>;
   previewPortfolioCleanup?: Resolver<ResolversTypes['CleanupPreview'], ParentType, ContextType, RequireFields<QueryPreviewPortfolioCleanupArgs, 'maxSignDate'>>;
   recoveredDeadDebt?: Resolver<ResolversTypes['RecoveredDeadDebtResult'], ParentType, ContextType, RequireFields<QueryRecoveredDeadDebtArgs, 'month' | 'year'>>;
@@ -4435,6 +4459,19 @@ export type RouteKpiResolvers<ContextType = GraphQLContext, ParentType extends R
   pagandoPromedio?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   routeId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   routeName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type RouteKpIsResponseResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RouteKPIsResponse'] = ResolversParentTypes['RouteKPIsResponse']> = ResolversObject<{
+  routes?: Resolver<Array<ResolversTypes['RouteKPI']>, ParentType, ContextType>;
+  uniqueTotals?: Resolver<ResolversTypes['RouteKPIsTotals'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type RouteKpIsTotalsResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RouteKPIsTotals'] = ResolversParentTypes['RouteKPIsTotals']> = ResolversObject<{
+  clientesTotal?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  cvTotal?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
+  pagandoTotal?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -4749,6 +4786,8 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   Route?: RouteResolvers<ContextType>;
   RouteInfo?: RouteInfoResolvers<ContextType>;
   RouteKPI?: RouteKpiResolvers<ContextType>;
+  RouteKPIsResponse?: RouteKpIsResponseResolvers<ContextType>;
+  RouteKPIsTotals?: RouteKpIsTotalsResolvers<ContextType>;
   RouteWithStats?: RouteWithStatsResolvers<ContextType>;
   SendNotificationResult?: SendNotificationResultResolvers<ContextType>;
   State?: StateResolvers<ContextType>;

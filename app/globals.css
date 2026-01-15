@@ -255,6 +255,55 @@
   .brand-icon {
     @apply flex items-center justify-center rounded-xl bg-gradient-primary text-white;
   }
+
+  /* Route Planning - Leaflet Styles */
+  .leaflet-container {
+    @apply h-full w-full font-sans;
+    z-index: 0;
+  }
+
+  .route-marker {
+    @apply flex items-center justify-center;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .route-marker-placing {
+    z-index: 1000 !important;
+  }
+
+  @keyframes marker-pulse {
+    0%, 100% {
+      box-shadow: 0 4px 16px rgba(6, 182, 212, 0.5), 0 0 0 4px rgba(6, 182, 212, 0.2);
+    }
+    50% {
+      box-shadow: 0 4px 20px rgba(6, 182, 212, 0.7), 0 0 0 8px rgba(6, 182, 212, 0.3);
+    }
+  }
+
+  .route-marker-placing > div {
+    animation: marker-pulse 1.5s ease-in-out infinite;
+  }
+
+  .leaflet-popup-content-wrapper {
+    @apply bg-card border border-border rounded-lg shadow-lg;
+  }
+
+  .leaflet-popup-content {
+    @apply text-foreground m-0 p-3;
+  }
+
+  .leaflet-popup-tip {
+    @apply bg-card;
+  }
+
+  .leaflet-popup-close-button {
+    @apply text-muted-foreground;
+  }
+
+  .leaflet-popup-close-button:hover {
+    @apply text-foreground;
+  }
 }
 
 @layer utilities {
@@ -268,7 +317,7 @@
     scrollbar-width: none;
   }
 
-  /* Text balance for headings */
+/* Text balance for headings */
   .text-balance {
     text-wrap: balance;
   }

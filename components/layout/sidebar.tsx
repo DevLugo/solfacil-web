@@ -25,6 +25,7 @@ import {
   Skull,
   AlertTriangle,
   Cake,
+  Map,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -64,7 +65,8 @@ const navegacion: NavItem[] = [
       { titulo: 'Usuarios', href: '/administrar/usuarios', icono: Users },
       { titulo: 'Usuarios Telegram', href: '/administrar/usuarios-telegram', icono: Send },
       { titulo: 'Rutas', href: '/administrar/rutas', icono: Route },
-      { titulo: 'Nuevo Líder', href: '/administrar/lideres/nuevo', icono: UserPlus },
+      { titulo: 'Planificacion de Rutas', href: '/administrar/planificacion-rutas', icono: Map },
+      { titulo: 'Nuevo Lider', href: '/administrar/lideres/nuevo', icono: UserPlus },
       { titulo: 'Gastos', href: '/administrar/gastos', icono: BarChart3 },
       { titulo: 'Cartera Muerta', href: '/administrar/cartera-muerta', icono: Skull },
       { titulo: 'Notificaciones', href: '/administrar/notificaciones-telegram', icono: Bell },

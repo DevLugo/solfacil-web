@@ -854,6 +854,34 @@ export const SEARCH_BORROWERS_QUERY = gql`
           phone
         }
       }
+      activeLoan {
+        id
+        requestedAmount
+        amountGived
+        pendingAmountStored
+        profitAmount
+        totalDebtAcquired
+        expectedWeeklyPayment
+        totalPaid
+        signDate
+        leadLocationName
+        loantype {
+          id
+          name
+          weekDuration
+          rate
+          loanPaymentComission
+          loanGrantedComission
+        }
+        collaterals {
+          id
+          fullName
+          phones {
+            id
+            number
+          }
+        }
+      }
     }
   }
 `
