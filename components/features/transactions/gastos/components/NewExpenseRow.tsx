@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
-import { EXPENSE_TO_ACCOUNT_TYPE, EXPENSE_ALLOWED_ACCOUNT_TYPES, DEFAULT_VISIBLE_ACCOUNT_TYPES } from '../constants'
+import { EXPENSE_TO_ACCOUNT_TYPE, EXPENSE_ALLOWED_ACCOUNT_TYPES } from '../constants'
 import type { NewExpense, Account, AccountType } from '../types'
 
 interface NewExpenseRowProps {
@@ -32,6 +32,7 @@ export function NewExpenseRow({
   onRemove,
 }: NewExpenseRowProps) {
   // Filter accounts based on selected expense type
+  // Only GASOLINE has account restrictions, all other expense types can use any account
   const filteredAccounts = useMemo(() => {
     if (!expense.expenseSource) {
       // No expense type selected, show all accounts
@@ -40,13 +41,11 @@ export function NewExpenseRow({
 
     const allowedTypes = EXPENSE_ALLOWED_ACCOUNT_TYPES[expense.expenseSource]
     if (!allowedTypes) {
-      // No specific filter for this expense type, show default visible types
-      return accounts.filter((acc) =>
-        DEFAULT_VISIBLE_ACCOUNT_TYPES.includes(acc.type as AccountType)
-      )
+      // No specific filter for this expense type, show all available accounts
+      return accounts
     }
 
-    // Filter to only allowed account types for this expense
+    // Filter to only allowed account types for this expense (only GASOLINE has restrictions)
     return accounts.filter((acc) => allowedTypes.includes(acc.type as AccountType))
   }, [accounts, expense.expenseSource])
 
