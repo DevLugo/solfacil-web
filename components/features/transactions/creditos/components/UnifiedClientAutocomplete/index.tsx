@@ -488,28 +488,28 @@ export function UnifiedClientAutocomplete({
           <CommandInput
             placeholder="Escribe para buscar..."
             value={searchTerm}
-            onValueChange={setSearchTerm}
-            className="h-8 text-sm"
+            onValueChange={(val) => setSearchTerm(val.toUpperCase())}
+            className="h-9 text-base uppercase"
           />
           <CommandList className="max-h-[45vh]">
             {loading && (
-              <div className="py-4 text-center text-xs text-muted-foreground">
+              <div className="py-4 text-center text-sm text-muted-foreground">
                 Buscando...
               </div>
             )}
 
             {!loading && searchTerm.length >= 2 && results.length === 0 && (
               <CommandEmpty>
-                <div className="flex flex-col items-center gap-2 py-4">
-                  <span className="text-sm">No se encontraron resultados</span>
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <span className="text-base">No se encontraron resultados</span>
                   {allowCreate && (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleCreateNew}
-                      className="text-blue-600 border-blue-300 hover:bg-blue-50 h-8 px-3 text-sm touch-manipulation"
+                      className="text-blue-600 border-blue-300 hover:bg-blue-50 h-9 px-4 text-base touch-manipulation"
                     >
-                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      <Plus className="h-4 w-4 mr-2" />
                       Crear nuevo {mode === 'borrower' ? 'cliente' : 'aval'}
                     </Button>
                   )}
@@ -518,7 +518,7 @@ export function UnifiedClientAutocomplete({
             )}
 
             {!loading && searchTerm.length < 2 && defaultActiveLoansOptions.length === 0 && (
-              <div className="py-4 text-center text-xs text-muted-foreground">
+              <div className="py-4 text-center text-sm text-muted-foreground">
                 Escribe al menos 2 caracteres
               </div>
             )}
@@ -577,9 +577,9 @@ export function UnifiedClientAutocomplete({
                 <CommandGroup>
                   <CommandItem
                     onSelect={handleCreateNew}
-                    className="text-blue-600 py-2 px-2 text-sm data-[selected=true]:bg-blue-50 data-[selected=true]:text-blue-700 dark:data-[selected=true]:bg-blue-950/50 touch-manipulation"
+                    className="text-blue-600 py-2.5 px-3 text-base data-[selected=true]:bg-blue-50 data-[selected=true]:text-blue-700 dark:data-[selected=true]:bg-blue-950/50 touch-manipulation"
                   >
-                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    <Plus className="h-4 w-4 mr-2" />
                     Crear nuevo {mode === 'borrower' ? 'cliente' : 'aval'}: &quot;{searchTerm}&quot;
                   </CommandItem>
                 </CommandGroup>

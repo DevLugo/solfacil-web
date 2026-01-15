@@ -31,27 +31,27 @@ export function SelectedClientDisplay({
 
   return (
     <div className={cn(
-      'flex items-center gap-1.5 py-1 px-2 border rounded-md transition-colors touch-manipulation',
+      'flex items-center gap-2 py-1.5 px-2.5 border rounded-md transition-colors touch-manipulation',
       styles.container,
       className
     )}>
       {/* Content - single line */}
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="font-medium text-xs truncate" title={value.fullName}>{value.fullName}</span>
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <span className="font-medium text-sm truncate" title={value.fullName}>{value.fullName}</span>
         {value.phone && (
-          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground flex-shrink-0">
-            <Phone className="h-2 w-2" />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+            <Phone className="h-3 w-3" />
             {value.phone}
           </span>
         )}
         {showLocationIcon && value.locationName && (
-          <span className={cn('flex items-center gap-0.5 text-[10px] flex-shrink-0', styles.icon)}>
-            <MapPin className="h-2 w-2" />
+          <span className={cn('flex items-center gap-1 text-xs flex-shrink-0', styles.icon)}>
+            <MapPin className="h-3 w-3" />
             {value.locationName}
           </span>
         )}
         {styles.badgeLabel && (
-          <Badge variant="secondary" className={cn('text-[9px] px-1 py-0 h-3.5 flex-shrink-0', styles.badge)}>
+          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-4 flex-shrink-0', styles.badge)}>
             {styles.badgeLabel}
           </Badge>
         )}
@@ -64,22 +64,22 @@ export function SelectedClientDisplay({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
             onClick={onStartEdit}
             disabled={disabled}
           >
-            <Pencil className="h-2.5 w-2.5" />
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           onClick={onClear}
           disabled={disabled}
         >
-          <X className="h-2.5 w-2.5" />
+          <X className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useLazyQuery, useMutation } from '@apollo/client'
-import { Loader2, Database, AlertTriangle } from 'lucide-react'
+import { Loader2, ArrowRight, AlertTriangle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -38,12 +38,9 @@ export function BulkDateMigrationModal({
   const { toast } = useToast()
   const { selectedRouteId } = useTransactionContext()
 
-  // Form state
-  const [startDate, setStartDate] = useState('')
-  const [startTime, setStartTime] = useState('00:00')
-  const [endDate, setEndDate] = useState('')
-  const [endTime, setEndTime] = useState('23:59')
-  const [newBusinessDate, setNewBusinessDate] = useState('')
+  // Form state - simplified to just two dates
+  const [sourceDate, setSourceDate] = useState('')
+  const [targetDate, setTargetDate] = useState('')
 
   // Preview state
   const [previewData, setPreviewData] = useState<any>(null)
@@ -61,7 +58,7 @@ export function BulkDateMigrationModal({
         } else {
           toast({
             title: 'Sin registros',
-            description: 'No hay registros para migrar en el rango seleccionado',
+            description: 'No hay registros en esa fecha',
           })
         }
       },
@@ -96,92 +93,84 @@ export function BulkDateMigrationModal({
     }
   )
 
+  /**
+   * Build migration input - source date covers the full day
+   */
+  const buildMigrationInput = () => {
+    // Source: full day (00:00 to 23:59:59 Mexico time)
+    const startBusinessDate = new Date(`${sourceDate}T00:00:00.000-06:00`)
+    const endBusinessDate = new Date(`${sourceDate}T23:59:59.999-06:00`)
+    // Target: normalized to 06:00 Mexico (12:00 UTC)
+    const newDate = new Date(`${targetDate}T06:00:00.000-06:00`)
+
+    return {
+      startBusinessDate: startBusinessDate.toISOString(),
+      endBusinessDate: endBusinessDate.toISOString(),
+      newBusinessDate: newDate.toISOString(),
+      routeId: selectedRouteId || undefined,
+    }
+  }
+
   const handlePreview = () => {
-    if (!startDate || !endDate || !newBusinessDate) {
+    if (!sourceDate || !targetDate) {
       toast({
         title: 'Campos requeridos',
-        description: 'Por favor completa todos los campos',
+        description: 'Selecciona ambas fechas',
         variant: 'destructive',
       })
       return
     }
 
-    const startCreatedAt = new Date(`${startDate}T${startTime}:00`)
-    const endCreatedAt = new Date(`${endDate}T${endTime}:59`)
-    const newDate = new Date(`${newBusinessDate}T06:00:00`)
+    if (sourceDate === targetDate) {
+      toast({
+        title: 'Fechas iguales',
+        description: 'Las fechas origen y destino deben ser diferentes',
+        variant: 'destructive',
+      })
+      return
+    }
 
     previewMigration({
       variables: {
-        input: {
-          startCreatedAt,
-          endCreatedAt,
-          newBusinessDate: newDate,
-          routeId: selectedRouteId || undefined,
-        },
+        input: buildMigrationInput(),
       },
     })
   }
 
   const handleExecute = () => {
-    const startCreatedAt = new Date(`${startDate}T${startTime}:00`)
-    const endCreatedAt = new Date(`${endDate}T${endTime}:59`)
-    const newDate = new Date(`${newBusinessDate}T06:00:00`)
-
     executeMigration({
       variables: {
-        input: {
-          startCreatedAt,
-          endCreatedAt,
-          newBusinessDate: newDate,
-          routeId: selectedRouteId || undefined,
-        },
+        input: buildMigrationInput(),
       },
     })
   }
 
   const handleClose = () => {
-    setStartDate('')
-    setStartTime('00:00')
-    setEndDate('')
-    setEndTime('23:59')
-    setNewBusinessDate('')
+    setSourceDate('')
+    setTargetDate('')
     setPreviewData(null)
     setShowConfirm(false)
     onOpenChange(false)
   }
 
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    return format(new Date(dateStr + 'T12:00:00'), "d 'de' MMMM", { locale: es })
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Migración de Fechas en Lote
-          </DialogTitle>
+          <DialogTitle>Migrar Fecha</DialogTitle>
           <DialogDescription>
-            Mueve todos los datos capturados en un rango de tiempo a una nueva fecha de negocio
+            Mueve todos los registros de una fecha a otra
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Warning Alert */}
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Esta operación es irreversible. Asegúrate de seleccionar el rango correcto antes de
-              ejecutar.
-            </AlertDescription>
-          </Alert>
-
-          {/* Route Filter Indicator */}
-          {selectedRouteId ? (
-            <Alert>
-              <Database className="h-4 w-4" />
-              <AlertDescription>
-                Filtrando por la ruta actualmente seleccionada
-              </AlertDescription>
-            </Alert>
-          ) : (
+          {/* Route indicator */}
+          {!selectedRouteId && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
@@ -190,86 +179,55 @@ export function BulkDateMigrationModal({
             </Alert>
           )}
 
-          {/* Date Range Selection */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Rango de Creación (createdAt)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Fecha Inicio</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startTime">Hora Inicio</Label>
-                <Input
-                  id="startTime"
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Fecha Fin</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endTime">Hora Fin</Label>
-                <Input
-                  id="endTime"
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                />
-              </div>
+          {/* Date inputs */}
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="sourceDate">De</Label>
+              <Input
+                id="sourceDate"
+                type="date"
+                value={sourceDate}
+                onChange={(e) => {
+                  setSourceDate(e.target.value)
+                  setPreviewData(null)
+                  setShowConfirm(false)
+                }}
+              />
             </div>
-          </div>
-
-          {/* New Business Date */}
-          <div className="space-y-2">
-            <Label htmlFor="newBusinessDate">Nueva Fecha de Negocio</Label>
-            <Input
-              id="newBusinessDate"
-              type="date"
-              value={newBusinessDate}
-              onChange={(e) => setNewBusinessDate(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Todos los registros se moverán a esta fecha (actualiza date, receivedAt, signDate)
-            </p>
+            <ArrowRight className="h-5 w-5 mb-2.5 text-muted-foreground" />
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="targetDate">A</Label>
+              <Input
+                id="targetDate"
+                type="date"
+                value={targetDate}
+                onChange={(e) => {
+                  setTargetDate(e.target.value)
+                  setPreviewData(null)
+                  setShowConfirm(false)
+                }}
+              />
+            </div>
           </div>
 
           {/* Preview Results */}
           {previewData && (
-            <div className="bg-muted p-4 rounded-lg space-y-2">
-              <h3 className="font-semibold text-sm">Vista Previa</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>Transacciones:</div>
-                <div className="font-mono">{previewData.transactionsCount}</div>
-                <div>Abonos:</div>
-                <div className="font-mono">{previewData.loanPaymentsCount}</div>
-                <div>Créditos:</div>
-                <div className="font-mono">{previewData.loansCount}</div>
-                <div className="font-bold">Total:</div>
-                <div className="font-mono font-bold">{previewData.totalRecords}</div>
-              </div>
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-center">
+                Se moverán <span className="font-bold">{previewData.totalRecords}</span> registros
+                {previewData.loansCount > 0 && (
+                  <span className="text-muted-foreground"> ({previewData.loansCount} créditos, {previewData.loanPaymentsCount} abonos)</span>
+                )}
+              </p>
             </div>
           )}
 
-          {/* Confirmation Step */}
+          {/* Confirmation */}
           {showConfirm && (
-            <Alert>
-              <AlertDescription className="text-sm">
-                ¿Estás seguro de migrar {previewData.totalRecords} registros a la fecha{' '}
-                {format(new Date(newBusinessDate), "d 'de' MMMM, yyyy", { locale: es })}?
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                ¿Mover todo del {formatDisplayDate(sourceDate)} al {formatDisplayDate(targetDate)}? Esta acción es irreversible.
               </AlertDescription>
             </Alert>
           )}
@@ -280,14 +238,14 @@ export function BulkDateMigrationModal({
             Cancelar
           </Button>
           {!showConfirm ? (
-            <Button onClick={handlePreview} disabled={previewing}>
+            <Button onClick={handlePreview} disabled={previewing || !sourceDate || !targetDate}>
               {previewing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Previsualizar
+              Ver registros
             </Button>
           ) : (
             <Button onClick={handleExecute} disabled={executing} variant="destructive">
               {executing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Ejecutar Migración
+              Migrar
             </Button>
           )}
         </DialogFooter>
