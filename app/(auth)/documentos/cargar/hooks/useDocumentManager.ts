@@ -33,17 +33,17 @@ export function useDocumentManager() {
     }
   }, [currentWeekData])
 
-  // Fetch locations for the selected route
+  // Fetch locations - optionally filtered by route, or all if no route selected
   const {
     data: locationsData,
     loading: locationsLoading,
     refetch: refetchLocations,
   } = useQuery(GET_LOCATIONS, {
     variables: { routeId: selectedRouteId || undefined },
-    skip: !selectedRouteId,
   })
 
-  // Fetch loans by week and route/location (location is optional)
+  // Fetch loans by week and optionally by route/location
+  // Can filter by route only, location only, both, or neither (just by week)
   const {
     data: loansData,
     loading: loansLoading,
@@ -56,7 +56,8 @@ export function useDocumentManager() {
       routeId: selectedRouteId || undefined,
       locationId: selectedLocation || undefined,
     },
-    skip: !selectedRouteId, // Only fetch when a route is selected
+    // Fetch when we have at least a route or a location selected
+    skip: !selectedRouteId && !selectedLocation,
     fetchPolicy: 'cache-and-network',
   })
 

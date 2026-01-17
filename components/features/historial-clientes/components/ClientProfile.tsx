@@ -53,7 +53,7 @@ export function ClientProfile({ client, summary }: ClientProfileProps) {
                 {primaryPhone || 'Sin tel.'}
               </span>
             </div>
-            <div className="flex gap-1 mt-1">
+            <div className="flex gap-1 mt-1 flex-wrap">
               {roles.map((role) => (
                 <span
                   key={role}
@@ -65,6 +65,11 @@ export function ClientProfile({ client, summary }: ClientProfileProps) {
                   {role}
                 </span>
               ))}
+              {client.isDeceased && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30">
+                  † Fallecido
+                </span>
+              )}
             </div>
           </div>
         </div>

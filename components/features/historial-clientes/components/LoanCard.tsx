@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ShieldCheck } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
@@ -15,27 +15,42 @@ interface LoanCardProps {
   isCollateral?: boolean
 }
 
-export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
+export function LoanCard({ loan, isCollateral = false, onToggleExpand }: LoanCardProps) {
   const progress = loan.totalAmountDue > 0
     ? Math.round((loan.totalPaid / loan.totalAmountDue) * 100)
     : 0
 
   // Determine status and renewal separately
   const effectiveStatus = mapApiStatus(loan.status)
-  const isActive = loan.status === 'ACTIVE'
   const wasRenewed = loan.wasRenewed === true
+
+  // Determine border color based on loan type
+  const getBorderClass = () => {
+    if (loan.isDeceased) return 'border-l-violet-500'
+    if (isCollateral) return 'border-l-warning'
+    return 'border-l-success' // Titular siempre tiene borde verde
+  }
 
   return (
     <Card
       className={cn(
         'cursor-pointer hover:bg-muted transition-colors border-l-2',
-        isActive ? 'border-l-success' : 'border-l-transparent'
+        getBorderClass(),
+        loan.isDeceased && 'bg-violet-500/5',
+        isCollateral && !loan.isDeceased && 'bg-warning/5',
+        !isCollateral && !loan.isDeceased && 'bg-success/5'
       )}
       onClick={onToggleExpand}
     >
       <div className="p-2.5">
-        {/* Row 1: Date, Status, Renewed badge, Progress */}
+        {/* Row 1: Date, Role badge, Status, Renewed badge, Deceased badge, Progress */}
         <div className="flex items-center gap-2 mb-2">
+          {isCollateral && (
+            <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium bg-warning/20 text-warning border border-warning/40">
+              <ShieldCheck className="h-3 w-3" />
+              Aval
+            </span>
+          )}
           <div className="text-xs font-medium">{loan.signDateFormatted}</div>
           <StatusBadge variant={statusToBadgeVariant[effectiveStatus]}>
             {statusLabels[effectiveStatus]}
@@ -44,6 +59,11 @@ export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
             <StatusBadge variant="info">
               Renovado
             </StatusBadge>
+          )}
+          {loan.isDeceased && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/40">
+              † Fallecido
+            </span>
           )}
 
           {/* Progress Bar - fills remaining space */}
@@ -83,8 +103,14 @@ export function LoanCard({ loan, onToggleExpand }: LoanCardProps) {
           </div>
         </div>
 
-        {/* Row 3: Aval info */}
-        {loan.avalName && (
+        {/* Row 3: Aval info (for loans as client) or Titular info (for loans as collateral) */}
+        {isCollateral && loan.clientName && (
+          <div className="mt-1.5 pt-1.5 border-t text-xs text-muted-foreground">
+            <span>Titular: </span>
+            <span className="font-medium text-foreground">{loan.clientName}</span>
+          </div>
+        )}
+        {!isCollateral && loan.avalName && (
           <div className="mt-1.5 pt-1.5 border-t text-xs text-muted-foreground">
             <span>Aval: </span>
             <span className="font-medium text-foreground">{loan.avalName}</span>

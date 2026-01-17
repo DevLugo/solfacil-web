@@ -27,6 +27,7 @@ export interface ClientInfo {
   phones: string[]
   addresses: ClientAddressInfo[]
   leader: LeaderInfo | null
+  isDeceased: boolean
 }
 
 export interface ClientAddressInfo {
@@ -88,6 +89,7 @@ export interface LoanHistoryDetail {
   avalPhone: string | null
   clientName: string | null
   clientDui: string | null
+  isDeceased: boolean
 }
 
 export type LoanStatus = 'ACTIVE' | 'FINISHED' | 'CANCELLED'

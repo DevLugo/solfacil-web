@@ -68,6 +68,7 @@ export const GET_CLIENT_HISTORY_QUERY = gql`
           state
           phone
         }
+        isDeceased
       }
       summary {
         totalLoansAsClient
@@ -128,6 +129,7 @@ export const GET_CLIENT_HISTORY_QUERY = gql`
         avalPhone
         clientName
         clientDui
+        isDeceased
       }
       loansAsCollateral {
         id
@@ -175,6 +177,7 @@ export const GET_CLIENT_HISTORY_QUERY = gql`
         avalPhone
         clientName
         clientDui
+        isDeceased
       }
     }
   }

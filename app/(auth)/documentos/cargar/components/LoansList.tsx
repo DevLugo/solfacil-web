@@ -15,7 +15,7 @@ interface LoansListProps {
   onViewDocuments: (loanId: string) => void
 }
 
-type FilterType = 'pending' | 'problems' | 'all'
+type FilterType = 'pending' | 'problems' | 'complete' | 'all'
 
 /**
  * Scrollable list of loans with document status
@@ -30,19 +30,20 @@ export function LoansList({
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(true)
 
-  // Calculate filter counts
+  // Calculate filter counts in a single iteration for better performance
   const filterCounts = useMemo(() => {
-    const pending = loans.filter(loan => {
-      const stats = calculateLoanDocumentStats(loan)
-      return stats.hasPending
-    }).length
+    return loans.reduce(
+      (counts, loan) => {
+        const stats = calculateLoanDocumentStats(loan)
 
-    const problems = loans.filter(loan => {
-      const stats = calculateLoanDocumentStats(loan)
-      return stats.hasProblems
-    }).length
+        if (stats.hasPending) counts.pending++
+        if (stats.hasProblems) counts.problems++
+        if (!stats.hasPending && !stats.hasProblems) counts.complete++
 
-    return { pending, problems, all: loans.length }
+        return counts
+      },
+      { pending: 0, problems: 0, complete: 0, all: loans.length }
+    )
   }, [loans])
 
   // Filter loans based on selected filter and search term
@@ -64,6 +65,11 @@ export function LoansList({
         if (filter === 'problems') {
           // Show loans with errors
           return stats.hasProblems
+        }
+
+        if (filter === 'complete') {
+          // Show loans that are complete (all documents uploaded, no errors)
+          return !stats.hasPending && !stats.hasProblems
         }
 
         return true
@@ -146,7 +152,7 @@ export function LoansList({
               Filtros
               {!showFilters && (
                 <Badge variant="secondary" className="ml-2 text-[10px] px-1.5">
-                  {filter === 'pending' ? 'Pendientes' : filter === 'problems' ? 'Problemas' : 'Todos'}
+                  {filter === 'pending' ? 'Pendientes' : filter === 'problems' ? 'Problemas' : filter === 'complete' ? 'Completos' : 'Todos'}
                 </Badge>
               )}
             </Button>
@@ -158,8 +164,8 @@ export function LoansList({
           {/* Filter tabs - always visible on desktop, collapsible on mobile */}
           <div className={showFilters ? 'block' : 'hidden md:block'}>
             <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
-              <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="pending" className="text-[11px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
+              <TabsList className="grid w-full grid-cols-4 h-auto">
+                <TabsTrigger value="pending" className="text-[10px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
                   <span>Pendientes</span>
                   {filterCounts.pending > 0 && (
                     <Badge variant="secondary" className="text-[10px] md:text-xs px-1 py-0 md:px-2 md:py-0.5">
@@ -167,7 +173,7 @@ export function LoansList({
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="problems" className="text-[11px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
+                <TabsTrigger value="problems" className="text-[10px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
                   <span>Problemas</span>
                   {filterCounts.problems > 0 && (
                     <Badge variant="destructive" className="text-[10px] md:text-xs px-1 py-0 md:px-2 md:py-0.5">
@@ -175,7 +181,15 @@ export function LoansList({
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="all" className="text-[11px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
+                <TabsTrigger value="complete" className="text-[10px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
+                  <span>Completos</span>
+                  {filterCounts.complete > 0 && (
+                    <Badge variant="default" className="text-[10px] md:text-xs px-1 py-0 md:px-2 md:py-0.5 bg-green-600">
+                      {filterCounts.complete}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="all" className="text-[10px] md:text-sm flex-col md:flex-row gap-0.5 md:gap-2 py-2 md:py-2.5">
                   <span>Todos</span>
                   <Badge variant="secondary" className="text-[10px] md:text-xs px-1 py-0 md:px-2 md:py-0.5">
                     {filterCounts.all}
@@ -203,6 +217,7 @@ export function LoansList({
             <p className="text-sm text-muted-foreground">
               {filter === 'pending' && 'No hay préstamos pendientes de subir documentos'}
               {filter === 'problems' && 'No hay préstamos con errores en documentos'}
+              {filter === 'complete' && 'No hay préstamos con documentos completos'}
             </p>
           </div>
         </div>
