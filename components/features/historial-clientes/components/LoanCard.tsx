@@ -34,7 +34,7 @@ export function LoanCard({ loan, isCollateral = false, onToggleExpand }: LoanCar
   return (
     <Card
       className={cn(
-        'cursor-pointer hover:bg-muted transition-colors border-l-2',
+        'cursor-pointer hover:bg-muted transition-colors border-l-2 overflow-hidden',
         getBorderClass(),
         loan.isDeceased && 'bg-violet-500/5',
         isCollateral && !loan.isDeceased && 'bg-warning/5',
@@ -43,32 +43,35 @@ export function LoanCard({ loan, isCollateral = false, onToggleExpand }: LoanCar
       onClick={onToggleExpand}
     >
       <div className="p-2.5">
-        {/* Row 1: Date, Role badge, Status, Renewed badge, Deceased badge, Progress */}
-        <div className="flex items-center gap-2 mb-2">
-          {isCollateral && (
-            <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium bg-warning/20 text-warning border border-warning/40">
-              <ShieldCheck className="h-3 w-3" />
-              Aval
-            </span>
-          )}
-          <div className="text-xs font-medium">{loan.signDateFormatted}</div>
-          <StatusBadge variant={statusToBadgeVariant[effectiveStatus]}>
-            {statusLabels[effectiveStatus]}
-          </StatusBadge>
-          {wasRenewed && (
-            <StatusBadge variant="info">
-              Renovado
+        {/* Row 1: Badges, Progress and Arrow */}
+        <div className="flex items-start gap-2 mb-2">
+          {/* Left: Badges (can wrap) */}
+          <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+            {isCollateral && (
+              <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium bg-warning/20 text-warning border border-warning/40">
+                <ShieldCheck className="h-3 w-3" />
+                Aval
+              </span>
+            )}
+            <div className="text-xs font-medium">{loan.signDateFormatted}</div>
+            <StatusBadge variant={statusToBadgeVariant[effectiveStatus]}>
+              {statusLabels[effectiveStatus]}
             </StatusBadge>
-          )}
-          {loan.isDeceased && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/40">
-              † Fallecido
-            </span>
-          )}
+            {wasRenewed && (
+              <StatusBadge variant="info">
+                Renovado
+              </StatusBadge>
+            )}
+            {loan.isDeceased && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/40">
+                † Fallecido
+              </span>
+            )}
+          </div>
 
-          {/* Progress Bar - fills remaining space */}
-          <div className="flex-1 flex items-center gap-2">
-            <div className="flex-1 bg-muted rounded-full h-1.5">
+          {/* Right: Progress and Arrow (fixed, won't wrap) */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-16 bg-muted rounded-full h-1.5">
               <div
                 className={`h-1.5 rounded-full transition-all ${
                   progress >= 100 ? 'bg-success' : 'bg-primary'
@@ -76,10 +79,9 @@ export function LoanCard({ loan, isCollateral = false, onToggleExpand }: LoanCar
                 style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted-foreground w-8">{progress}%</span>
+            <span className="text-[10px] text-muted-foreground w-7 text-right">{progress}%</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
-
-          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         </div>
 
         {/* Row 2: Amounts */}
