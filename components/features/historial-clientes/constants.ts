@@ -98,9 +98,7 @@ export const roleStyles: Record<ClientRole, string> = {
 
 export const paymentLegendItems = [
   { label: 'Completo', style: 'bg-success/10 border-l-2 border-l-success' },
-  { label: 'Sobrepago', style: 'bg-success/10 border-l-2 border-l-success' },
-  { label: 'Múltiples Pagos', style: 'bg-info/10 border-l-2 border-l-info' },
-  { label: 'Cubierto por Sobrante', style: 'bg-info/10 border-l-2 border-l-info' },
+  { label: 'Cubierto', style: 'bg-info/10 border-l-2 border-l-info' },
   { label: 'Parcial', style: 'bg-warning/10 border-l-2 border-l-warning' },
-  { label: 'Sin Pago', style: 'bg-destructive/10 border-l-2 border-l-destructive' },
+  { label: 'Falta', style: 'bg-destructive/10 border-l-2 border-l-destructive' },
 ] as const

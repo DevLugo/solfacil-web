@@ -27,8 +27,13 @@ export function LoanTableRow({ loan, isAdmin, onEdit, onCancel }: LoanTableRowPr
   const hasAval = aval && aval.fullName
   const isRenewal = loan.previousLoan !== null
 
-  // Check for first payment (payment made on same day as loan)
-  const firstPayment = loan.payments?.[0]
+  // Check for first payment - only show if payment was made on the same day as the loan
+  const firstPayment = loan.payments?.find((payment) => {
+    if (!payment.receivedAt || !loan.signDate) return false
+    const paymentDate = new Date(payment.receivedAt).toDateString()
+    const signDate = new Date(loan.signDate).toDateString()
+    return paymentDate === signDate
+  })
 
   return (
     <TableRow>

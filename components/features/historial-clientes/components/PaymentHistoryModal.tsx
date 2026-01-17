@@ -57,73 +57,52 @@ export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = fals
   // Calculate expected weekly payment
   const expectedWeekly = loan.weekDuration > 0 ? loan.totalAmountDue / loan.weekDuration : 0
 
+  // Helper to extract payment count from description like "Pago #1 (1/2)"
+  const extractPaymentCount = (description: string): number | null => {
+    if (!description.includes('/')) return null
+    const match = description.match(/\((\d+)\/(\d+)\)/)
+    return match ? parseInt(match[2], 10) : null
+  }
+
   // Get row styles based on coverage type and payment count
   const getRowStyles = (item: PaymentChronologyItem): string => {
-    // Priority 1: Multiple payments in the same week (2 or more)
-    if (item.type === 'PAYMENT' && item.description.includes('/')) {
-      const match = item.description.match(/\((\d+)\/(\d+)\)/)
-      if (match) {
-        const total = parseInt(match[2], 10)
-        if (total >= 2) {
-          return 'bg-info/5 border-l-4 border-l-info'
-        }
-      }
+    // Priority 1: Multiple payments in same week
+    const paymentCount = extractPaymentCount(item.description)
+    if (item.type === 'PAYMENT' && paymentCount && paymentCount >= 2) {
+      return 'bg-info/5 border-l-4 border-l-info'
     }
 
-    // Priority 2: NO_PAYMENT items - use coverage type directly
+    // Priority 2: NO_PAYMENT items
     if (item.type === 'NO_PAYMENT') {
-      if (item.coverageType) {
-        return coverageRowStyles[item.coverageType] || ''
-      }
-      return 'bg-destructive/5 border-l-4 border-l-destructive' // Default: MISS
+      return item.coverageType
+        ? coverageRowStyles[item.coverageType] || ''
+        : 'bg-destructive/5 border-l-4 border-l-destructive'
     }
 
-    // Priority 3: PAYMENT items - check weeklyPaid for overpaid
-    if (item.type === 'PAYMENT' && item.weeklyPaid !== undefined && item.weeklyExpected) {
-      // Overpaid: weeklyPaid >= expectedWeekly × 1.5
-      if (item.weeklyPaid >= item.weeklyExpected * 1.5) {
-        return 'bg-success/5 border-l-4 border-l-success'
-      }
+    // Priority 3: Overpaid (weeklyPaid >= expectedWeekly × 1.5)
+    if (item.weeklyPaid !== undefined && item.weeklyExpected &&
+        item.weeklyPaid >= item.weeklyExpected * 1.5) {
+      return 'bg-success/5 border-l-4 border-l-success'
     }
 
-    // Priority 4: Use coverage type for styling
-    if (item.coverageType) {
-      // FULL coverage: normal payment (no special style)
-      if (item.coverageType === 'FULL') {
-        return '' // Normal full payment (no special style)
-      }
-      // Other coverage types use their styles
-      return coverageRowStyles[item.coverageType] || ''
+    // Priority 4: Use coverage type for PAYMENT items
+    if (item.coverageType === 'FULL') return ''
+    if (item.coverageType) return coverageRowStyles[item.coverageType] || ''
+
+    // Fallback: Calculate based on amount
+    if (item.amount && expectedWeekly > 0) {
+      if (item.amount >= expectedWeekly * 1.5) return 'bg-success/5 border-l-4 border-l-success'
+      if (item.amount >= expectedWeekly) return ''
+      if (item.amount > 0) return 'bg-warning/5 border-l-4 border-l-warning'
     }
 
-    // Fallback: Calculate based on amount if no coverage type or weeklyPaid
-    if (item.type === 'PAYMENT' && item.amount && expectedWeekly > 0) {
-      if (item.amount >= expectedWeekly * 1.5) {
-        return 'bg-success/5 border-l-4 border-l-success' // Overpaid
-      }
-      if (item.amount >= expectedWeekly) {
-        return '' // Normal full payment
-      }
-      if (item.amount > 0) {
-        return 'bg-warning/5 border-l-4 border-l-warning' // Partial
-      }
-    }
-
-    // Default: Missed payment
     return 'bg-destructive/5 border-l-4 border-l-destructive'
   }
 
   // Get badge text for multiple payments in same week
   const getBadgeText = (item: PaymentChronologyItem): string | null => {
-    if (item.type === 'PAYMENT' && item.description.includes('/')) {
-      // Extract count from description like "Pago #1 (1/2)" or "Pago #2 (2/2)"
-      const match = item.description.match(/\((\d+)\/(\d+)\)/)
-      if (match) {
-        const total = parseInt(match[2], 10)
-        return total >= 2 ? `${total}x` : null
-      }
-    }
-    return null
+    const count = extractPaymentCount(item.description)
+    return count && count >= 2 ? `${count}x` : null
   }
 
   return (
@@ -151,7 +130,7 @@ export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = fals
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="p-3 md:p-4">
-            {/* Loan Summary - Match outside cards style */}
+            {/* Loan Summary */}
             <div className="grid grid-cols-4 gap-1.5 mb-2">
               <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/50">
                 <div className="min-w-0">
@@ -222,7 +201,7 @@ export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = fals
                         className={cn(getRowStyles(item), 'text-xs')}
                       >
                         <TableCell className="font-medium text-muted-foreground px-2 py-1.5">
-                          {item.paymentNumber || item.weekIndex || idx + 1}
+                          {item.weekIndex === 0 ? '0' : (item.paymentNumber || item.weekIndex || idx + 1)}
                         </TableCell>
                         <TableCell className="px-2 py-1.5">
                           <div className="flex items-center gap-1">
@@ -231,12 +210,17 @@ export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = fals
                               <span className="text-[8px] font-bold text-info">{badgeText}</span>
                             )}
                           </div>
+                          {item.weekIndex === 0 && item.type === 'PAYMENT' && (
+                            <div className="text-[10px] text-success mt-0.5">
+                              Adelanto
+                            </div>
+                          )}
                           {isNoPayment && (
                             <div className="text-[10px] text-muted-foreground mt-0.5">
-                              {item.description}
+                              {item.coverageType === 'COVERED_BY_SURPLUS' ? 'Cubierto' : 'Falta'}
                               {item.weekCount && item.weekCount > 1 && (
                                 <span className="ml-1 text-[9px] opacity-75">
-                                  ({item.weekCount} semanas)
+                                  ({item.weekCount} sem.)
                                 </span>
                               )}
                             </div>
@@ -244,9 +228,22 @@ export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = fals
                         </TableCell>
                         <TableCell className="text-right px-2 py-1.5 font-medium">
                           {isNoPayment ? (
-                            <span className="text-muted-foreground italic">-</span>
+                            item.surplusBefore && Number(item.surplusBefore) > 0 ? (
+                              <span className="text-info text-[10px]">
+                                +{formatCurrency(item.surplusBefore)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground italic">-</span>
+                            )
                           ) : (
-                            formatCurrency(item.amount || 0)
+                            <>
+                              <span>{formatCurrency(item.amount || 0)}</span>
+                              {item.surplusAfter !== undefined && Number(item.surplusAfter) > 0 && (
+                                <div className="text-[9px] text-info font-normal">
+                                  +{formatCurrency(item.surplusAfter)}
+                                </div>
+                              )}
+                            </>
                           )}
                         </TableCell>
                         <TableCell className="text-right px-2 py-1.5 font-medium">

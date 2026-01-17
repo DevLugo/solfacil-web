@@ -127,6 +127,13 @@ export const generatePaymentChronology = (
 
   if (!loan.signDate) return chronology
 
+  // Helper to safely convert Decimal/string amounts to numbers
+  const toNumber = (val: number | string | undefined | null): number => {
+    if (val === undefined || val === null) return 0
+    const num = typeof val === 'string' ? parseFloat(val) : val
+    return isNaN(num) ? 0 : num
+  }
+
   const signDate = new Date(loan.signDate)
   const now = new Date()
 
@@ -135,42 +142,33 @@ export const generatePaymentChronology = (
   const isRenewed = loan.wasRenewed === true
   const finishedDate = loan.finishedDate ? new Date(loan.finishedDate) : null
 
-  // Determine end date for evaluation
+  // Helper to calculate weeks between two dates
+  const getWeeksBetween = (start: Date, end: Date): number => {
+    return Math.ceil((end.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  }
+
+  // Helper to calculate max weeks based on amount
+  const getMaxWeeksFromAmount = (): number => {
+    const amount = toNumber(loan.amountGived)
+    return Math.max(loan.weekDuration || 12, Math.ceil(amount / 100))
+  }
+
+  // Determine end date and total weeks for evaluation
   let endDate: Date
+  let totalWeeks: number
 
   if (finishedDate && isFinished) {
     endDate = finishedDate
+    totalWeeks = getWeeksBetween(signDate, finishedDate)
   } else if (loan.badDebtDate) {
     endDate = new Date(loan.badDebtDate)
+    totalWeeks = getWeeksBetween(signDate, endDate)
   } else {
-    const amount = loan.amountGived || 0
-    const maxWeeks = Math.max(loan.weekDuration || 12, Math.ceil(amount / 100))
+    const maxWeeks = getMaxWeeksFromAmount()
     const maxEndDate = new Date(signDate)
     maxEndDate.setDate(maxEndDate.getDate() + maxWeeks * 7)
     endDate = new Date(Math.min(now.getTime(), maxEndDate.getTime()))
-  }
-
-  // Calculate total weeks
-  let totalWeeks: number
-  if (finishedDate && isFinished) {
-    totalWeeks = Math.ceil(
-      (finishedDate.getTime() - signDate.getTime()) /
-        (7 * 24 * 60 * 60 * 1000)
-    )
-  } else if (loan.badDebtDate) {
-    totalWeeks = Math.ceil(
-      (new Date(loan.badDebtDate).getTime() - signDate.getTime()) /
-        (7 * 24 * 60 * 60 * 1000)
-    )
-  } else {
-    const amount = loan.amountGived || 0
-    const maxWeeks = Math.max(loan.weekDuration || 12, Math.ceil(amount / 100))
-    totalWeeks = Math.min(
-      maxWeeks,
-      Math.ceil(
-        (endDate.getTime() - signDate.getTime()) / (7 * 24 * 60 * 60 * 1000)
-      )
-    )
+    totalWeeks = Math.min(maxWeeks, getWeeksBetween(signDate, endDate))
   }
 
   // Sort payments by date
@@ -179,7 +177,7 @@ export const generatePaymentChronology = (
   )
 
   // Calculate expected weekly payment
-  const totalDue = loan.totalAmountDue ?? (loan.amountGived || 0) + (loan.profitAmount || 0)
+  const totalDue = toNumber(loan.totalAmountDue) || (toNumber(loan.amountGived) + toNumber(loan.profitAmount))
   const durationWeeks = loan.weekDuration || 16
   const expectedWeekly = durationWeeks > 0 ? totalDue / durationWeeks : 0
 
@@ -187,18 +185,85 @@ export const generatePaymentChronology = (
   // Start with total debt, will be reduced by payments
   let runningBalance = totalDue
 
-  // Generate chronology week by week
+  // Helper to get Monday of a given date
+  const getMondayOfWeek = (date: Date): Date => {
+    const result = new Date(date)
+    const dayOfWeek = result.getDay()
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    result.setDate(result.getDate() + daysToMonday)
+    result.setHours(0, 0, 0, 0)
+    return result
+  }
+
+  // Find the Monday of the first week (week 1 = 7 days after sign date)
+  const firstWeekDate = new Date(signDate)
+  firstWeekDate.setDate(firstWeekDate.getDate() + 7)
+  const firstWeekMonday = getMondayOfWeek(firstWeekDate)
+
+  // Find payments made before week 1 starts (early payments / same day payments)
+  const earlyPayments = sortedPayments.filter((payment) => {
+    const paymentDate = new Date(payment.receivedAt)
+    return paymentDate < firstWeekMonday
+  })
+
+  // Helper to create payment chronology item
+  const createPaymentItem = (
+    payment: typeof sortedPayments[0],
+    options: {
+      weekIndex: number
+      description: string
+      weeklyExpected: number
+      weeklyPaid: number
+      surplusBefore: number
+      surplusAfter: number
+      coverageType: CoverageType
+    }
+  ): PaymentChronologyItem => ({
+    id: `payment-${payment.id}`,
+    date: payment.receivedAt,
+    dateFormatted: payment.receivedAtFormatted || formatDate(payment.receivedAt),
+    type: 'PAYMENT',
+    description: options.description,
+    amount: payment.amount,
+    paymentMethod: payment.paymentMethod,
+    balanceBefore: payment.balanceBeforePayment,
+    balanceAfter: payment.balanceAfterPayment,
+    paymentNumber: payment.paymentNumber || 0,
+    weekIndex: options.weekIndex,
+    weeklyExpected: options.weeklyExpected,
+    weeklyPaid: options.weeklyPaid,
+    surplusBefore: options.surplusBefore,
+    surplusAfter: options.surplusAfter,
+    coverageType: options.coverageType,
+  })
+
+  // Add early payments to chronology
+  earlyPayments.forEach((payment, index) => {
+    const paymentAmount = toNumber(payment.amount)
+    runningBalance = Math.max(0, runningBalance - paymentAmount)
+
+    const description = earlyPayments.length > 1
+      ? `Pago anticipado #${index + 1} (${index + 1}/${earlyPayments.length})`
+      : 'Pago anticipado'
+
+    chronology.push(createPaymentItem(payment, {
+      weekIndex: 0,
+      description,
+      weeklyExpected: expectedWeekly,
+      weeklyPaid: paymentAmount,
+      surplusBefore: 0,
+      surplusAfter: paymentAmount,
+      coverageType: 'FULL',
+    }))
+  })
+
+  // Generate chronology week by week (starting at week 1)
   for (let week = 1; week <= totalWeeks; week++) {
     const weekPaymentDate = new Date(signDate)
     weekPaymentDate.setDate(weekPaymentDate.getDate() + week * 7)
 
     // Calculate Monday and Sunday for the week
-    const weekMonday = new Date(weekPaymentDate)
-    const dayOfWeekMonday = weekMonday.getDay()
-    const daysToMonday = dayOfWeekMonday === 0 ? -6 : 1 - dayOfWeekMonday
-    weekMonday.setDate(weekMonday.getDate() + daysToMonday)
-    weekMonday.setHours(0, 0, 0, 0)
-
+    const weekMonday = getMondayOfWeek(weekPaymentDate)
     const weekSunday = new Date(weekMonday)
     weekSunday.setDate(weekSunday.getDate() + 6)
     weekSunday.setHours(23, 59, 59, 999)
@@ -212,25 +277,25 @@ export const generatePaymentChronology = (
     // Calculate paid before and in the week
     const paidBeforeWeek = (loan.payments || []).reduce((sum, p) => {
       const d = new Date(p.receivedAt).getTime()
-      return d < weekMonday.getTime() ? sum + (p.amount || 0) : sum
+      return d < weekMonday.getTime() ? sum + toNumber(p.amount) : sum
     }, 0)
 
     const weeklyPaid = paymentsInWeek.reduce(
-      (sum, p) => sum + (p.amount || 0),
+      (sum, p) => sum + toNumber(p.amount),
       0
     )
     const expectedBefore = (week - 1) * expectedWeekly
     const surplusBefore = paidBeforeWeek - expectedBefore
-    const coversWithSurplus =
-      surplusBefore + weeklyPaid >= expectedWeekly && expectedWeekly > 0
 
-    let coverageType: CoverageType = 'MISS'
-    if (weeklyPaid >= expectedWeekly) coverageType = 'FULL'
-    else if (coversWithSurplus && weeklyPaid > 0)
-      coverageType = 'COVERED_BY_SURPLUS'
-    else if (coversWithSurplus && weeklyPaid === 0)
-      coverageType = 'COVERED_BY_SURPLUS'
-    else if (weeklyPaid > 0) coverageType = 'PARTIAL'
+    // Calculate coverage type based on payment and surplus
+    const getCoverageType = (): CoverageType => {
+      if (weeklyPaid >= expectedWeekly) return 'FULL'
+      if (weeklyPaid > 0) return 'PARTIAL'
+      if (surplusBefore >= expectedWeekly && expectedWeekly > 0) return 'COVERED_BY_SURPLUS'
+      return 'MISS'
+    }
+
+    const coverageType = getCoverageType()
 
     // Calculate balance before this week (before any payments in this week)
     const balanceBeforeWeek = runningBalance
@@ -238,73 +303,49 @@ export const generatePaymentChronology = (
     // Add payments found in this week
     if (paymentsInWeek.length > 0) {
       paymentsInWeek.forEach((payment, index) => {
-        const paymentAmount = payment.amount || 0
+        const paymentAmount = toNumber(payment.amount)
         runningBalance = Math.max(0, runningBalance - paymentAmount)
 
-        chronology.push({
-          id: `payment-${payment.id}`,
-          date: payment.receivedAt,
-          dateFormatted:
-            payment.receivedAtFormatted || formatDate(payment.receivedAt),
-          type: 'PAYMENT',
-          description:
-            paymentsInWeek.length > 1
-              ? `Pago #${index + 1} (${index + 1}/${paymentsInWeek.length})`
-              : `Pago #${payment.paymentNumber || index + 1}`,
-          amount: payment.amount,
-          paymentMethod: payment.paymentMethod,
-          balanceBefore: payment.balanceBeforePayment,
-          balanceAfter: payment.balanceAfterPayment,
-          paymentNumber: payment.paymentNumber || index + 1,
+        const description = paymentsInWeek.length > 1
+          ? `Pago #${index + 1} (${index + 1}/${paymentsInWeek.length})`
+          : `Pago #${payment.paymentNumber || index + 1}`
+
+        chronology.push(createPaymentItem(payment, {
           weekIndex: week,
+          description,
           weeklyExpected: expectedWeekly,
           weeklyPaid,
           surplusBefore,
           surplusAfter: surplusBefore + weeklyPaid - expectedWeekly,
           coverageType,
-        })
+        }))
       })
     } else {
-      // Check if we should show "no payment"
-      // Don't show "no payment" if loan is finished or renewed
-      const weekIsBeforeFinish =
-        !finishedDate || weekPaymentDate <= finishedDate
-      const weekIsBeforeDeadDebt =
-        !loan.badDebtDate || weekPaymentDate <= new Date(loan.badDebtDate)
+      // Helper to check if we should show "no payment" for this week
+      const shouldShowNoPayment = (): boolean => {
+        if (isFinished || isRenewed) return false
+        if (now <= weekSunday) return false
+        if (finishedDate && weekPaymentDate > finishedDate) return false
+        if (loan.badDebtDate && weekPaymentDate > new Date(loan.badDebtDate)) return false
+        return true
+      }
 
-      // Only show "no payment" if:
-      // 1. Week is in the past
-      // 2. Week is before finish date (if finished)
-      // 3. Week is before bad debt date (if bad debt)
-      // 4. Loan is NOT finished or renewed (don't show after finish/renewal)
-      const shouldShowNoPayment =
-        now > weekSunday &&
-        weekIsBeforeFinish &&
-        weekIsBeforeDeadDebt &&
-        !isFinished &&
-        !isRenewed
-
-      if (shouldShowNoPayment) {
+      if (shouldShowNoPayment()) {
         const coverageForNoPayment: CoverageType =
           surplusBefore >= expectedWeekly && expectedWeekly > 0
             ? 'COVERED_BY_SURPLUS'
             : 'MISS'
-        const desc =
-          coverageForNoPayment === 'COVERED_BY_SURPLUS'
-            ? 'Sin pago (cubierto por sobrepago)'
-            : 'Sin pago'
 
-        // Calculate balance after: no payment received, so balance doesn't change
-        // The balance remains the same because no payment was made
-        // (Balance only decreases when actual payments are received)
-        const balanceAfter = runningBalance
+        const description = coverageForNoPayment === 'COVERED_BY_SURPLUS'
+          ? 'Sin pago (cubierto por sobrepago)'
+          : 'Sin pago'
 
         chronology.push({
           id: `no-payment-${week}`,
           date: weekPaymentDate.toISOString(),
           dateFormatted: formatDate(weekPaymentDate.toISOString()),
           type: 'NO_PAYMENT',
-          description: desc,
+          description,
           weekCount: 1,
           weekIndex: week,
           weeklyExpected: expectedWeekly,
@@ -313,10 +354,58 @@ export const generatePaymentChronology = (
           surplusAfter: surplusBefore - expectedWeekly,
           coverageType: coverageForNoPayment,
           balanceBefore: balanceBeforeWeek,
-          balanceAfter,
+          balanceAfter: runningBalance,
         })
       }
     }
+  }
+
+  // Helper to create condensed no-payment item from group
+  const createCondensedNoPayment = (group: PaymentChronologyItem[]): PaymentChronologyItem => {
+    const firstWeek = group[0]
+    const lastWeek = group[group.length - 1]
+    const totalWeeks = group.length
+    const coverageType = group.every(n => n.coverageType === 'COVERED_BY_SURPLUS')
+      ? 'COVERED_BY_SURPLUS'
+      : 'MISS'
+
+    return {
+      id: `no-payment-condensed-${firstWeek.weekIndex}-${lastWeek.weekIndex}`,
+      date: firstWeek.date,
+      dateFormatted: `${formatDate(firstWeek.date)} - ${formatDate(lastWeek.date)}`,
+      type: 'NO_PAYMENT',
+      description: coverageType === 'COVERED_BY_SURPLUS'
+        ? `${totalWeeks} semanas sin pago (cubierto por sobrepago)`
+        : `${totalWeeks} semanas sin pago`,
+      weekCount: totalWeeks,
+      weekIndex: firstWeek.weekIndex,
+      weeklyExpected: firstWeek.weeklyExpected || 0,
+      weeklyPaid: 0,
+      surplusBefore: firstWeek.surplusBefore || 0,
+      surplusAfter: lastWeek.surplusAfter || 0,
+      coverageType,
+      balanceBefore: firstWeek.balanceBefore,
+      balanceAfter: lastWeek.balanceAfter,
+    }
+  }
+
+  // Helper to process accumulated no-payment group
+  const processNoPaymentGroup = (
+    group: PaymentChronologyItem[],
+    result: PaymentChronologyItem[]
+  ): void => {
+    if (group.length > 4) {
+      result.push(createCondensedNoPayment(group))
+    } else if (group.length > 0) {
+      result.push(...group)
+    }
+  }
+
+  // Helper to check if two items are consecutive no-payments
+  const isConsecutiveNoPayment = (prev: PaymentChronologyItem | null, current: PaymentChronologyItem): boolean => {
+    if (!prev || prev.type !== 'NO_PAYMENT' || current.type !== 'NO_PAYMENT') return false
+    if (prev.weekIndex === undefined || current.weekIndex === undefined) return false
+    return current.weekIndex === (prev.weekIndex || 0) + 1
   }
 
   // Condense consecutive "no payment" weeks (more than 4)
@@ -325,141 +414,25 @@ export const generatePaymentChronology = (
 
   for (let i = 0; i < chronology.length; i++) {
     const item = chronology[i]
-    const isNoPayment = item.type === 'NO_PAYMENT'
     const prevItem = i > 0 ? chronology[i - 1] : null
-    const isConsecutive =
-      prevItem &&
-      prevItem.type === 'NO_PAYMENT' &&
-      item.weekIndex !== undefined &&
-      prevItem.weekIndex !== undefined &&
-      item.weekIndex === (prevItem.weekIndex || 0) + 1
+    const isNoPayment = item.type === 'NO_PAYMENT'
 
     if (isNoPayment) {
-      // Check if this is consecutive with previous no payment
-      if (isConsecutive || noPaymentGroup.length === 0) {
+      if (isConsecutiveNoPayment(prevItem, item) || noPaymentGroup.length === 0) {
         noPaymentGroup.push(item)
       } else {
-        // Not consecutive - process previous group first
-        if (noPaymentGroup.length > 4) {
-          const firstWeek = noPaymentGroup[0]
-          const lastWeek = noPaymentGroup[noPaymentGroup.length - 1]
-          const totalWeeks = noPaymentGroup.length
-
-          const totalSurplusBefore = firstWeek.surplusBefore || 0
-          const totalSurplusAfter = lastWeek.surplusAfter || 0
-          const coverageType = noPaymentGroup.every(
-            (n) => n.coverageType === 'COVERED_BY_SURPLUS'
-          )
-            ? 'COVERED_BY_SURPLUS'
-            : 'MISS'
-
-          condensedChronology.push({
-            id: `no-payment-condensed-${firstWeek.weekIndex}-${lastWeek.weekIndex}`,
-            date: firstWeek.date,
-            dateFormatted: `${formatDate(firstWeek.date)} - ${formatDate(lastWeek.date)}`,
-            type: 'NO_PAYMENT',
-            description:
-              coverageType === 'COVERED_BY_SURPLUS'
-                ? `${totalWeeks} semanas sin pago (cubierto por sobrepago)`
-                : `${totalWeeks} semanas sin pago`,
-            weekCount: totalWeeks,
-            weekIndex: firstWeek.weekIndex,
-            weeklyExpected: firstWeek.weeklyExpected || 0,
-            weeklyPaid: 0,
-            surplusBefore: totalSurplusBefore,
-            surplusAfter: totalSurplusAfter,
-            coverageType,
-            balanceBefore: firstWeek.balanceBefore,
-            balanceAfter: lastWeek.balanceAfter,
-          })
-        } else {
-          // Add individual no payment items if <= 4
-          condensedChronology.push(...noPaymentGroup)
-        }
-        // Start new group
+        processNoPaymentGroup(noPaymentGroup, condensedChronology)
         noPaymentGroup = [item]
       }
     } else {
-      // Payment item - process any pending group first
-      if (noPaymentGroup.length > 4) {
-        const firstWeek = noPaymentGroup[0]
-        const lastWeek = noPaymentGroup[noPaymentGroup.length - 1]
-        const totalWeeks = noPaymentGroup.length
-
-        const totalSurplusBefore = firstWeek.surplusBefore || 0
-        const totalSurplusAfter = lastWeek.surplusAfter || 0
-        const coverageType = noPaymentGroup.every(
-          (n) => n.coverageType === 'COVERED_BY_SURPLUS'
-        )
-          ? 'COVERED_BY_SURPLUS'
-          : 'MISS'
-
-        condensedChronology.push({
-          id: `no-payment-condensed-${firstWeek.weekIndex}-${lastWeek.weekIndex}`,
-          date: firstWeek.date,
-          dateFormatted: `${formatDate(firstWeek.date)} - ${formatDate(lastWeek.date)}`,
-          type: 'NO_PAYMENT',
-          description:
-            coverageType === 'COVERED_BY_SURPLUS'
-              ? `${totalWeeks} semanas sin pago (cubierto por sobrepago)`
-              : `${totalWeeks} semanas sin pago`,
-          weekCount: totalWeeks,
-          weekIndex: firstWeek.weekIndex,
-          weeklyExpected: firstWeek.weeklyExpected || 0,
-          weeklyPaid: 0,
-          surplusBefore: totalSurplusBefore,
-          surplusAfter: totalSurplusAfter,
-          coverageType,
-          balanceBefore: firstWeek.balanceBefore,
-          balanceAfter: lastWeek.balanceAfter,
-        })
-      } else {
-        // Add individual no payment items if <= 4
-        condensedChronology.push(...noPaymentGroup)
-      }
-
-      // Reset group and add current payment
+      processNoPaymentGroup(noPaymentGroup, condensedChronology)
       noPaymentGroup = []
       condensedChronology.push(item)
     }
   }
 
-  // Handle remaining group at the end
-  if (noPaymentGroup.length > 4) {
-    const firstWeek = noPaymentGroup[0]
-    const lastWeek = noPaymentGroup[noPaymentGroup.length - 1]
-    const totalWeeks = noPaymentGroup.length
-
-    const totalSurplusBefore = firstWeek.surplusBefore || 0
-    const totalSurplusAfter = lastWeek.surplusAfter || 0
-    const coverageType = noPaymentGroup.every(
-      (n) => n.coverageType === 'COVERED_BY_SURPLUS'
-    )
-      ? 'COVERED_BY_SURPLUS'
-      : 'MISS'
-
-    condensedChronology.push({
-      id: `no-payment-condensed-${firstWeek.weekIndex}-${lastWeek.weekIndex}`,
-      date: firstWeek.date,
-      dateFormatted: `${formatDate(firstWeek.date)} - ${formatDate(lastWeek.date)}`,
-      type: 'NO_PAYMENT',
-      description:
-        coverageType === 'COVERED_BY_SURPLUS'
-          ? `${totalWeeks} semanas sin pago (cubierto por sobrepago)`
-          : `${totalWeeks} semanas sin pago`,
-      weekCount: totalWeeks,
-      weekIndex: firstWeek.weekIndex,
-      weeklyExpected: firstWeek.weeklyExpected || 0,
-      weeklyPaid: 0,
-      surplusBefore: totalSurplusBefore,
-      surplusAfter: totalSurplusAfter,
-      coverageType,
-      balanceBefore: firstWeek.balanceBefore,
-      balanceAfter: lastWeek.balanceAfter,
-    })
-  } else if (noPaymentGroup.length > 0) {
-    condensedChronology.push(...noPaymentGroup)
-  }
+  // Handle remaining group
+  processNoPaymentGroup(noPaymentGroup, condensedChronology)
 
   // Sort condensed chronology by date
   return condensedChronology.sort(
