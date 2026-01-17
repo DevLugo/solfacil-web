@@ -75,6 +75,7 @@ export function LoansList({
           loan={expandedLoan}
           isOpen={!!expandedLoanId}
           onClose={() => setExpandedLoanId(null)}
+          isCollateral={isCollateral}
         />
       )}
     </div>

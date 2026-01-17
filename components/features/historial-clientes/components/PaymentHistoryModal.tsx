@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { ShieldCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -25,9 +26,10 @@ interface PaymentHistoryModalProps {
   loan: LoanHistoryDetail
   isOpen: boolean
   onClose: () => void
+  isCollateral?: boolean
 }
 
-export function PaymentHistoryModal({ loan, isOpen, onClose }: PaymentHistoryModalProps) {
+export function PaymentHistoryModal({ loan, isOpen, onClose, isCollateral = false }: PaymentHistoryModalProps) {
   // Generate payment chronology with week-by-week analysis
   const chronology = useMemo((): PaymentChronologyItem[] => {
     return generatePaymentChronology({
@@ -128,12 +130,23 @@ export function PaymentHistoryModal({ loan, isOpen, onClose }: PaymentHistoryMod
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="p-4 pb-2 border-b bg-muted/30 flex-shrink-0">
-          <DialogTitle className="text-base">
+          <DialogTitle className="text-base flex items-center gap-2">
             Historial de Pagos
+            {isCollateral && (
+              <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium bg-warning/20 text-warning border border-warning/40">
+                <ShieldCheck className="h-3 w-3" />
+                Como Aval
+              </span>
+            )}
           </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            {loan.signDateFormatted} • {loan.weekDuration} semanas
-          </p>
+          <div className="text-xs text-muted-foreground">
+            {isCollateral && loan.clientName && (
+              <p className="font-medium text-foreground mb-0.5">
+                Titular: {loan.clientName}
+              </p>
+            )}
+            <p>{loan.signDateFormatted} • {loan.weekDuration} semanas</p>
+          </div>
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-auto">
