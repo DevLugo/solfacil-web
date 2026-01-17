@@ -34,7 +34,7 @@ export function LoanCard({ loan, isCollateral = false, onToggleExpand }: LoanCar
   return (
     <Card
       className={cn(
-        'cursor-pointer hover:bg-muted transition-colors border-l-2',
+        'cursor-pointer hover:bg-muted transition-colors border-l-2 overflow-hidden',
         getBorderClass(),
         loan.isDeceased && 'bg-violet-500/5',
         isCollateral && !loan.isDeceased && 'bg-warning/5',
