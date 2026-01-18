@@ -274,7 +274,9 @@ export function LocalityDetailModal({
                 <Users className="h-4 w-4 mr-1" />
                 Todos ({stats.total})
               </Button>
-              {(Object.keys(CATEGORY_CONFIG) as ClientCategory[]).map((category) => {
+              {(Object.keys(CATEGORY_CONFIG) as ClientCategory[])
+                .filter((category) => category !== 'REINTEGRO') // Reintegros se muestran en "Todos"
+                .map((category) => {
                 const config = CATEGORY_CONFIG[category]
                 const count = stats.byCategory[category]
                 if (count === 0) return null

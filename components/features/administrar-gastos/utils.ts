@@ -39,8 +39,13 @@ export function filterExpenses(
       return false
     }
     // Filter by selected routes if multiple selected
+    // Include expenses without route (route is null) since they could belong to any route
     if (selectedRouteIds.length > 1) {
-      return selectedRouteIds.includes(expense.route?.id || '')
+      // If expense has no route, include it (legacy data without route association)
+      if (!expense.route?.id) {
+        return true
+      }
+      return selectedRouteIds.includes(expense.route.id)
     }
     return true
   })

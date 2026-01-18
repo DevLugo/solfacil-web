@@ -62,6 +62,7 @@ export function ExpenseTable({ expenses, loading }: ExpenseTableProps) {
         const label = EXPENSE_SOURCE_LABELS[expense.expenseSource || ''] || ''
         return (
           label.toLowerCase().includes(search) ||
+          expense.description?.toLowerCase().includes(search) ||
           expense.route?.name.toLowerCase().includes(search) ||
           expense.lead?.personalData.fullName.toLowerCase().includes(search) ||
           expense.sourceAccount?.name.toLowerCase().includes(search)
@@ -257,6 +258,7 @@ export function ExpenseTable({ expenses, loading }: ExpenseTableProps) {
                     <SortIcon field="expenseSource" />
                   </div>
                 </TableHead>
+                <TableHead>Descripción</TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted/50 text-right"
                   onClick={() => handleSort('amount')}
@@ -290,7 +292,7 @@ export function ExpenseTable({ expenses, loading }: ExpenseTableProps) {
             <TableBody>
               {paginatedExpenses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
+                  <TableCell colSpan={7} className="h-32 text-center">
                     No se encontraron gastos con los filtros aplicados
                   </TableCell>
                 </TableRow>
@@ -317,6 +319,9 @@ export function ExpenseTable({ expenses, loading }: ExpenseTableProps) {
                             expense.expenseSource ||
                             '-'}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={expense.description || ''}>
+                        {expense.description || '-'}
                       </TableCell>
                       <TableCell className="text-right font-semibold text-red-600 dark:text-red-400">
                         {formatCurrency(parseFloat(expense.amount))}

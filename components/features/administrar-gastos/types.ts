@@ -6,6 +6,7 @@ export interface ExpenseTransaction {
   date: string
   type: string
   expenseSource: string | null
+  description: string | null
   sourceAccount: {
     id: string
     name: string

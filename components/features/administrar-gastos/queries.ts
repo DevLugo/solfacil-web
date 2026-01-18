@@ -25,6 +25,7 @@ export const GET_MONTHLY_EXPENSES = gql`
           date
           type
           expenseSource
+          description
           sourceAccount {
             id
             name
