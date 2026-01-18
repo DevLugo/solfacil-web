@@ -793,13 +793,28 @@ export default function FinancialReportPage() {
                     </td>
                   </tr>
 
-                  {/* Ingresos por Cobranza */}
+                  {/* Total Cobrado */}
                   <tr className="border-b hover:bg-muted/50">
                     <td className="sticky left-0 z-10 bg-background px-4 py-2 font-semibold shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-                      INGRESOS POR COBRANZA
+                      TOTAL COBRADO
                     </td>
                     {report.data.map((monthData, idx) => (
-                      <td key={idx} className={cn('text-center px-2 py-2 font-semibold border-l', getValueColor(parseFloat(monthData.incomes)))}>
+                      <td key={idx} className={cn('text-center px-2 py-2 font-semibold border-l', getValueColor(parseFloat(monthData.totalIncomingCash)))}>
+                        {formatCurrency(monthData.totalIncomingCash)}
+                      </td>
+                    ))}
+                    <td className="text-center px-2 py-2 font-bold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-l">
+                      {formatCurrency(annualTotals.totalIncomingCash)}
+                    </td>
+                  </tr>
+
+                  {/* Ingresos por Cobranza (Ganancia) */}
+                  <tr className="border-b bg-green-50/50 dark:bg-green-950/20 hover:bg-green-50 dark:hover:bg-green-950/30">
+                    <td className="sticky left-0 z-10 bg-green-50/50 dark:bg-green-950/20 px-4 py-2 font-medium shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                      Ganancia por Cobranza
+                    </td>
+                    {report.data.map((monthData, idx) => (
+                      <td key={idx} className={cn('text-center px-2 py-2 font-medium border-l', getValueColor(parseFloat(monthData.incomes)))}>
                         {formatCurrency(monthData.incomes)}
                       </td>
                     ))}

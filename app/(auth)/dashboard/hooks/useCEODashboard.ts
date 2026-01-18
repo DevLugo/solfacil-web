@@ -111,6 +111,9 @@ const GET_CEO_DASHBOARD_DATA = gql`
         clientesEnCV
         balance
         isCompleted
+        nuevos
+        renovados
+        reintegros
       }
       renovationKPIs {
         totalRenovaciones
@@ -225,6 +228,9 @@ const GET_CEO_DASHBOARD_DATA = gql`
         clientesEnCV
         balance
         isCompleted
+        nuevos
+        renovados
+        reintegros
       }
       byLocation {
         locationId
@@ -440,6 +446,9 @@ export interface PortfolioWeeklyData {
   clientesEnCV: number
   balance: number
   isCompleted: boolean
+  nuevos: number
+  renovados: number
+  reintegros: number
 }
 
 interface UseCEODashboardParams {

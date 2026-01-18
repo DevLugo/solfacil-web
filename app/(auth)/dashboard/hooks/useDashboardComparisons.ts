@@ -10,9 +10,13 @@ export interface WeeklyPortfolioData {
     year: number
   }
   clientesActivos: number
+  clientesAlCorriente: number
   clientesEnCV: number
   balance: number
   isCompleted: boolean
+  nuevos: number
+  renovados: number
+  reintegros: number
 }
 
 export interface WeeklyComparison {
@@ -36,9 +40,10 @@ export function useDashboardComparisons(
   clientesEnCVInicio?: number
 ): WeeklyComparison {
   return useMemo(() => {
-    const completedWeeks = weeklyData.filter(w => w.isCompleted)
-    const currentWeek = completedWeeks.length > 0 ? completedWeeks[completedWeeks.length - 1] : null
-    const previousWeek = completedWeeks.length > 1 ? completedWeeks[completedWeeks.length - 2] : null
+    // Include current week even if not completed (for real-time data)
+    const currentWeek = weeklyData.length > 0 ? weeklyData[weeklyData.length - 1] : null
+    // Previous week should be the one before current (whether completed or not)
+    const previousWeek = weeklyData.length > 1 ? weeklyData[weeklyData.length - 2] : null
 
     const deltas = {
       clientesActivosVsPrev: currentWeek && previousWeek

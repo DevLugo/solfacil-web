@@ -403,8 +403,8 @@ export default function DashboardPage() {
           }}
         />
         <WeeklyTransactionsCard
-          nuevos={portfolioStats?.clientBalance?.nuevos ?? 0}
-          renovados={portfolioStats?.clientBalance?.renovados ?? 0}
+          nuevos={selectedWeekData?.nuevos ?? 0}
+          renovados={selectedWeekData?.renovados ?? 0}
         />
       </div>
 
