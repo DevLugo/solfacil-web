@@ -351,11 +351,13 @@ export function UnifiedClientAutocomplete({
           }
         }
 
-        if (phoneChanged && value.personalDataId) {
+        // For aval mode, value.id is the PersonalData ID, use as fallback
+        const personalDataIdForPhone = value.personalDataId || (mode === 'aval' ? value.id : undefined)
+        if (phoneChanged && personalDataIdForPhone) {
           await updatePhone({
             variables: {
               input: {
-                personalDataId: value.personalDataId,
+                personalDataId: personalDataIdForPhone,
                 phoneId: value.phoneId || null,
                 number: editPhone.trim(),
               },
@@ -363,13 +365,19 @@ export function UnifiedClientAutocomplete({
           })
         }
 
+        // Show success toast (same as titular editing)
+        toast({
+          title: mode === 'borrower' ? 'Cliente actualizado' : 'Aval actualizado',
+          description: 'Los datos se guardaron correctamente',
+        })
+
         onValueChange({
           ...value,
           fullName: editName.trim().toUpperCase(),
           phone: editPhone.trim() || undefined,
           originalFullName: editName.trim().toUpperCase(),
           originalPhone: editPhone.trim() || undefined,
-          clientState: 'edited',
+          clientState: 'existing', // Keep as 'existing' to not show "Editado" badge
           action: 'connect',
         })
       } catch (error) {

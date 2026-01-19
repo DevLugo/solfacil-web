@@ -254,7 +254,6 @@ export function CreditosTab() {
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         loan={selectedLoan}
-        loanTypes={loanTypes}
         locationId={selectedLocationId}
         onSuccess={handleEditSuccess}
       />
