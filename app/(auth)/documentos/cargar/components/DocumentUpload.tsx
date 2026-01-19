@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
-import { Camera, Upload, Loader2, X } from 'lucide-react'
+import { Camera, Upload, Loader2 } from 'lucide-react'
 import { useDocumentUpload } from '../hooks/useDocumentUpload'
-import Image from 'next/image'
 
 interface DocumentUploadProps {
   loanId: string
@@ -25,6 +24,7 @@ const DOCUMENT_TYPES = [
 
 /**
  * Component for uploading documents from camera or gallery
+ * Uploads immediately on file selection (no preview confirmation step)
  * Includes automatic image compression before upload
  */
 export function DocumentUpload({
@@ -37,158 +37,33 @@ export function DocumentUpload({
 }: DocumentUploadProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState<string>(presetDocumentType || '')
 
   const { handleUpload, isProcessing, uploadProgress } = useDocumentUpload(loanId, personalDataId)
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Create preview
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string)
-    }
-    reader.readAsDataURL(file)
-
-    setSelectedFile(file)
-  }
-
-  const handleClearPreview = () => {
-    setPreview(null)
-    setSelectedFile(null)
-    if (cameraInputRef.current) cameraInputRef.current.value = ''
-    if (galleryInputRef.current) galleryInputRef.current.value = ''
-  }
-
-  const handleSubmit = async () => {
-    if (!selectedFile || !documentType) return
+    clearFileInputs()
 
     try {
-      await handleUpload(selectedFile, documentType)
-      handleClearPreview()
-      setDocumentType('')
+      await handleUpload(file, documentType)
       onSuccess?.()
     } catch (error) {
-      // Error is handled by the hook
       console.error('Upload failed:', error)
     }
   }
 
-  // Compact mode for inline upload
-  if (compact) {
-    return (
-      <div className="space-y-2">
-        {/* Hidden file inputs */}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
-          className="hidden"
-          onChange={handleFileSelect}
-          disabled={isProcessing}
-        />
-
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileSelect}
-          disabled={isProcessing}
-        />
-
-        {/* Upload progress */}
-        {isProcessing && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {uploadProgress < 50 ? 'Comprimiendo...' : 'Subiendo...'}
-              </span>
-              <span className="font-medium">{uploadProgress}%</span>
-            </div>
-            <Progress value={uploadProgress} className="h-1" />
-          </div>
-        )}
-
-        {!preview ? (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => cameraInputRef.current?.click()}
-              disabled={isProcessing}
-              className="flex-1"
-            >
-              <Camera className="h-3 w-3 mr-1" />
-              Foto
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => galleryInputRef.current?.click()}
-              disabled={isProcessing}
-              className="flex-1"
-            >
-              <Upload className="h-3 w-3 mr-1" />
-              Galería
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="relative aspect-video bg-muted rounded overflow-hidden">
-              <Image
-                src={preview}
-                alt="Preview"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSubmit}
-                disabled={isProcessing}
-                className="flex-1"
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <>
-                    <Upload className="h-3 w-3 mr-1" />
-                    Subir
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  handleClearPreview()
-                  onCancel?.()
-                }}
-                disabled={isProcessing}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    )
+  const clearFileInputs = () => {
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
   }
 
-  // Full mode with document type selector
-  return (
-    <div className="space-y-6">
-      {/* Hidden file inputs */}
+  const getProgressLabel = () => uploadProgress < 50 ? 'Comprimiendo...' : 'Subiendo...'
+
+  const renderFileInputs = () => (
+    <>
       <input
         ref={cameraInputRef}
         type="file"
@@ -198,7 +73,6 @@ export function DocumentUpload({
         onChange={handleFileSelect}
         disabled={isProcessing}
       />
-
       <input
         ref={galleryInputRef}
         type="file"
@@ -207,8 +81,72 @@ export function DocumentUpload({
         onChange={handleFileSelect}
         disabled={isProcessing}
       />
+    </>
+  )
 
-      {/* Document type selector - only show if not preset */}
+  const renderProgress = (compact: boolean) => (
+    <div className={compact ? "space-y-1" : "space-y-2"}>
+      <div className={`flex items-center justify-between ${compact ? 'text-xs' : 'text-sm'}`}>
+        <span className="text-muted-foreground">{getProgressLabel()}</span>
+        <span className="font-medium">{uploadProgress}%</span>
+      </div>
+      <Progress value={uploadProgress} className={compact ? "h-1" : ""} />
+    </div>
+  )
+
+  const renderUploadButtons = (compact: boolean) => (
+    <div className="flex gap-2">
+      <Button
+        type="button"
+        size={compact ? "sm" : "default"}
+        onClick={() => cameraInputRef.current?.click()}
+        disabled={isProcessing || (!compact && !documentType)}
+        className="flex-1"
+      >
+        {!compact && isProcessing ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Procesando...
+          </>
+        ) : (
+          <>
+            <Camera className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} mr-${compact ? '1' : '2'}`} />
+            {compact ? 'Foto' : 'Tomar foto'}
+          </>
+        )}
+      </Button>
+      <Button
+        type="button"
+        size={compact ? "sm" : "default"}
+        variant="outline"
+        onClick={() => galleryInputRef.current?.click()}
+        disabled={isProcessing || (!compact && !documentType)}
+        className="flex-1"
+      >
+        <Upload className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} mr-${compact ? '1' : '2'}`} />
+        {compact ? 'Galería' : 'Seleccionar'}
+      </Button>
+      {!compact && onCancel && (
+        <Button type="button" onClick={onCancel} variant="ghost" disabled={isProcessing}>
+          Cancelar
+        </Button>
+      )}
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {renderFileInputs()}
+        {isProcessing ? renderProgress(true) : renderUploadButtons(true)}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {renderFileInputs()}
+
       {!presetDocumentType && (
         <div className="space-y-2">
           <Label htmlFor="document-type">
@@ -229,100 +167,8 @@ export function DocumentUpload({
         </div>
       )}
 
-      {/* Preview */}
-      {preview && (
-        <div className="relative">
-          <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden">
-            <Image
-              src={preview}
-              alt="Preview"
-              fill
-              className="object-contain"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="absolute top-2 right-2"
-            onClick={handleClearPreview}
-            disabled={isProcessing}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Upload progress */}
-      {isProcessing && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              {uploadProgress < 50 ? 'Comprimiendo imagen...' : 'Subiendo documento...'}
-            </span>
-            <span className="font-medium">{uploadProgress}%</span>
-          </div>
-          <Progress value={uploadProgress} />
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        {!preview ? (
-          <>
-            <Button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              disabled={isProcessing || !documentType}
-              className="flex-1"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Tomar foto
-            </Button>
-
-            <Button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              disabled={isProcessing || !documentType}
-              variant="outline"
-              className="flex-1"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Seleccionar
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isProcessing || !documentType}
-              className="flex-1"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Procesando...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Subir documento
-                </>
-              )}
-            </Button>
-
-            <Button
-              type="button"
-              onClick={onCancel}
-              variant="outline"
-              disabled={isProcessing}
-            >
-              Cancelar
-            </Button>
-          </>
-        )}
-      </div>
+      {isProcessing && renderProgress(false)}
+      {renderUploadButtons(false)}
     </div>
   )
 }

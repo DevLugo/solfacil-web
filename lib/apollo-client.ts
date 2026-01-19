@@ -276,14 +276,16 @@ export function resetApolloClient(): void {
 /**
  * Upload a file using multipart/form-data with GraphQL
  * This bypasses Apollo Client's normal flow to handle file uploads properly
+ * Includes timeout to prevent hanging on slow mobile networks
  */
 export async function uploadFileWithGraphQL(options: {
   file: File
   query: string
   variables: Record<string, unknown>
   operationName: string
+  timeoutMs?: number
 }) {
-  const { file, query, variables, operationName } = options
+  const { file, query, variables, operationName, timeoutMs = 60000 } = options
 
   const formData = new FormData()
 
@@ -328,18 +330,33 @@ export async function uploadFileWithGraphQL(options: {
     fileSize: file.size,
   })
 
-  const response = await fetch(GRAPHQL_URL, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: formData,
-  })
+  // Create AbortController for timeout handling
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  const result = await response.json()
+  try {
+    const response = await fetch(GRAPHQL_URL, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: formData,
+      signal: controller.signal,
+    })
 
-  if (result.errors) {
-    throw new Error(result.errors[0]?.message || 'Upload failed')
+    clearTimeout(timeoutId)
+
+    const result = await response.json()
+
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || 'Upload failed')
+    }
+
+    return result.data
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('La subida tardó demasiado. Verifica tu conexión e intenta de nuevo.')
+    }
+    throw error
   }
-
-  return result.data
 }

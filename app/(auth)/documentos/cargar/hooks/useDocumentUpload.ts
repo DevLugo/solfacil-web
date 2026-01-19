@@ -5,18 +5,15 @@ import { UPLOAD_DOCUMENT_PHOTO, UPDATE_DOCUMENT_PHOTO } from '@/graphql/mutation
 import { useToast } from '@/hooks/use-toast'
 import { uploadFileWithGraphQL } from '@/lib/apollo-client'
 
-export interface UploadOptions {
-  isError?: boolean
-  isMissing?: boolean
-  errorDescription?: string
-  title?: string
-  description?: string
-}
-
 export interface ValidationOptions {
   isError?: boolean
   isMissing?: boolean
   errorDescription?: string
+}
+
+export interface UploadOptions extends ValidationOptions {
+  title?: string
+  description?: string
 }
 
 /**
@@ -32,46 +29,45 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
 
   const [updateDocument, { loading: isUpdating }] = useMutation(UPDATE_DOCUMENT_PHOTO)
 
-  /**
-   * Compresses an image file before upload
-   * Reduces file size by ~70% on average
-   */
+  const canUseWebWorker = () => {
+    const hasWorkerSupport = typeof Worker !== 'undefined'
+    const hasEnoughCores = navigator.hardwareConcurrency === undefined || navigator.hardwareConcurrency > 2
+    return hasWorkerSupport && hasEnoughCores
+  }
+
+  const createCompressedFile = (compressedBlob: Blob, originalName: string): File => {
+    return new File(
+      [compressedBlob],
+      originalName.replace(/\.[^.]+$/, '.jpg'),
+      { type: 'image/jpeg', lastModified: Date.now() }
+    )
+  }
+
+  const logCompressionResults = (originalSize: number, compressedSize: number) => {
+    const toMB = (bytes: number) => (bytes / 1024 / 1024).toFixed(2)
+    const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(2)
+    console.log(`Original: ${toMB(originalSize)} MB, Compressed: ${toMB(compressedSize)} MB, Ratio: ${ratio}%`)
+  }
+
   const compressImage = async (file: File): Promise<File> => {
     const options = {
-      maxSizeMB: 0.5, // 500KB max
-      maxWidthOrHeight: 800, // 800px max dimension
-      useWebWorker: true, // Use web worker to avoid blocking UI
-      fileType: 'image/jpeg', // Convert to JPEG
-      initialQuality: 0.7, // 70% quality
+      maxSizeMB: 0.5,
+      maxWidthOrHeight: 800,
+      useWebWorker: canUseWebWorker(),
+      fileType: 'image/jpeg',
+      initialQuality: 0.7,
     }
 
     setIsCompressing(true)
     try {
       const compressedBlob = await imageCompression(file, options)
+      const compressedFile = createCompressedFile(compressedBlob, file.name)
 
-      // Create a proper File object from the compressed blob with correct metadata
-      const compressedFile = new File(
-        [compressedBlob],
-        file.name.replace(/\.[^.]+$/, '.jpg'), // Replace extension with .jpg
-        {
-          type: 'image/jpeg',
-          lastModified: Date.now(),
-        }
-      )
-
-      // Log compression results
-      console.log('Original file size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
-      console.log('Compressed file size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB')
-      console.log(
-        'Compression ratio:',
-        ((1 - compressedFile.size / file.size) * 100).toFixed(2),
-        '%'
-      )
+      logCompressionResults(file.size, compressedFile.size)
 
       return compressedFile
     } catch (error) {
       console.error('Error compressing image:', error)
-      // Show specific error for compression
       toast({
         title: 'Error al comprimir imagen',
         description: 'No se pudo comprimir la imagen. Intenta con una imagen más pequeña.',
@@ -83,9 +79,40 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
     }
   }
 
-  /**
-   * Uploads a document photo with compression
-   */
+  const UPLOAD_TIMEOUT_MS = 120000
+  const QUERIES_TO_REFETCH = ['GetLoansByWeekAndLocation', 'GetLoanDocuments']
+
+  const DOCUMENT_FRAGMENT = gql`
+    fragment UploadedDoc on DocumentPhoto {
+      id
+      photoUrl
+      publicId
+      documentType
+      isError
+      isMissing
+      errorDescription
+      title
+      description
+      personalData {
+        id
+        fullName
+      }
+      createdAt
+      updatedAt
+    }
+  `
+
+  const writeToCacheFragment = (uploadedDoc: any) => {
+    apolloClient.cache.writeFragment({
+      id: apolloClient.cache.identify({
+        __typename: 'DocumentPhoto',
+        id: uploadedDoc.id
+      }),
+      fragment: DOCUMENT_FRAGMENT,
+      data: uploadedDoc
+    })
+  }
+
   const handleUpload = async (
     file: File,
     documentType: string,
@@ -94,20 +121,9 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
     try {
       setUploadProgress(10)
 
-      // Compress image
       const compressedFile = await compressImage(file)
       setUploadProgress(50)
 
-      // Debug: Log file object
-      console.log('Uploading file:', {
-        name: compressedFile.name,
-        type: compressedFile.type,
-        size: compressedFile.size,
-        isFile: compressedFile instanceof File,
-        isBlob: compressedFile instanceof Blob,
-      })
-
-      // Upload to server using fetch with FormData
       setIsUploading(true)
       const result = await uploadFileWithGraphQL({
         file: compressedFile,
@@ -125,46 +141,18 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
           },
         },
         operationName: 'UploadDocumentPhoto',
+        timeoutMs: UPLOAD_TIMEOUT_MS,
       })
 
       setUploadProgress(100)
 
-      // Write the result to Apollo cache manually since uploadFileWithGraphQL bypasses Apollo
       if (result.uploadDocumentPhoto) {
-        const uploadedDoc = result.uploadDocumentPhoto
-
-        // Write to cache fragment
-        apolloClient.cache.writeFragment({
-          id: apolloClient.cache.identify({
-            __typename: 'DocumentPhoto',
-            id: uploadedDoc.id
-          }),
-          fragment: gql`
-            fragment UploadedDoc on DocumentPhoto {
-              id
-              photoUrl
-              publicId
-              documentType
-              isError
-              isMissing
-              errorDescription
-              title
-              description
-              personalData {
-                id
-                fullName
-              }
-              createdAt
-              updatedAt
-            }
-          `,
-          data: uploadedDoc
-        })
+        writeToCacheFragment(result.uploadDocumentPhoto)
       }
 
-      // Refetch queries manually to update UI in real-time
       await apolloClient.refetchQueries({
-        include: ['GetLoansByWeekAndLocation', 'GetLoanDocuments'],
+        include: QUERIES_TO_REFETCH,
+        onQueryUpdated: () => true,
       })
 
       toast({
@@ -175,7 +163,6 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
       return result.uploadDocumentPhoto
     } catch (error) {
       console.error('Error uploading document:', error)
-      // Show error toast
       toast({
         title: 'Error al subir documento',
         description: error instanceof Error ? error.message : 'No se pudo subir el documento.',
@@ -188,9 +175,12 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
     }
   }
 
-  /**
-   * Validates a document (mark as correct, error, or missing)
-   */
+  const getValidationStatus = (options: ValidationOptions): string => {
+    if (options.isError) return 'con error'
+    if (options.isMissing) return 'faltante'
+    return 'correcto'
+  }
+
   const handleValidation = async (
     documentId: string,
     options: ValidationOptions
@@ -205,24 +195,18 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
             errorDescription: options.errorDescription,
           },
         },
-        refetchQueries: ['GetLoansByWeekAndLocation', 'GetLoanDocuments'],
+        refetchQueries: QUERIES_TO_REFETCH,
         awaitRefetchQueries: true,
       })
 
-      // Determine validation status for toast
-      let status = 'correcto'
-      if (options.isError) status = 'con error'
-      if (options.isMissing) status = 'faltante'
-
       toast({
         title: 'Documento validado',
-        description: `El documento ha sido marcado como ${status}.`,
+        description: `El documento ha sido marcado como ${getValidationStatus(options)}.`,
       })
 
       return result.data?.updateDocumentPhoto
     } catch (error) {
       console.error('Error validating document:', error)
-      // Error toast is handled by Apollo error link automatically
       throw error
     }
   }

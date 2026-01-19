@@ -1,15 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@apollo/client'
 import { GET_LOANS_BY_WEEK_LOCATION, GET_CURRENT_WEEK } from '@/graphql/queries/documents'
 import { GET_LOCATIONS } from '@/graphql/queries/leader'
 import { getCurrentWeek } from '../utils/weekUtils'
 
-/**
- * Main hook for managing document state, filters, and queries
- * Handles week selection, location filtering, and loan data fetching
- */
 export function useDocumentManager() {
-  // Initialize with current week
   const currentWeek = getCurrentWeek()
   const [weekInfo, setWeekInfo] = useState({
     year: currentWeek.year,
@@ -17,15 +12,15 @@ export function useDocumentManager() {
   })
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [selectedRouteId, setSelectedRouteId] = useState<string>('')
+  const hasInitializedFromBackend = useRef(false)
 
-  // Fetch current week from backend for validation
   const { data: currentWeekData } = useQuery(GET_CURRENT_WEEK, {
     fetchPolicy: 'cache-and-network',
   })
 
-  // Update week info when backend data is available
   useEffect(() => {
-    if (currentWeekData?.currentWeek) {
+    if (currentWeekData?.currentWeek && !hasInitializedFromBackend.current) {
+      hasInitializedFromBackend.current = true
       setWeekInfo({
         year: currentWeekData.currentWeek.year,
         weekNumber: currentWeekData.currentWeek.weekNumber,
@@ -33,7 +28,6 @@ export function useDocumentManager() {
     }
   }, [currentWeekData])
 
-  // Fetch locations - optionally filtered by route, or all if no route selected
   const {
     data: locationsData,
     loading: locationsLoading,
@@ -42,8 +36,8 @@ export function useDocumentManager() {
     variables: { routeId: selectedRouteId || undefined },
   })
 
-  // Fetch loans by week and optionally by route/location
-  // Can filter by route only, location only, both, or neither (just by week)
+  const hasFilters = selectedRouteId || selectedLocation
+
   const {
     data: loansData,
     loading: loansLoading,
@@ -56,12 +50,10 @@ export function useDocumentManager() {
       routeId: selectedRouteId || undefined,
       locationId: selectedLocation || undefined,
     },
-    // Fetch when we have at least a route or a location selected
-    skip: !selectedRouteId && !selectedLocation,
+    skip: !hasFilters,
     fetchPolicy: 'cache-and-network',
   })
 
-  // Handlers
   const handleWeekChange = (year: number, weekNumber: number) => {
     setWeekInfo({ year, weekNumber })
   }
@@ -72,7 +64,7 @@ export function useDocumentManager() {
 
   const handleRouteChange = (routeId: string) => {
     setSelectedRouteId(routeId)
-    setSelectedLocation('') // Reset location when route changes
+    setSelectedLocation('')
   }
 
   return {
