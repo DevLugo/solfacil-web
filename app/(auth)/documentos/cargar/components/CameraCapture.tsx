@@ -126,11 +126,44 @@ export function CameraCapture({
       // Check if torch/flash is supported
       const track = stream.getVideoTracks()[0]
       if (track) {
-        const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
-        console.log('Camera capabilities:', capabilities)
-        console.log('Torch supported:', !!capabilities.torch)
-        setTorchSupported(!!capabilities.torch)
-        setTorchOn(false) // Reset torch state when camera restarts
+        try {
+          const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
+          console.log('Camera capabilities:', JSON.stringify(capabilities, null, 2))
+
+          // Some devices report torch in capabilities
+          if (capabilities.torch) {
+            console.log('Torch supported via capabilities')
+            setTorchSupported(true)
+          } else {
+            // Try to enable torch to see if it works (then disable it)
+            // This is a workaround for devices that don't report torch in capabilities
+            try {
+              await track.applyConstraints({
+                advanced: [{
+                  // @ts-expect-error - torch is not in standard types
+                  torch: true
+                }]
+              })
+              // If we get here, torch is supported
+              console.log('Torch supported via test activation')
+              setTorchSupported(true)
+              // Turn it back off
+              await track.applyConstraints({
+                advanced: [{
+                  // @ts-expect-error - torch is not in standard types
+                  torch: false
+                }]
+              })
+            } catch {
+              console.log('Torch not supported')
+              setTorchSupported(false)
+            }
+          }
+        } catch (err) {
+          console.log('Error checking torch:', err)
+          setTorchSupported(false)
+        }
+        setTorchOn(false)
       }
 
       setIsLoading(false)
@@ -269,20 +302,30 @@ export function CameraCapture({
 
   // Toggle flash/torch
   const toggleTorch = async () => {
+    console.log('Toggle torch clicked, current state:', torchOn)
     try {
       const track = streamRef.current?.getVideoTracks()[0]
-      if (track) {
-        const newTorchState = !torchOn
-        await track.applyConstraints({
-          advanced: [{
-            // @ts-expect-error - torch is not in standard types
-            torch: newTorchState
-          }]
-        })
-        setTorchOn(newTorchState)
+      if (!track) {
+        console.log('No video track found')
+        return
       }
+
+      const newTorchState = !torchOn
+      console.log('Applying torch constraint:', newTorchState)
+
+      await track.applyConstraints({
+        advanced: [{
+          // @ts-expect-error - torch is not in standard types
+          torch: newTorchState
+        }]
+      })
+
+      console.log('Torch toggled successfully to:', newTorchState)
+      setTorchOn(newTorchState)
     } catch (err) {
       console.error('Failed to toggle torch:', err)
+      // If toggle fails, mark as not supported
+      setTorchSupported(false)
     }
   }
 
