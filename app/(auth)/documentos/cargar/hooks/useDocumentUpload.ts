@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useMutation, useApolloClient, gql } from '@apollo/client'
 import imageCompression from 'browser-image-compression'
 import { UPLOAD_DOCUMENT_PHOTO, UPDATE_DOCUMENT_PHOTO } from '@/graphql/mutations/documents'
@@ -62,6 +62,23 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
     return false
   }
 
+  // Track number of uploads to suggest refresh on low-end devices
+  const uploadCountRef = useRef(0)
+
+  // Help garbage collector by clearing any lingering references
+  const triggerGarbageCollection = () => {
+    // Create and immediately discard a large array to hint GC to run
+    // This is a common trick to encourage browser GC
+    if (isLowEndDevice()) {
+      try {
+        const temp = new Array(1000000).fill(0)
+        temp.length = 0
+      } catch {
+        // Ignore if this itself causes memory issues
+      }
+    }
+  }
+
   const compressImage = async (file: File): Promise<File> => {
     const lowEnd = isLowEndDevice()
     const fileSizeMB = file.size / 1024 / 1024
@@ -74,6 +91,15 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
         variant: 'destructive',
       })
       throw new Error('Archivo demasiado grande para este dispositivo')
+    }
+
+    // After several uploads on low-end device, suggest refresh
+    if (lowEnd && uploadCountRef.current >= 5) {
+      toast({
+        title: 'Consejo',
+        description: 'Has subido varias imágenes. Si notas lentitud, recarga la página para liberar memoria.',
+      })
+      uploadCountRef.current = 0 // Reset counter after showing tip
     }
 
     // More aggressive compression for low-end devices
@@ -93,6 +119,12 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
       const toMB = (bytes: number) => (bytes / 1024 / 1024).toFixed(2)
       console.log(`Compressed: ${toMB(file.size)}MB → ${toMB(compressedFile.size)}MB`)
 
+      // Increment upload count for low-end device tip
+      uploadCountRef.current++
+
+      // Help release memory after compression
+      triggerGarbageCollection()
+
       return compressedFile
     } catch (error) {
       console.error('Error compressing image:', error)
@@ -101,7 +133,7 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
       if (isMemoryError(error)) {
         toast({
           title: 'Memoria insuficiente',
-          description: 'Tu dispositivo no tiene suficiente memoria. Cierra otras apps e intenta de nuevo, o toma una foto con menor resolución.',
+          description: 'Tu dispositivo no tiene suficiente memoria. Cierra otras apps y recarga la página antes de intentar de nuevo.',
           variant: 'destructive',
         })
       } else {
@@ -114,6 +146,8 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
       throw error
     } finally {
       setIsCompressing(false)
+      // Always try to help GC after compression attempt
+      triggerGarbageCollection()
     }
   }
 
