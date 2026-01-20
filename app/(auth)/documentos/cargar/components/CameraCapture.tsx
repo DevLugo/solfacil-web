@@ -311,20 +311,69 @@ export function CameraCapture({
       }
 
       const newTorchState = !torchOn
-      console.log('Applying torch constraint:', newTorchState)
 
-      await track.applyConstraints({
-        advanced: [{
-          // @ts-expect-error - torch is not in standard types
-          torch: newTorchState
-        }]
-      })
+      // Try multiple methods to toggle torch
+      let success = false
 
-      console.log('Torch toggled successfully to:', newTorchState)
-      setTorchOn(newTorchState)
+      // Method 1: ImageCapture API (best support on mobile)
+      if ('ImageCapture' in window && !success) {
+        try {
+          console.log('Trying ImageCapture API...')
+          // @ts-expect-error - ImageCapture not in standard types
+          const imageCapture = new ImageCapture(track)
+          const photoCapabilities = await imageCapture.getPhotoCapabilities()
+          console.log('Photo capabilities:', photoCapabilities)
+
+          if (photoCapabilities.fillLightMode && photoCapabilities.fillLightMode.includes('flash')) {
+            await imageCapture.setOptions({ fillLightMode: newTorchState ? 'flash' : 'off' })
+            success = true
+            console.log('Torch toggled via ImageCapture')
+          }
+        } catch (e) {
+          console.log('ImageCapture method failed:', e)
+        }
+      }
+
+      // Method 2: Direct track constraints
+      if (!success) {
+        try {
+          console.log('Trying track.applyConstraints...')
+          await track.applyConstraints({
+            advanced: [{
+              // @ts-expect-error - torch is not in standard types
+              torch: newTorchState
+            }]
+          })
+          success = true
+          console.log('Torch toggled via applyConstraints')
+        } catch (e) {
+          console.log('applyConstraints method failed:', e)
+        }
+      }
+
+      // Method 3: MediaTrackSettings (some Android devices)
+      if (!success) {
+        try {
+          console.log('Trying direct settings...')
+          const settings = track.getSettings() as MediaTrackSettings & { torch?: boolean }
+          // @ts-expect-error - modifying settings directly
+          settings.torch = newTorchState
+          success = true
+          console.log('Torch set via settings')
+        } catch (e) {
+          console.log('Direct settings method failed:', e)
+        }
+      }
+
+      if (success) {
+        console.log('Torch toggled successfully to:', newTorchState)
+        setTorchOn(newTorchState)
+      } else {
+        console.log('All torch methods failed')
+        setTorchSupported(false)
+      }
     } catch (err) {
       console.error('Failed to toggle torch:', err)
-      // If toggle fails, mark as not supported
       setTorchSupported(false)
     }
   }
