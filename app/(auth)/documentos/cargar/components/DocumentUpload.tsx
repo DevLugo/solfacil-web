@@ -5,6 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress'
 import { Camera, Upload, Loader2 } from 'lucide-react'
 import { useDocumentUpload } from '../hooks/useDocumentUpload'
+import { useToast } from '@/hooks/use-toast'
+
+// Max file size in MB before even attempting to process
+// Lower for low-end devices to prevent browser memory crashes
+const MAX_FILE_SIZE_MB = 8
+const MAX_FILE_SIZE_LOW_END_MB = 3
 
 interface DocumentUploadProps {
   loanId: string
@@ -38,14 +44,34 @@ export function DocumentUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [documentType, setDocumentType] = useState<string>(presetDocumentType || '')
+  const { toast } = useToast()
 
   const { handleUpload, isProcessing, uploadProgress } = useDocumentUpload(loanId, personalDataId)
+
+  const isLowEndDevice = () => {
+    const cores = navigator.hardwareConcurrency || 2
+    const memory = (navigator as any).deviceMemory || 4
+    return cores <= 2 || memory < 4
+  }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     clearFileInputs()
+
+    // Check file size IMMEDIATELY before browser tries to fully load it
+    const fileSizeMB = file.size / 1024 / 1024
+    const maxSize = isLowEndDevice() ? MAX_FILE_SIZE_LOW_END_MB : MAX_FILE_SIZE_MB
+
+    if (fileSizeMB > maxSize) {
+      toast({
+        title: 'Archivo muy grande',
+        description: `La imagen pesa ${fileSizeMB.toFixed(1)}MB. El máximo es ${maxSize}MB. Toma la foto con menor resolución o usa la cámara directamente.`,
+        variant: 'destructive',
+      })
+      return
+    }
 
     try {
       await handleUpload(file, documentType)
