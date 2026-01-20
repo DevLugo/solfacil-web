@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Camera, X, RotateCcw, Check, SwitchCamera } from 'lucide-react'
+import { X, RotateCcw, Check, SwitchCamera, Zap, ZapOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CameraCaptureProps {
@@ -38,6 +38,9 @@ export function CameraCapture({
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight)
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
+  const [torchOn, setTorchOn] = useState(false)
+  const [torchSupported, setTorchSupported] = useState(false)
 
   // Request fullscreen and lock body scroll on mount
   useEffect(() => {
@@ -118,6 +121,14 @@ export function CameraCapture({
             console.error('Video play error:', err)
           }
         })
+      }
+
+      // Check if torch/flash is supported
+      const track = stream.getVideoTracks()[0]
+      if (track) {
+        const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
+        setTorchSupported(!!capabilities.torch)
+        setTorchOn(false) // Reset torch state when camera restarts
       }
 
       setIsLoading(false)
@@ -254,6 +265,69 @@ export function CameraCapture({
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')
   }
 
+  // Toggle flash/torch
+  const toggleTorch = async () => {
+    try {
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (track) {
+        const newTorchState = !torchOn
+        await track.applyConstraints({
+          advanced: [{
+            // @ts-expect-error - torch is not in standard types
+            torch: newTorchState
+          }]
+        })
+        setTorchOn(newTorchState)
+      }
+    } catch (err) {
+      console.error('Failed to toggle torch:', err)
+    }
+  }
+
+  // Tap to focus
+  const handleTapToFocus = async (e: React.PointerEvent<HTMLDivElement>) => {
+    if (capturedImage || isLoading || error) return
+
+    // Get tap coordinates
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    // Show focus indicator
+    setFocusPoint({ x, y })
+
+    // Hide focus indicator after animation
+    setTimeout(() => setFocusPoint(null), 1000)
+
+    // Try to actually focus the camera (if supported)
+    try {
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (track) {
+        const capabilities = track.getCapabilities() as MediaTrackCapabilities & {
+          focusMode?: string[]
+        }
+
+        // Check if focus is supported
+        if (capabilities.focusMode?.includes('manual') || capabilities.focusMode?.includes('single-shot')) {
+          // Calculate normalized coordinates (0-1)
+          const focusX = x / rect.width
+          const focusY = y / rect.height
+
+          await track.applyConstraints({
+            advanced: [{
+              // @ts-expect-error - focusMode and pointsOfInterest are not in standard types
+              focusMode: 'single-shot',
+              pointsOfInterest: [{ x: focusX, y: focusY }]
+            }]
+          })
+        }
+      }
+    } catch (err) {
+      // Focus not supported on this device/browser - that's OK
+      console.log('Auto-focus not supported:', err)
+    }
+  }
+
   return (
     <div
       ref={containerRef}
@@ -265,8 +339,11 @@ export function CameraCapture({
         left: 0,
       }}
     >
-      {/* Video/Image fills entire screen */}
-      <div className="absolute inset-0">
+      {/* Video/Image fills entire screen - tap to focus */}
+      <div
+        className="absolute inset-0"
+        onPointerDown={handleTapToFocus}
+      >
         {/* Video preview */}
         <video
           ref={videoRef}
@@ -278,6 +355,28 @@ export function CameraCapture({
             (capturedImage || isLoading || error) && 'hidden'
           )}
         />
+
+        {/* Focus indicator */}
+        {focusPoint && (
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: focusPoint.x - 40,
+              top: focusPoint.y - 40,
+            }}
+          >
+            <div className="w-20 h-20 border-2 border-yellow-400 rounded-lg animate-pulse">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+              </div>
+              {/* Corner accents */}
+              <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-yellow-400" />
+              <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-yellow-400" />
+              <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-yellow-400" />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-yellow-400" />
+            </div>
+          </div>
+        )}
 
         {/* Captured image preview */}
         {capturedImage && (
@@ -347,15 +446,32 @@ export function CameraCapture({
         <span className="text-white font-medium text-shadow">
           {capturedImage ? 'Vista previa' : 'Tomar foto'}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={switchCamera}
-          disabled={isLoading || !!capturedImage}
-          className="text-white hover:bg-white/20"
-        >
-          <SwitchCamera className="h-6 w-6" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Flash button - only show if supported and not in preview */}
+          {torchSupported && !capturedImage && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTorch}
+              disabled={isLoading}
+              className={cn(
+                "text-white hover:bg-white/20",
+                torchOn && "bg-yellow-500/30"
+              )}
+            >
+              {torchOn ? <Zap className="h-6 w-6 text-yellow-400" /> : <ZapOff className="h-6 w-6" />}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={switchCamera}
+            disabled={isLoading || !!capturedImage}
+            className="text-white hover:bg-white/20"
+          >
+            <SwitchCamera className="h-6 w-6" />
+          </Button>
+        </div>
       </div>
 
       {/* Bottom controls - overlayed */}
