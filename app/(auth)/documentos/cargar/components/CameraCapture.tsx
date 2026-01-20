@@ -42,18 +42,34 @@ export function CameraCapture({
   const [torchOn, setTorchOn] = useState(false)
   const [torchSupported, setTorchSupported] = useState(false)
 
-  // Request fullscreen and lock body scroll on mount
+  // Request fullscreen and lock body/html scroll on mount
   useEffect(() => {
-    // Lock body scroll
-    const originalOverflow = document.body.style.overflow
-    const originalPosition = document.body.style.position
-    const originalWidth = document.body.style.width
-    const originalHeight = document.body.style.height
+    // Save original styles
+    const originalBodyOverflow = document.body.style.overflow
+    const originalBodyPosition = document.body.style.position
+    const originalBodyWidth = document.body.style.width
+    const originalBodyHeight = document.body.style.height
+    const originalBodyTop = document.body.style.top
+    const originalBodyLeft = document.body.style.left
+    const originalHtmlOverflow = document.documentElement.style.overflow
 
+    // Get current scroll position
+    const scrollY = window.scrollY
+
+    // Lock body and html scroll completely
     document.body.style.overflow = 'hidden'
     document.body.style.position = 'fixed'
     document.body.style.width = '100%'
     document.body.style.height = '100%'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.left = '0'
+    document.documentElement.style.overflow = 'hidden'
+
+    // Prevent touchmove on document
+    const preventScroll = (e: TouchEvent) => {
+      e.preventDefault()
+    }
+    document.addEventListener('touchmove', preventScroll, { passive: false })
 
     // Try to enter fullscreen (may fail if not triggered by user gesture)
     const enterFullscreen = async () => {
@@ -72,11 +88,19 @@ export function CameraCapture({
 
     return () => {
       clearTimeout(timer)
+      document.removeEventListener('touchmove', preventScroll)
+
       // Restore body scroll
-      document.body.style.overflow = originalOverflow
-      document.body.style.position = originalPosition
-      document.body.style.width = originalWidth
-      document.body.style.height = originalHeight
+      document.body.style.overflow = originalBodyOverflow
+      document.body.style.position = originalBodyPosition
+      document.body.style.width = originalBodyWidth
+      document.body.style.height = originalBodyHeight
+      document.body.style.top = originalBodyTop
+      document.body.style.left = originalBodyLeft
+      document.documentElement.style.overflow = originalHtmlOverflow
+
+      // Restore scroll position
+      window.scrollTo(0, scrollY)
 
       // Exit fullscreen if active
       if (document.fullscreenElement) {
@@ -139,20 +163,14 @@ export function CameraCapture({
             // This is a workaround for devices that don't report torch in capabilities
             try {
               await track.applyConstraints({
-                advanced: [{
-                  // @ts-expect-error - torch is not in standard types
-                  torch: true
-                }]
+                advanced: [{ torch: true } as MediaTrackConstraintSet]
               })
               // If we get here, torch is supported
               console.log('Torch supported via test activation')
               setTorchSupported(true)
               // Turn it back off
               await track.applyConstraints({
-                advanced: [{
-                  // @ts-expect-error - torch is not in standard types
-                  torch: false
-                }]
+                advanced: [{ torch: false } as MediaTrackConstraintSet]
               })
             } catch {
               console.log('Torch not supported')
@@ -312,66 +330,13 @@ export function CameraCapture({
 
       const newTorchState = !torchOn
 
-      // Try multiple methods to toggle torch
-      let success = false
-
-      // Method 1: ImageCapture API (best support on mobile)
-      if ('ImageCapture' in window && !success) {
-        try {
-          console.log('Trying ImageCapture API...')
-          // @ts-expect-error - ImageCapture not in standard types
-          const imageCapture = new ImageCapture(track)
-          const photoCapabilities = await imageCapture.getPhotoCapabilities()
-          console.log('Photo capabilities:', photoCapabilities)
-
-          if (photoCapabilities.fillLightMode && photoCapabilities.fillLightMode.includes('flash')) {
-            await imageCapture.setOptions({ fillLightMode: newTorchState ? 'flash' : 'off' })
-            success = true
-            console.log('Torch toggled via ImageCapture')
-          }
-        } catch (e) {
-          console.log('ImageCapture method failed:', e)
-        }
-      }
-
-      // Method 2: Direct track constraints
-      if (!success) {
-        try {
-          console.log('Trying track.applyConstraints...')
-          await track.applyConstraints({
-            advanced: [{
-              // @ts-expect-error - torch is not in standard types
-              torch: newTorchState
-            }]
-          })
-          success = true
-          console.log('Torch toggled via applyConstraints')
-        } catch (e) {
-          console.log('applyConstraints method failed:', e)
-        }
-      }
-
-      // Method 3: MediaTrackSettings (some Android devices)
-      if (!success) {
-        try {
-          console.log('Trying direct settings...')
-          const settings = track.getSettings() as MediaTrackSettings & { torch?: boolean }
-          // @ts-expect-error - modifying settings directly
-          settings.torch = newTorchState
-          success = true
-          console.log('Torch set via settings')
-        } catch (e) {
-          console.log('Direct settings method failed:', e)
-        }
-      }
-
-      if (success) {
-        console.log('Torch toggled successfully to:', newTorchState)
-        setTorchOn(newTorchState)
-      } else {
-        console.log('All torch methods failed')
-        setTorchSupported(false)
-      }
+      // Toggle torch via track constraints
+      console.log('Applying torch constraint:', newTorchState)
+      await track.applyConstraints({
+        advanced: [{ torch: newTorchState } as MediaTrackConstraintSet]
+      })
+      console.log('Torch toggled successfully to:', newTorchState)
+      setTorchOn(newTorchState)
     } catch (err) {
       console.error('Failed to toggle torch:', err)
       setTorchSupported(false)
