@@ -29,6 +29,13 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
 
   const [updateDocument, { loading: isUpdating }] = useMutation(UPDATE_DOCUMENT_PHOTO)
 
+  const isLowEndDevice = () => {
+    const cores = navigator.hardwareConcurrency || 2
+    // navigator.deviceMemory returns GB (e.g., 2, 4, 8) - only available in Chrome/Edge
+    const memory = (navigator as any).deviceMemory || 4
+    return cores <= 2 || memory < 4
+  }
+
   const canUseWebWorker = () => {
     const hasWorkerSupport = typeof Worker !== 'undefined'
     const hasEnoughCores = navigator.hardwareConcurrency === undefined || navigator.hardwareConcurrency > 2
@@ -43,19 +50,39 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
     )
   }
 
-  const logCompressionResults = (originalSize: number, compressedSize: number) => {
-    const toMB = (bytes: number) => (bytes / 1024 / 1024).toFixed(2)
-    const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(2)
-    console.log(`Original: ${toMB(originalSize)} MB, Compressed: ${toMB(compressedSize)} MB, Ratio: ${ratio}%`)
+  const isMemoryError = (error: unknown): boolean => {
+    if (error instanceof Error) {
+      const msg = error.message.toLowerCase()
+      return msg.includes('memory') ||
+             msg.includes('memoria') ||
+             msg.includes('heap') ||
+             msg.includes('allocation') ||
+             msg.includes('aw, snap') // Chrome crash message
+    }
+    return false
   }
 
   const compressImage = async (file: File): Promise<File> => {
+    const lowEnd = isLowEndDevice()
+    const fileSizeMB = file.size / 1024 / 1024
+
+    // For very large files on low-end devices, warn immediately
+    if (lowEnd && fileSizeMB > 5) {
+      toast({
+        title: 'Imagen muy grande',
+        description: 'Tu dispositivo tiene poca memoria. Intenta tomar la foto con menor resolución.',
+        variant: 'destructive',
+      })
+      throw new Error('Archivo demasiado grande para este dispositivo')
+    }
+
+    // More aggressive compression for low-end devices
     const options = {
-      maxSizeMB: 0.5,
-      maxWidthOrHeight: 800,
+      maxSizeMB: lowEnd ? 0.3 : 0.5,
+      maxWidthOrHeight: lowEnd ? 600 : 800,
       useWebWorker: canUseWebWorker(),
-      fileType: 'image/jpeg',
-      initialQuality: 0.7,
+      fileType: 'image/jpeg' as const,
+      initialQuality: lowEnd ? 0.5 : 0.7,
     }
 
     setIsCompressing(true)
@@ -63,16 +90,27 @@ export function useDocumentUpload(loanId: string, personalDataId?: string) {
       const compressedBlob = await imageCompression(file, options)
       const compressedFile = createCompressedFile(compressedBlob, file.name)
 
-      logCompressionResults(file.size, compressedFile.size)
+      const toMB = (bytes: number) => (bytes / 1024 / 1024).toFixed(2)
+      console.log(`Compressed: ${toMB(file.size)}MB → ${toMB(compressedFile.size)}MB`)
 
       return compressedFile
     } catch (error) {
       console.error('Error compressing image:', error)
-      toast({
-        title: 'Error al comprimir imagen',
-        description: 'No se pudo comprimir la imagen. Intenta con una imagen más pequeña.',
-        variant: 'destructive',
-      })
+
+      // Specific message for memory errors
+      if (isMemoryError(error)) {
+        toast({
+          title: 'Memoria insuficiente',
+          description: 'Tu dispositivo no tiene suficiente memoria. Cierra otras apps e intenta de nuevo, o toma una foto con menor resolución.',
+          variant: 'destructive',
+        })
+      } else {
+        toast({
+          title: 'Error al comprimir imagen',
+          description: 'No se pudo comprimir la imagen. Intenta con una imagen más pequeña.',
+          variant: 'destructive',
+        })
+      }
       throw error
     } finally {
       setIsCompressing(false)
