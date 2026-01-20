@@ -29,6 +29,7 @@ export function CameraCapture({
 }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const isInitializingRef = useRef(false)
 
@@ -37,6 +38,49 @@ export function CameraCapture({
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight)
+
+  // Request fullscreen and lock body scroll on mount
+  useEffect(() => {
+    // Lock body scroll
+    const originalOverflow = document.body.style.overflow
+    const originalPosition = document.body.style.position
+    const originalWidth = document.body.style.width
+    const originalHeight = document.body.style.height
+
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    document.body.style.height = '100%'
+
+    // Try to enter fullscreen (may fail if not triggered by user gesture)
+    const enterFullscreen = async () => {
+      try {
+        if (containerRef.current && document.fullscreenEnabled) {
+          await containerRef.current.requestFullscreen()
+        }
+      } catch (err) {
+        // Fullscreen may fail silently - that's OK, the camera still works
+        console.log('Fullscreen not available:', err)
+      }
+    }
+
+    // Small delay to ensure component is mounted
+    const timer = setTimeout(enterFullscreen, 100)
+
+    return () => {
+      clearTimeout(timer)
+      // Restore body scroll
+      document.body.style.overflow = originalOverflow
+      document.body.style.position = originalPosition
+      document.body.style.width = originalWidth
+      document.body.style.height = originalHeight
+
+      // Exit fullscreen if active
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      }
+    }
+  }, [])
 
   // Start camera stream
   const startCamera = useCallback(async () => {
@@ -211,9 +255,87 @@ export function CameraCapture({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-black/50 absolute top-0 left-0 right-0 z-10">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[9999] bg-black touch-none overflow-hidden"
+      style={{
+        height: '100dvh',
+        width: '100dvw',
+        top: 0,
+        left: 0,
+      }}
+    >
+      {/* Video/Image fills entire screen */}
+      <div className="absolute inset-0">
+        {/* Video preview */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(
+            'w-full h-full object-cover',
+            (capturedImage || isLoading || error) && 'hidden'
+          )}
+        />
+
+        {/* Captured image preview */}
+        {capturedImage && (
+          <img
+            src={capturedImage}
+            alt="Captured"
+            className="w-full h-full object-contain bg-black"
+          />
+        )}
+
+        {/* Loading state */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mx-auto mb-4" />
+              <p>Iniciando cámara...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white text-center p-4">
+              <p className="text-red-400 mb-4">{error}</p>
+              <Button onClick={startCamera} variant="secondary">
+                Reintentar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Hidden canvas for capture */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Frame guide - overlayed on video */}
+      {!capturedImage && !isLoading && !error && (
+        <div className="absolute inset-4 sm:inset-6 border-2 border-white/40 rounded-lg pointer-events-none">
+          <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-white/70 rounded-tl" />
+          <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-white/70 rounded-tr" />
+          <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-white/70 rounded-bl" />
+          <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-white/70 rounded-br" />
+        </div>
+      )}
+
+      {/* Orientation hint - only in portrait */}
+      {!isLandscape && !capturedImage && !isLoading && !error && (
+        <div className="absolute top-20 left-0 right-0 z-20 flex justify-center">
+          <div className="bg-yellow-500/90 text-yellow-950 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Gira el teléfono para mejor encuadre
+          </div>
+        </div>
+      )}
+
+      {/* Header - overlayed */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-3 bg-gradient-to-b from-black/60 to-transparent">
         <Button
           variant="ghost"
           size="icon"
@@ -222,7 +344,7 @@ export function CameraCapture({
         >
           <X className="h-6 w-6" />
         </Button>
-        <span className="text-white font-medium">
+        <span className="text-white font-medium text-shadow">
           {capturedImage ? 'Vista previa' : 'Tomar foto'}
         </span>
         <Button
@@ -236,86 +358,21 @@ export function CameraCapture({
         </Button>
       </div>
 
-      {/* Camera/Preview area */}
-      <div className="flex-1 flex items-center justify-center bg-black relative overflow-hidden">
-        {/* Orientation hint overlay */}
-        {!isLandscape && !capturedImage && !isLoading && !error && (
-          <div className="absolute top-20 left-0 right-0 z-20 flex justify-center">
-            <div className="bg-yellow-500/90 text-yellow-950 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Gira el teléfono para mejor encuadre
-            </div>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {isLoading && (
-          <div className="text-white text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mx-auto mb-4" />
-            <p>Iniciando cámara...</p>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && (
-          <div className="text-white text-center p-4">
-            <p className="text-red-400 mb-4">{error}</p>
-            <Button onClick={startCamera} variant="secondary">
-              Reintentar
-            </Button>
-          </div>
-        )}
-
-        {/* Video preview (hidden when captured) */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={cn(
-            'max-h-full max-w-full object-contain',
-            (capturedImage || isLoading || error) && 'hidden'
-          )}
-        />
-
-        {/* Captured image preview */}
-        {capturedImage && (
-          <img
-            src={capturedImage}
-            alt="Captured"
-            className="max-h-full max-w-full object-contain"
-          />
-        )}
-
-        {/* Hidden canvas for capture */}
-        <canvas ref={canvasRef} className="hidden" />
-
-        {/* Landscape frame guide */}
-        {!capturedImage && !isLoading && !error && (
-          <div className="absolute inset-8 border-2 border-white/30 rounded-lg pointer-events-none">
-            <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-white/60 rounded-tl" />
-            <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-white/60 rounded-tr" />
-            <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-white/60 rounded-bl" />
-            <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-white/60 rounded-br" />
-          </div>
-        )}
-      </div>
-
-      {/* Bottom controls */}
-      <div className="p-6 bg-black/50 flex items-center justify-center gap-8">
+      {/* Bottom controls - overlayed */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-6 p-4 bg-gradient-to-t from-black/60 to-transparent">
         {!capturedImage ? (
           /* Capture button */
           <button
             onClick={capturePhoto}
             disabled={isLoading || !!error}
             className={cn(
-              'w-20 h-20 rounded-full border-4 border-white flex items-center justify-center',
+              'w-16 h-16 rounded-full border-4 border-white flex items-center justify-center',
               'bg-white/10 hover:bg-white/20 transition-colors',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'active:scale-95'
             )}
           >
-            <div className="w-14 h-14 rounded-full bg-white" />
+            <div className="w-12 h-12 rounded-full bg-white" />
           </button>
         ) : (
           /* Confirm/Retake buttons */
@@ -323,15 +380,13 @@ export function CameraCapture({
             <Button
               onClick={retakePhoto}
               variant="outline"
-              size="lg"
-              className="bg-transparent border-white text-white hover:bg-white/20"
+              className="bg-black/50 border-white text-white hover:bg-white/20"
             >
               <RotateCcw className="h-5 w-5 mr-2" />
               Repetir
             </Button>
             <Button
               onClick={confirmCapture}
-              size="lg"
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               <Check className="h-5 w-5 mr-2" />
