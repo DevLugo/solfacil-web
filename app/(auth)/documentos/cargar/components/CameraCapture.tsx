@@ -127,6 +127,8 @@ export function CameraCapture({
       const track = stream.getVideoTracks()[0]
       if (track) {
         const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
+        console.log('Camera capabilities:', capabilities)
+        console.log('Torch supported:', !!capabilities.torch)
         setTorchSupported(!!capabilities.torch)
         setTorchOn(false) // Reset torch state when camera restarts
       }
@@ -447,16 +449,17 @@ export function CameraCapture({
           {capturedImage ? 'Vista previa' : 'Tomar foto'}
         </span>
         <div className="flex items-center gap-1">
-          {/* Flash button - only show if supported and not in preview */}
-          {torchSupported && !capturedImage && (
+          {/* Flash button - always show, disabled if not supported */}
+          {!capturedImage && (
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTorch}
-              disabled={isLoading}
+              disabled={isLoading || !torchSupported}
               className={cn(
                 "text-white hover:bg-white/20",
-                torchOn && "bg-yellow-500/30"
+                torchOn && "bg-yellow-500/30",
+                !torchSupported && "opacity-30"
               )}
             >
               {torchOn ? <Zap className="h-6 w-6 text-yellow-400" /> : <ZapOff className="h-6 w-6" />}
