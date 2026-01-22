@@ -153,22 +153,40 @@ export const generatePaymentChronology = (
     return Math.max(loan.weekDuration || 12, Math.ceil(amount / 100))
   }
 
+  // Helper to find the week number of a payment
+  const getPaymentWeek = (paymentDate: Date): number => {
+    const diffMs = paymentDate.getTime() - signDate.getTime()
+    return Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000))
+  }
+
+  // Find the week of the most recent payment (if any)
+  const latestPaymentWeek = (loan.payments || []).reduce((maxWeek, payment) => {
+    const paymentWeek = getPaymentWeek(new Date(payment.receivedAt))
+    return Math.max(maxWeek, paymentWeek)
+  }, 0)
+
   // Determine end date and total weeks for evaluation
   let endDate: Date
   let totalWeeks: number
 
-  if (finishedDate && isFinished) {
+  if (finishedDate && (isFinished || isRenewed)) {
+    // Finished or renewed loans: use finishedDate as the boundary
+    // Don't extend weeks beyond this date - the loan is closed
     endDate = finishedDate
     totalWeeks = getWeeksBetween(signDate, finishedDate)
   } else if (loan.badDebtDate) {
     endDate = new Date(loan.badDebtDate)
     totalWeeks = getWeeksBetween(signDate, endDate)
   } else {
+    // Active loans only: extend to show payments after long gaps
     const maxWeeks = getMaxWeeksFromAmount()
     const maxEndDate = new Date(signDate)
     maxEndDate.setDate(maxEndDate.getDate() + maxWeeks * 7)
     endDate = new Date(Math.min(now.getTime(), maxEndDate.getTime()))
-    totalWeeks = Math.min(maxWeeks, getWeeksBetween(signDate, endDate))
+    // Extend totalWeeks to include the latest payment if it's beyond maxWeeks
+    // This ensures payments made after a long gap are still shown
+    const weeksFromDates = Math.min(maxWeeks, getWeeksBetween(signDate, endDate))
+    totalWeeks = Math.max(weeksFromDates, latestPaymentWeek)
   }
 
   // Sort payments by date

@@ -99,14 +99,22 @@ export function calculateVDOForLoan(
   weekEnd.setHours(23, 59, 59, 999);
 
   // Para semana en curso: evaluar solo hasta el final de la semana anterior
-  // Para semana siguiente: evaluar hasta el final de la semana actual
+  // Para semana siguiente: evaluar hasta HOY (no hasta el domingo futuro)
   const previousWeekEnd = new Date(weekStart);
   previousWeekEnd.setDate(weekStart.getDate() - 1);
   previousWeekEnd.setHours(23, 59, 59, 999);
 
+  // IMPORTANTE: Para 'next', usamos HOY como fecha límite si aún no es domingo
+  // Esto permite contar pagos de la semana actual sin evaluar la semana como "sin pago"
+  // La semana actual solo se evalúa completamente si ya terminó (es domingo o después)
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Para 'next': usar el mínimo entre HOY y el domingo actual
+  // Si hoy es domingo, weekEnd. Si hoy es antes del domingo, usar todayEnd
   const evaluationEndDate = weekMode === 'current'
     ? previousWeekEnd // Final de la semana anterior (domingo anterior)
-    : weekEnd;         // Final de la semana actual (domingo actual)
+    : (todayEnd < weekEnd ? todayEnd : weekEnd); // Hasta HOY o hasta el domingo (lo que sea menor)
 
   // Generar semanas desde el lunes de la semana de firma
   const weeks: Array<{ monday: Date; sunday: Date }> = [];
@@ -125,10 +133,13 @@ export function calculateVDOForLoan(
     currentMonday.setDate(currentMonday.getDate() + 7);
   }
 
-  let surplusAccumulated = 0;
-  let weeksWithoutPayment = 0;
+  // NUEVA LÓGICA: Calcular VDO basado en balance global, no semana por semana
+  // Esto permite que un pago doble "recupere" faltas de semanas anteriores
 
-  // Procesar cada semana
+  // Contar semanas que requieren pago (excluyendo semana de gracia)
+  let weeksRequiringPayment = 0;
+  let totalPaidInPeriod = 0;
+
   for (let i = 0; i < weeks.length; i++) {
     const week = weeks[i];
     if (week.sunday > evaluationEndDate) break;
@@ -144,29 +155,30 @@ export function calculateVDOForLoan(
       }
     }
 
-    // La semana de firma (i=0) no cuenta para VDO
-    // Cualquier pago en esa semana se considera sobrepago completo
-    if (i === 0) {
-      if (weeklyPaid > 0) {
-        surplusAccumulated = weeklyPaid;
-      }
-      continue;
-    }
+    totalPaidInPeriod += weeklyPaid;
 
-    // El sobrepago se acumula, pero el déficit no se arrastra entre semanas
-    const totalAvailableForWeek = surplusAccumulated + weeklyPaid;
-    const isWeekCovered = totalAvailableForWeek >= expectedWeeklyPayment;
-
-    if (!isWeekCovered) weeksWithoutPayment++;
-
-    // Actualizar el sobrepago acumulado
-    // Solo se acumula sobrepago positivo, no déficit
-    if (totalAvailableForWeek > expectedWeeklyPayment) {
-      surplusAccumulated = totalAvailableForWeek - expectedWeeklyPayment;
-    } else {
-      surplusAccumulated = 0; // No arrastrar déficit
+    // La semana de firma (i=0) no cuenta como semana que requiere pago
+    // Los pagos de esa semana SÍ cuentan como sobrepago/adelanto
+    if (i > 0) {
+      weeksRequiringPayment++;
     }
   }
+
+  // Calcular cuánto debería haber pagado hasta ahora
+  const totalExpected = weeksRequiringPayment * expectedWeeklyPayment;
+
+  // Calcular déficit (si pagó menos de lo esperado)
+  const deficit = Math.max(0, totalExpected - totalPaidInPeriod);
+
+  // Calcular semanas de atraso basado en el déficit
+  // Si pagó $2500 cuando debía $2000, está al día (0 semanas de atraso)
+  // Si pagó $1500 cuando debía $2000, tiene 1 semana de atraso ($500 de déficit)
+  const weeksWithoutPayment = expectedWeeklyPayment > 0
+    ? Math.ceil(deficit / expectedWeeklyPayment)
+    : 0;
+
+  // El sobrepago acumulado es lo que pagó de más
+  const surplusAccumulated = Math.max(0, totalPaidInPeriod - totalExpected);
 
   // Calcular deuda total pendiente
   const totalDebt = loan.requestedAmount
