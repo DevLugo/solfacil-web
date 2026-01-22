@@ -3,6 +3,7 @@ import { USER_ROLES, UserRoleType, ROLE_LABELS as SHARED_ROLE_LABELS } from '@so
 // Reusable role groups
 export const ROLE_GROUPS = {
   ADMIN_ONLY: [USER_ROLES.ADMIN] as UserRoleType[],
+  ADMIN_AND_ROUTE: [USER_ROLES.ADMIN, USER_ROLES.NORMAL] as UserRoleType[],
   ADMIN_AND_DATA_ENTRY: [USER_ROLES.ADMIN, USER_ROLES.CAPTURA] as UserRoleType[],
   ADMIN_AND_REVIEWER: [USER_ROLES.ADMIN, USER_ROLES.DOCUMENT_REVIEWER] as UserRoleType[],
   OPERATIONAL: [USER_ROLES.ADMIN, USER_ROLES.NORMAL, USER_ROLES.CAPTURA] as UserRoleType[],
@@ -23,9 +24,9 @@ export const ROUTE_PERMISSIONS: Record<string, UserRoleType[]> = {
   '/documentos/cargar': ROLE_GROUPS.ADMIN_AND_REVIEWER,
   '/reportes/financiero': ROLE_GROUPS.ADMIN_ONLY,
   '/reportes/cartera': ROLE_GROUPS.ADMIN_ONLY,
-  '/reportes/clientes-morosos': ROLE_GROUPS.ADMIN_ONLY,
+  '/reportes/clientes-morosos': ROLE_GROUPS.ADMIN_AND_ROUTE,
   '/reportes/limpieza-cartera': ROLE_GROUPS.ADMIN_ONLY,
-  '/reportes/cumpleanos-lideres': ROLE_GROUPS.ADMIN_ONLY,
+  '/reportes/cumpleanos-lideres': ROLE_GROUPS.ADMIN_AND_ROUTE,
   '/administrar/rutas': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/planificacion-rutas': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/lideres/nuevo': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
