@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Upload, FileImage, CheckCircle2, AlertCircle, XCircle, FileX, X as CloseIcon } from 'lucide-react'
+import { Upload, FileImage, CheckCircle2, AlertCircle, XCircle, FileX, X as CloseIcon, Pencil, Phone, MapPin, Save, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { DocumentUpload } from './DocumentUpload'
-import { useQuery, gql } from '@apollo/client'
+import { useQuery, useMutation, gql } from '@apollo/client'
 import { GET_LOAN_DOCUMENTS } from '@/graphql/queries/documents'
+import { UPDATE_LOAN_EXTENDED } from '@/graphql/mutations/transactions'
 import { useToast } from '@/hooks/use-toast'
 import { useDocumentMutations } from '@/hooks/useDocumentMutations'
 import type { DocumentPhoto, Collateral } from '@/types/documents'
@@ -23,19 +24,31 @@ import {
   isDocumentMarkedAsMissing,
   getDocumentThumbnail,
 } from '@/lib/documents'
+import { EditClientForm } from '@/components/features/transactions/creditos/components/UnifiedClientAutocomplete/EditClientForm'
+import { UnifiedClientAutocomplete } from '@/components/features/transactions/creditos/components/UnifiedClientAutocomplete'
+import type { UnifiedClientValue } from '@/components/features/transactions/creditos/types'
 
 interface DocumentsGalleryProps {
   loan: {
     id: string
     borrower: {
+      id: string
       personalData: {
         id: string
         fullName: string
         clientCode: string
+        phones?: { id: string; number: string }[]
       }
     }
     collaterals?: Collateral[]
     documentPhotos?: DocumentPhoto[]
+    lead?: {
+      id: string
+      location?: {
+        id: string
+        name: string
+      }
+    }
   }
   onUploadSuccess?: () => void
 }
@@ -52,6 +65,152 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
   const [errorDocType, setErrorDocType] = useState<string | null>(null)
   const [errorDescription, setErrorDescription] = useState('')
   const { toast } = useToast()
+
+  // Client editing state
+  const [isEditingClient, setIsEditingClient] = useState(false)
+  const [editClientName, setEditClientName] = useState('')
+  const [editClientPhone, setEditClientPhone] = useState('')
+  const [savingClient, setSavingClient] = useState(false)
+
+  // Aval editing state
+  const [selectedAval, setSelectedAval] = useState<UnifiedClientValue | null>(null)
+  const [originalAvalId, setOriginalAvalId] = useState<string | null>(null)
+  const [savingAval, setSavingAval] = useState(false)
+
+  const [updateLoanExtended] = useMutation(UPDATE_LOAN_EXTENDED)
+
+  // Initialize aval state when loan changes
+  useEffect(() => {
+    if (loan.collaterals && loan.collaterals.length > 0) {
+      const collateral = loan.collaterals[0]
+      setOriginalAvalId(collateral.id)
+      setSelectedAval({
+        id: collateral.id,
+        personalDataId: collateral.id,
+        phoneId: collateral.phones?.[0]?.id,
+        fullName: collateral.fullName,
+        phone: collateral.phones?.[0]?.number,
+        locationId: loan.lead?.location?.id,
+        locationName: loan.lead?.location?.name,
+        isFromCurrentLocation: true,
+        originalFullName: collateral.fullName,
+        originalPhone: collateral.phones?.[0]?.number,
+        clientState: 'existing',
+        action: 'connect',
+      })
+    } else {
+      setSelectedAval(null)
+      setOriginalAvalId(null)
+    }
+  }, [loan.id, loan.collaterals, loan.lead?.location])
+
+  // Check if aval has changes
+  const hasAvalChanges = Boolean(
+    selectedAval &&
+    (selectedAval.action === 'create' ||
+      (selectedAval.id && selectedAval.id !== originalAvalId) ||
+      (selectedAval.action === 'update' &&
+        (selectedAval.fullName !== selectedAval.originalFullName ||
+          selectedAval.phone !== selectedAval.originalPhone)))
+  )
+
+  // Handle client edit start
+  const handleStartEditClient = () => {
+    setEditClientName(loan.borrower.personalData.fullName || '')
+    setEditClientPhone(loan.borrower.personalData.phones?.[0]?.number || '')
+    setIsEditingClient(true)
+  }
+
+  // Handle client save
+  const handleSaveClient = async () => {
+    const originalName = loan.borrower.personalData.fullName || ''
+    const originalPhone = loan.borrower.personalData.phones?.[0]?.number || ''
+
+    const hasNameChange = editClientName !== originalName
+    const hasPhoneChange = editClientPhone !== originalPhone
+
+    if (!hasNameChange && !hasPhoneChange) {
+      toast({ title: 'Sin cambios', description: 'No hay cambios que guardar' })
+      setIsEditingClient(false)
+      return
+    }
+
+    setSavingClient(true)
+    try {
+      const input: { borrowerName?: string; borrowerPhone?: string } = {}
+      if (hasNameChange) input.borrowerName = editClientName
+      if (hasPhoneChange) input.borrowerPhone = editClientPhone
+
+      await updateLoanExtended({ variables: { id: loan.id, input } })
+
+      toast({
+        title: 'Cliente actualizado',
+        description: 'Los datos del cliente se guardaron correctamente',
+      })
+      setIsEditingClient(false)
+      onUploadSuccess?.()
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'No se pudo actualizar el cliente',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingClient(false)
+    }
+  }
+
+  // Handle aval save
+  const handleSaveAval = async () => {
+    if (!selectedAval || !hasAvalChanges) return
+
+    const input: {
+      collateralIds?: string[]
+      collateralPhone?: string
+      newCollateral?: {
+        fullName: string
+        phones?: { number: string }[]
+        addresses?: { street: string; locationId: string }[]
+      }
+    } = {}
+
+    if (selectedAval.action === 'create') {
+      input.newCollateral = {
+        fullName: selectedAval.fullName,
+        phones: selectedAval.phone ? [{ number: selectedAval.phone }] : undefined,
+        addresses: loan.lead?.location?.id ? [{ street: '', locationId: loan.lead.location.id }] : undefined,
+      }
+    } else if (selectedAval.id && selectedAval.id !== originalAvalId) {
+      input.collateralIds = [selectedAval.id]
+    } else if (selectedAval.action === 'update' && selectedAval.phone !== selectedAval.originalPhone) {
+      input.collateralPhone = selectedAval.phone
+    }
+
+    if (Object.keys(input).length === 0) return
+
+    setSavingAval(true)
+    try {
+      await updateLoanExtended({ variables: { id: loan.id, input } })
+
+      if (selectedAval.id && selectedAval.id !== originalAvalId) {
+        setOriginalAvalId(selectedAval.id)
+      }
+
+      toast({
+        title: 'Aval actualizado',
+        description: 'Los datos del aval se guardaron correctamente',
+      })
+      onUploadSuccess?.()
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'No se pudo actualizar el aval',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingAval(false)
+    }
+  }
 
   // Use custom hook for mutations with consistent refetch queries
   const { markAsMissing, deleteDocument, updateDocument, loading } = useDocumentMutations({
@@ -324,17 +483,102 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
         </TabsList>
 
         <TabsContent value={selectedPerson} className="space-y-3 md:space-y-4 mt-3 md:mt-4">
-          {/* Person info - compact on mobile */}
-          <div className="flex items-center justify-between p-2 md:p-4 bg-muted/50 rounded-lg">
-            <div>
-              <p className="font-medium text-sm md:text-base">{personName}</p>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                {selectedPerson === 'cliente'
-                  ? `Código: ${loan.borrower.personalData.clientCode}`
-                  : `Código: ${loan.collaterals?.find(c => c.id === selectedPerson)?.clientCode || ''}`
-                }
-              </p>
+          {/* Location info - always visible */}
+          {loan.lead?.location?.name && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1">
+              <MapPin className="h-3 w-3" />
+              <span>{loan.lead.location.name}</span>
             </div>
+          )}
+
+          {/* Person info - unified structure for client and aval */}
+          <div className="space-y-2">
+            {/* Header with label and save button (for aval with changes) */}
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium text-muted-foreground">
+                {selectedPerson === 'cliente' ? 'Cliente (Titular)' : 'Aval'}
+              </Label>
+              {selectedPerson !== 'cliente' && hasAvalChanges && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveAval}
+                  disabled={savingAval}
+                  className="h-7 text-xs"
+                >
+                  {savingAval ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3 w-3 mr-1" />
+                      Guardar
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Content - client or aval */}
+            {selectedPerson === 'cliente' ? (
+              // Client editing
+              isEditingClient ? (
+                <EditClientForm
+                  mode="borrower"
+                  name={editClientName}
+                  phone={editClientPhone}
+                  isSaving={savingClient}
+                  onNameChange={setEditClientName}
+                  onPhoneChange={setEditClientPhone}
+                  onConfirm={handleSaveClient}
+                  onCancel={() => setIsEditingClient(false)}
+                />
+              ) : (
+                <div className="flex items-center gap-2 py-1.5 px-2.5 border rounded-md bg-background">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className="font-medium text-sm truncate">{personName || 'Sin nombre'}</span>
+                    {loan.borrower.personalData.phones?.[0]?.number && (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+                        <Phone className="h-3 w-3" />
+                        {loan.borrower.personalData.phones[0].number}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={handleStartEditClient}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )
+            ) : (
+              // Aval editing with visual indicator for unsaved changes
+              <div className={`rounded-md transition-all ${hasAvalChanges ? 'ring-2 ring-amber-400' : ''}`}>
+                <UnifiedClientAutocomplete
+                  mode="aval"
+                  value={selectedAval}
+                  onValueChange={setSelectedAval}
+                  excludeBorrowerId={loan.borrower.id}
+                  locationId={loan.lead?.location?.id}
+                  placeholder="Buscar o crear aval..."
+                  allowCreate
+                  allowEdit
+                />
+              </div>
+            )}
+
+            {/* Client code - unified styling */}
+            <p className="text-xs text-muted-foreground px-1">
+              Código: {selectedPerson === 'cliente'
+                ? loan.borrower.personalData.clientCode
+                : loan.collaterals?.find(c => c.id === selectedPerson)?.clientCode || '-'}
+            </p>
           </div>
 
           {/* Document grid - responsive and compact */}

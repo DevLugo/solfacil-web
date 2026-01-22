@@ -20,6 +20,7 @@ export interface Collateral {
   id: string
   fullName: string
   clientCode: string
+  phones?: { id: string; number: string }[]
 }
 
 export interface PersonalData {

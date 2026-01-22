@@ -136,6 +136,9 @@ export default function CargarDocumentosPage() {
               {selectedLoan && (
                 <>
                   Cliente: {selectedLoan.borrower?.personalData?.fullName}
+                  {selectedLoan.lead?.location?.name && (
+                    <> • {selectedLoan.lead.location.name}</>
+                  )}
                   {' • '}
                   Monto: ${selectedLoan.amountGived}
                   {' • '}
