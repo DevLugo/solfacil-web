@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p ${PORT:-3000}",
     "build": "pnpm --filter @solufacil/shared build && pnpm --filter @solufacil/graphql-schema build && pnpm --filter @solufacil/business-logic build && next build",
     "start": "next start",
     "lint": "next lint",
