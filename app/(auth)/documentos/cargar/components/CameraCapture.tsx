@@ -2,15 +2,16 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { X, RotateCcw, Check, SwitchCamera, Zap, ZapOff } from 'lucide-react'
+import { Slider } from '@/components/ui/slider'
+import { X, RotateCcw, Check, SwitchCamera, Zap, ZapOff, ZoomIn, ZoomOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CameraCaptureProps {
   onCapture: (file: File) => void
   onClose: () => void
-  /** Target width for captured image */
+  /** Target width for captured image (default portrait 720) */
   targetWidth?: number
-  /** Target height for captured image */
+  /** Target height for captured image (default portrait 1280) */
   targetHeight?: number
   /** JPEG quality (0-1) */
   quality?: number
@@ -18,13 +19,13 @@ interface CameraCaptureProps {
 
 /**
  * Custom camera component with controlled resolution
- * Always captures in landscape orientation for document photos
+ * Captures in portrait orientation for document photos
  */
 export function CameraCapture({
   onCapture,
   onClose,
-  targetWidth = 1280,
-  targetHeight = 720,
+  targetWidth = 720,
+  targetHeight = 1280,
   quality = 0.8,
 }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -37,10 +38,13 @@ export function CameraCapture({
   const [error, setError] = useState<string | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
-  const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight)
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
   const [torchOn, setTorchOn] = useState(false)
   const [torchSupported, setTorchSupported] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomSupported, setZoomSupported] = useState(false)
+  const [zoomRange, setZoomRange] = useState({ min: 1, max: 1 })
+  const [showZoomSlider, setShowZoomSlider] = useState(false)
 
   // Request fullscreen and lock body/html scroll on mount
   useEffect(() => {
@@ -147,28 +151,48 @@ export function CameraCapture({
         })
       }
 
-      // Check if torch/flash is supported
       const track = stream.getVideoTracks()[0]
       if (track) {
         try {
-          const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
+          const capabilities = track.getCapabilities() as MediaTrackCapabilities & {
+            torch?: boolean
+            zoom?: { min: number; max: number; step: number }
+          }
           console.log('Camera capabilities:', JSON.stringify(capabilities, null, 2))
 
-          // Some devices report torch in capabilities
+          // Check zoom support and set to minimum (1.0 = no zoom)
+          if (capabilities.zoom) {
+            const { min, max } = capabilities.zoom
+            console.log(`Zoom supported: min=${min}, max=${max}`)
+            setZoomSupported(true)
+            setZoomRange({ min, max })
+
+            // Set zoom to minimum (1.0) by default - no zoom
+            try {
+              await track.applyConstraints({
+                advanced: [{ zoom: min } as MediaTrackConstraintSet]
+              })
+              setZoomLevel(min)
+              console.log('Zoom set to minimum:', min)
+            } catch (zoomErr) {
+              console.log('Could not set initial zoom:', zoomErr)
+            }
+          } else {
+            setZoomSupported(false)
+          }
+
+          // Check torch/flash support
           if (capabilities.torch) {
             console.log('Torch supported via capabilities')
             setTorchSupported(true)
           } else {
             // Try to enable torch to see if it works (then disable it)
-            // This is a workaround for devices that don't report torch in capabilities
             try {
               await track.applyConstraints({
                 advanced: [{ torch: true } as MediaTrackConstraintSet]
               })
-              // If we get here, torch is supported
               console.log('Torch supported via test activation')
               setTorchSupported(true)
-              // Turn it back off
               await track.applyConstraints({
                 advanced: [{ torch: false } as MediaTrackConstraintSet]
               })
@@ -178,8 +202,9 @@ export function CameraCapture({
             }
           }
         } catch (err) {
-          console.log('Error checking torch:', err)
+          console.log('Error checking capabilities:', err)
           setTorchSupported(false)
+          setZoomSupported(false)
         }
         setTorchOn(false)
       }
@@ -206,20 +231,6 @@ export function CameraCapture({
     }
   }, [startCamera])
 
-  // Handle orientation changes
-  useEffect(() => {
-    const handleResize = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight)
-    }
-
-    window.addEventListener('resize', handleResize)
-    window.addEventListener('orientationchange', handleResize)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
-    }
-  }, [])
 
   // Calculate crop dimensions to maintain aspect ratio
   const calculateCropDimensions = (
@@ -252,38 +263,28 @@ export function CameraCapture({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Always capture in landscape orientation
-    // If video is portrait, we'll rotate it
+    // Capture in the video's native orientation (preserve portrait for documents)
     const videoWidth = video.videoWidth
     const videoHeight = video.videoHeight
-    const isVideoLandscape = videoWidth > videoHeight
+    const isVideoPortrait = videoHeight > videoWidth
 
-    canvas.width = targetWidth
-    canvas.height = targetHeight
-
-    if (isVideoLandscape) {
-      // Video is already landscape - capture as is
-      const targetAspect = targetWidth / targetHeight
-      const { sx, sy, sw, sh } = calculateCropDimensions(videoWidth, videoHeight, targetAspect)
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight)
+    // Set canvas dimensions based on video orientation
+    if (isVideoPortrait) {
+      // Video is portrait - capture as portrait
+      canvas.width = targetWidth
+      canvas.height = targetHeight
     } else {
-      // Video is portrait - rotate 90° to make landscape
-      ctx.save()
-      ctx.translate(canvas.width / 2, canvas.height / 2)
-      ctx.rotate(-Math.PI / 2)
-
-      const rotatedWidth = targetHeight
-      const rotatedHeight = targetWidth
-      const targetAspect = rotatedWidth / rotatedHeight
-      const { sx, sy, sw, sh } = calculateCropDimensions(videoWidth, videoHeight, targetAspect)
-
-      ctx.drawImage(
-        video,
-        sx, sy, sw, sh,
-        -rotatedWidth / 2, -rotatedHeight / 2, rotatedWidth, rotatedHeight
-      )
-      ctx.restore()
+      // Video is landscape - capture as landscape (swap dimensions)
+      canvas.width = targetHeight
+      canvas.height = targetWidth
     }
+
+    // Calculate crop to fill canvas while maintaining aspect ratio
+    const canvasAspect = canvas.width / canvas.height
+    const { sx, sy, sw, sh } = calculateCropDimensions(videoWidth, videoHeight, canvasAspect)
+
+    // Draw video to canvas (fills entire canvas)
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
 
     // Get image data URL
     const imageDataUrl = canvas.toDataURL('image/jpeg', quality)
@@ -341,6 +342,27 @@ export function CameraCapture({
       console.error('Failed to toggle torch:', err)
       setTorchSupported(false)
     }
+  }
+
+  // Handle zoom change
+  const handleZoomChange = async (value: number[]) => {
+    const newZoom = value[0]
+    try {
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (!track) return
+
+      await track.applyConstraints({
+        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
+      })
+      setZoomLevel(newZoom)
+    } catch (err) {
+      console.error('Failed to change zoom:', err)
+    }
+  }
+
+  // Toggle zoom slider visibility
+  const toggleZoomSlider = () => {
+    setShowZoomSlider(prev => !prev)
   }
 
   // Tap to focus
@@ -482,15 +504,6 @@ export function CameraCapture({
         </div>
       )}
 
-      {/* Orientation hint - only in portrait */}
-      {!isLandscape && !capturedImage && !isLoading && !error && (
-        <div className="absolute top-20 left-0 right-0 z-20 flex justify-center">
-          <div className="bg-yellow-500/90 text-yellow-950 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Gira el teléfono para mejor encuadre
-          </div>
-        </div>
-      )}
 
       {/* Header - overlayed */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-3 bg-gradient-to-b from-black/60 to-transparent">
@@ -506,6 +519,21 @@ export function CameraCapture({
           {capturedImage ? 'Vista previa' : 'Tomar foto'}
         </span>
         <div className="flex items-center gap-1">
+          {/* Zoom button */}
+          {!capturedImage && zoomSupported && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleZoomSlider}
+              disabled={isLoading}
+              className={cn(
+                "text-white hover:bg-white/20",
+                showZoomSlider && "bg-white/20"
+              )}
+            >
+              <ZoomIn className="h-6 w-6" />
+            </Button>
+          )}
           {/* Flash button - always show, disabled if not supported */}
           {!capturedImage && (
             <Button
@@ -533,6 +561,25 @@ export function CameraCapture({
           </Button>
         </div>
       </div>
+
+      {/* Zoom slider - shown when zoom button is clicked */}
+      {showZoomSlider && zoomSupported && !capturedImage && !isLoading && !error && (
+        <div className="absolute top-16 left-4 right-4 z-20 flex items-center gap-3 px-4 py-3 bg-black/70 rounded-lg">
+          <ZoomOut className="h-5 w-5 text-white/70 flex-shrink-0" />
+          <Slider
+            value={[zoomLevel]}
+            min={zoomRange.min}
+            max={zoomRange.max}
+            step={0.1}
+            onValueChange={handleZoomChange}
+            className="flex-1"
+          />
+          <ZoomIn className="h-5 w-5 text-white/70 flex-shrink-0" />
+          <span className="text-white text-sm font-medium min-w-[3rem] text-right">
+            {zoomLevel.toFixed(1)}x
+          </span>
+        </div>
+      )}
 
       {/* Bottom controls - overlayed */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-6 p-4 bg-gradient-to-t from-black/60 to-transparent">
