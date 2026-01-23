@@ -494,7 +494,7 @@ export function CameraCapture({
           playsInline
           muted
           className={cn(
-            'w-full h-full object-cover',
+            'w-full h-full object-contain',
             (capturedImage || isLoading || error) && 'hidden'
           )}
         />
