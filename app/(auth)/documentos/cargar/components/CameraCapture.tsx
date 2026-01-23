@@ -129,12 +129,56 @@ export function CameraCapture({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // First, get a basic stream to check capabilities
+      const initialStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
           width: { ideal: targetWidth },
           height: { ideal: targetHeight },
         },
+        audio: false,
+      })
+
+      const initialTrack = initialStream.getVideoTracks()[0]
+      let zoomMin = 1
+      let zoomMax = 1
+      let hasZoom = false
+
+      // Check zoom capabilities
+      if (initialTrack) {
+        try {
+          const capabilities = initialTrack.getCapabilities() as MediaTrackCapabilities & {
+            zoom?: { min: number; max: number; step: number }
+          }
+          if (capabilities.zoom) {
+            zoomMin = capabilities.zoom.min
+            zoomMax = capabilities.zoom.max
+            hasZoom = true
+            console.log(`Zoom detected: min=${zoomMin}, max=${zoomMax}`)
+          }
+        } catch (e) {
+          console.log('Could not get zoom capabilities:', e)
+        }
+      }
+
+      // Stop initial stream
+      initialStream.getTracks().forEach(track => track.stop())
+
+      // Now request stream WITH zoom constraint set to minimum
+      const videoConstraints: MediaTrackConstraints = {
+        facingMode: facingMode,
+        width: { ideal: targetWidth },
+        height: { ideal: targetHeight },
+      }
+
+      // Add zoom constraint if supported - request minimum zoom
+      if (hasZoom) {
+        // @ts-expect-error - zoom is not in standard types but supported by many devices
+        videoConstraints.zoom = zoomMin
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
         audio: false,
       })
 
@@ -153,33 +197,39 @@ export function CameraCapture({
 
       const track = stream.getVideoTracks()[0]
       if (track) {
+        // Set zoom state
+        if (hasZoom) {
+          setZoomSupported(true)
+          setZoomRange({ min: zoomMin, max: zoomMax })
+          setZoomLevel(zoomMin)
+
+          // Apply zoom constraint again after stream starts (belt and suspenders)
+          try {
+            await track.applyConstraints({
+              // @ts-expect-error - zoom constraint
+              zoom: zoomMin
+            })
+            console.log('Zoom applied via direct constraint:', zoomMin)
+          } catch (e) {
+            // Try advanced format as fallback
+            try {
+              await track.applyConstraints({
+                advanced: [{ zoom: zoomMin } as MediaTrackConstraintSet]
+              })
+              console.log('Zoom applied via advanced constraint:', zoomMin)
+            } catch (e2) {
+              console.log('Could not apply zoom constraint:', e2)
+            }
+          }
+        } else {
+          setZoomSupported(false)
+        }
+
         try {
           const capabilities = track.getCapabilities() as MediaTrackCapabilities & {
             torch?: boolean
-            zoom?: { min: number; max: number; step: number }
           }
           console.log('Camera capabilities:', JSON.stringify(capabilities, null, 2))
-
-          // Check zoom support and set to minimum (1.0 = no zoom)
-          if (capabilities.zoom) {
-            const { min, max } = capabilities.zoom
-            console.log(`Zoom supported: min=${min}, max=${max}`)
-            setZoomSupported(true)
-            setZoomRange({ min, max })
-
-            // Set zoom to minimum (1.0) by default - no zoom
-            try {
-              await track.applyConstraints({
-                advanced: [{ zoom: min } as MediaTrackConstraintSet]
-              })
-              setZoomLevel(min)
-              console.log('Zoom set to minimum:', min)
-            } catch (zoomErr) {
-              console.log('Could not set initial zoom:', zoomErr)
-            }
-          } else {
-            setZoomSupported(false)
-          }
 
           // Check torch/flash support
           if (capabilities.torch) {
@@ -351,9 +401,18 @@ export function CameraCapture({
       const track = streamRef.current?.getVideoTracks()[0]
       if (!track) return
 
-      await track.applyConstraints({
-        advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
-      })
+      // Try direct constraint first (better compatibility)
+      try {
+        await track.applyConstraints({
+          // @ts-expect-error - zoom constraint not in standard types
+          zoom: newZoom
+        })
+      } catch {
+        // Fallback to advanced format
+        await track.applyConstraints({
+          advanced: [{ zoom: newZoom } as MediaTrackConstraintSet]
+        })
+      }
       setZoomLevel(newZoom)
     } catch (err) {
       console.error('Failed to change zoom:', err)
