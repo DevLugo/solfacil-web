@@ -130,11 +130,10 @@ export function CameraCapture({
 
     try {
       // First, get a basic stream to check capabilities
+      // Don't request specific resolution to avoid digital zoom/crop
       const initialStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: targetWidth },
-          height: { ideal: targetHeight },
         },
         audio: false,
       })
@@ -164,11 +163,15 @@ export function CameraCapture({
       // Stop initial stream
       initialStream.getTracks().forEach(track => track.stop())
 
-      // Now request stream WITH zoom constraint set to minimum
+      // Request stream WITHOUT specific resolution to get widest field of view
+      // The device will use its native resolution without digital zoom/crop
+      // We'll resize during capture if needed
       const videoConstraints: MediaTrackConstraints = {
         facingMode: facingMode,
-        width: { ideal: targetWidth },
-        height: { ideal: targetHeight },
+        // Don't specify width/height - avoids digital zoom when device
+        // crops to meet resolution requirements
+        // @ts-expect-error - resizeMode prevents automatic cropping
+        resizeMode: 'none',
       }
 
       // Add zoom constraint if supported - request minimum zoom
