@@ -431,6 +431,7 @@ export const LOAN_PAYMENTS_BY_LEAD_AND_DATE_QUERY = gql`
       }
       transactions {
         id
+        type
         profitAmount
         returnToCapital
       }
@@ -494,6 +495,7 @@ export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
             }
             transactions {
               id
+              type
               profitAmount
               returnToCapital
             }

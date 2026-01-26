@@ -1,6 +1,6 @@
 export interface PaymentTransaction {
   id: string
-  type: string
+  type: 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'INVESTMENT'
   profitAmount: string | null
   returnToCapital: string | null
 }

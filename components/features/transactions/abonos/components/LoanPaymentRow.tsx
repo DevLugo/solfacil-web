@@ -482,28 +482,32 @@ export function LoanPaymentRow({
       </TableCell>
 
       {/* Admin-only columns */}
-      {isAdmin && (
-        <>
-          <TableCell className="text-right bg-muted/50">
-            {isRegistered && registeredPayment.transactions?.[0] ? (
-              <span className={cn('text-sm font-medium', textStyles.success)}>
-                {formatCurrency(parseFloat(registeredPayment.transactions[0].profitAmount || '0'))}
-              </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">-</span>
-            )}
-          </TableCell>
-          <TableCell className="text-right bg-muted/50">
-            {isRegistered && registeredPayment.transactions?.[0] ? (
-              <span className={cn('text-sm font-medium', textStyles.blue)}>
-                {formatCurrency(parseFloat(registeredPayment.transactions[0].returnToCapital || '0'))}
-              </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">-</span>
-            )}
-          </TableCell>
-        </>
-      )}
+      {isAdmin && (() => {
+        // Buscar la transacción de tipo INCOME (pago real), no EXPENSE (comisión)
+        const paymentTransaction = registeredPayment?.transactions?.find(t => t.type === 'INCOME')
+        return (
+          <>
+            <TableCell className="text-right bg-muted/50">
+              {isRegistered && paymentTransaction ? (
+                <span className={cn('text-sm font-medium', textStyles.success)}>
+                  {formatCurrency(parseFloat(paymentTransaction.profitAmount || '0'))}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
+            </TableCell>
+            <TableCell className="text-right bg-muted/50">
+              {isRegistered && paymentTransaction ? (
+                <span className={cn('text-sm font-medium', textStyles.blue)}>
+                  {formatCurrency(parseFloat(paymentTransaction.returnToCapital || '0'))}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
+            </TableCell>
+          </>
+        )
+      })()}
     </TableRow>
   )
 }
