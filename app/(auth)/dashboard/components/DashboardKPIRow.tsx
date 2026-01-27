@@ -26,10 +26,9 @@ interface DashboardKPIRowProps {
   clientesEnCV: number
   clientesEnCVVsPrev?: number
   cvPercentage?: string
-  // CV Criticos
+  // CV Criticos (3+ semanas sin pago)
   criticalClientsCount: number
   criticalClientsTotal: string
-  weeksWithoutPaymentMin: number
   // Gastos Semana
   totalExpenses: number
   expensesChangePercent?: number
@@ -46,7 +45,6 @@ export function DashboardKPIRow({
   cvPercentage,
   criticalClientsCount,
   criticalClientsTotal,
-  weeksWithoutPaymentMin,
   totalExpenses,
   expensesChangePercent,
   onExpensesClick,
@@ -81,9 +79,9 @@ export function DashboardKPIRow({
         subtitle={cvPercentage}
       />
 
-      {/* CV Criticos */}
+      {/* CV Criticos (3+ semanas sin pago) */}
       <KPICard
-        title={`CV Criticos (${weeksWithoutPaymentMin >= 8 ? '8+' : weeksWithoutPaymentMin} sem)`}
+        title="CV Críticos (3+ sem)"
         value={criticalClientsCount}
         icon={Skull}
         variant="warning"

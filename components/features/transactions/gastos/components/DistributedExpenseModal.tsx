@@ -14,14 +14,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ROUTES_WITH_ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
 import { formatCurrency } from '@/lib/utils'
 import { RouteSelector } from './RouteSelector'
 import { ExpenseTypeCombobox } from './ExpenseTypeCombobox'
-import { EXPENSE_TO_ACCOUNT_TYPE } from '../constants'
 import { distributeAmount } from '../utils'
-import type { AccountType } from '../types'
 
 interface RouteWithAccounts {
   id: string
@@ -60,7 +65,8 @@ export function DistributedExpenseModal({
   const [totalAmount, setTotalAmount] = useState('')
   const [expenseSource, setExpenseSource] = useState('')
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
-  const [preferredAccountType, setPreferredAccountType] = useState<AccountType>('EMPLOYEE_CASH_FUND')
+  // Global source account (applies to all routes - no restrictions)
+  const [selectedSourceAccountId, setSelectedSourceAccountId] = useState<string>('')
 
   const { data: routesData, loading: routesLoading } = useQuery(ROUTES_WITH_ACCOUNTS_QUERY, {
     skip: !open,
@@ -68,48 +74,66 @@ export function DistributedExpenseModal({
 
   const routes: RouteWithAccounts[] = routesData?.routes || []
 
+  // Flatten all accounts from all routes for the global selector (no restrictions)
+  const allAccounts = useMemo(() => {
+    const accountsMap = new Map<string, { id: string; name: string; type: string; routeName: string }>()
+    routes.forEach((route) => {
+      route.accounts.forEach((account) => {
+        if (!accountsMap.has(account.id)) {
+          accountsMap.set(account.id, {
+            id: account.id,
+            name: account.name,
+            type: account.type,
+            routeName: route.name,
+          })
+        }
+      })
+    })
+    return Array.from(accountsMap.values())
+  }, [routes])
+
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
       setTotalAmount('')
       setExpenseSource('')
       setSelectedRouteIds([])
-      setPreferredAccountType('EMPLOYEE_CASH_FUND')
+      setSelectedSourceAccountId('')
     }
   }, [open])
 
-  // Update preferred account type when expense type changes
+  // Auto-select default account when accounts load
   useEffect(() => {
-    if (expenseSource && EXPENSE_TO_ACCOUNT_TYPE[expenseSource]) {
-      setPreferredAccountType(EXPENSE_TO_ACCOUNT_TYPE[expenseSource]!)
-    } else {
-      setPreferredAccountType('EMPLOYEE_CASH_FUND')
+    if (allAccounts.length > 0 && !selectedSourceAccountId) {
+      // Default to EMPLOYEE_CASH_FUND if available
+      const defaultAccount = allAccounts.find((a) => a.type === 'EMPLOYEE_CASH_FUND') || allAccounts[0]
+      if (defaultAccount) {
+        setSelectedSourceAccountId(defaultAccount.id)
+      }
     }
-  }, [expenseSource])
+  }, [allAccounts, selectedSourceAccountId])
 
   // Calculate distribution preview
   const distributionPreview = useMemo(() => {
-    if (!totalAmount || selectedRouteIds.length === 0) return []
+    if (!totalAmount || selectedRouteIds.length === 0 || !selectedSourceAccountId) return []
 
     const total = parseFloat(totalAmount) || 0
     const distribution = distributeAmount(total, selectedRouteIds)
+    const selectedAccount = allAccounts.find((a) => a.id === selectedSourceAccountId)
 
     return selectedRouteIds.map((routeId) => {
       const route = routes.find((r) => r.id === routeId)
       const amount = distribution.get(routeId) || 0
-      const account = route?.accounts.find((a) => a.type === preferredAccountType) ||
-                      route?.accounts.find((a) => a.type === 'EMPLOYEE_CASH_FUND') ||
-                      route?.accounts[0]
 
       return {
         routeId,
         routeName: route?.name || 'Unknown',
-        accountId: account?.id || '',
-        accountName: account?.name || 'Sin cuenta',
+        accountId: selectedSourceAccountId,
+        accountName: selectedAccount?.name || 'Sin cuenta',
         amount,
       }
     })
-  }, [totalAmount, selectedRouteIds, routes, preferredAccountType])
+  }, [totalAmount, selectedRouteIds, routes, selectedSourceAccountId, allAccounts])
 
   const handleSave = async () => {
     if (!expenseSource || !totalAmount || distributionPreview.length === 0) return
@@ -129,7 +153,7 @@ export function DistributedExpenseModal({
     totalAmount &&
     parseFloat(totalAmount) > 0 &&
     selectedRouteIds.length > 0 &&
-    distributionPreview.every((e) => e.accountId)
+    selectedSourceAccountId
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,6 +192,35 @@ export function DistributedExpenseModal({
             />
           </div>
 
+          {/* Source Account - Global selector */}
+          <div className="grid gap-2">
+            <Label>Cuenta Origen</Label>
+            {routesLoading ? (
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : (
+              <Select
+                value={selectedSourceAccountId}
+                onValueChange={setSelectedSourceAccountId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar cuenta origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAccounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name} ({account.routeName})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Selecciona la cuenta de donde se tomara el dinero
+            </p>
+          </div>
+
           {/* Route Selection */}
           <div className="grid gap-2">
             <Label>Rutas a Distribuir</Label>
@@ -194,12 +247,7 @@ export function DistributedExpenseModal({
                     key={item.routeId}
                     className="flex items-center justify-between text-sm"
                   >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{item.routeName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {item.accountName}
-                      </span>
-                    </div>
+                    <span className="font-medium">{item.routeName}</span>
                     <Badge variant="outline" className="bg-red-50 text-red-700">
                       {formatCurrency(item.amount)}
                     </Badge>

@@ -184,12 +184,12 @@ export function BadDebtClientCard({ client }: BadDebtClientCardProps) {
           <div className="flex items-start gap-1.5">
             <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <div className="text-muted-foreground text-[10px]">Líder</div>
-              <div className="truncate">{client.leadName || '-'}</div>
-              {client.leadPhone && (
+              <div className="text-muted-foreground text-[10px]">Aval</div>
+              <div className="truncate">{client.collateralName || '-'}</div>
+              {client.collateralPhone && (
                 <div className="text-[10px] text-muted-foreground truncate flex items-center gap-0.5">
                   <Phone className="h-2.5 w-2.5" />
-                  {client.leadPhone}
+                  {client.collateralPhone}
                 </div>
               )}
             </div>

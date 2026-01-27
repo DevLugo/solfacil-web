@@ -15,6 +15,8 @@ export interface BadDebtClientItem {
   routeName: string | null
   leadName: string | null
   leadPhone: string | null
+  collateralName: string | null
+  collateralPhone: string | null
   signDate: string
   badDebtDate: string | null
   cleanupDate: string | null

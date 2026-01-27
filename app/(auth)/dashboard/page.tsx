@@ -89,7 +89,8 @@ export default function DashboardPage() {
   const { selectedRouteId, setSelectedRouteId } = useTransactionContext()
   const [showRecoveredDeadDebtModal, setShowRecoveredDeadDebtModal] = useState(false)
   const [showExpensesModal, setShowExpensesModal] = useState(false)
-  const [weeksWithoutPaymentMin, setWeeksWithoutPaymentMin] = useState(3)
+  // Fixed at 3 to get all critical clients (3+ weeks), filtering happens in the modal
+  const weeksWithoutPaymentMin = 3
 
   // Initialize year/week from getCurrentWeek()
   const initialWeek = getCurrentWeek()
@@ -253,28 +254,24 @@ export default function DashboardPage() {
   )
 
   // ---------------------------------------------------------------------------
-  // COMPUTED VALUES - Critical Clients Filter
+  // COMPUTED VALUES - Critical Clients (all 3+ weeks, filtering in modal)
   // ---------------------------------------------------------------------------
 
-  const { filteredCriticalClients, filteredCriticalTotal } = useMemo(() => {
+  const { allCriticalClients, allCriticalTotal } = useMemo(() => {
     if (!criticalClients?.loans) {
-      return { filteredCriticalClients: [], filteredCriticalTotal: '0' }
+      return { allCriticalClients: [], allCriticalTotal: '0' }
     }
 
-    const filtered = weeksWithoutPaymentMin >= 8
-      ? criticalClients.loans.filter(c => c.weeksWithoutPayment >= 8)
-      : criticalClients.loans.filter(c => c.weeksWithoutPayment === weeksWithoutPaymentMin)
-
-    const total = filtered.reduce(
+    const total = criticalClients.loans.reduce(
       (sum, client) => sum + parseFloat(client.pendingAmountStored || '0'),
       0
     )
 
     return {
-      filteredCriticalClients: filtered,
-      filteredCriticalTotal: total.toString(),
+      allCriticalClients: criticalClients.loans,
+      allCriticalTotal: total.toString(),
     }
-  }, [criticalClients, weeksWithoutPaymentMin])
+  }, [criticalClients])
 
   // ---------------------------------------------------------------------------
   // COMPUTED VALUES - Chart Data
@@ -368,9 +365,8 @@ export default function DashboardPage() {
         cvPercentage={selectedWeekData?.clientesActivos
           ? `${((selectedWeekData.clientesEnCV / selectedWeekData.clientesActivos) * 100).toFixed(1)}% del total`
           : undefined}
-        criticalClientsCount={filteredCriticalClients.length}
-        criticalClientsTotal={filteredCriticalTotal}
-        weeksWithoutPaymentMin={weeksWithoutPaymentMin}
+        criticalClientsCount={allCriticalClients.length}
+        criticalClientsTotal={allCriticalTotal}
         totalExpenses={currentWeekExpenses?.executiveSummary?.totalExpenses
           ? parseFloat(currentWeekExpenses.executiveSummary.totalExpenses)
           : 0}
@@ -412,18 +408,13 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <LocalityAlertsCard alerts={localityAlerts} />
         <CriticalClientsCard
-          clients={filteredCriticalClients}
-          totalPendingAmount={filteredCriticalTotal}
-          weeksWithoutPayment={weeksWithoutPaymentMin}
-          onWeeksChange={setWeeksWithoutPaymentMin}
+          clients={allCriticalClients}
+          totalPendingAmount={allCriticalTotal}
         />
       </div>
 
       {/* ===== TOP LOCATIONS (right after critical clients) ===== */}
-      <TopLocationsCard
-        locations={topLocationsFromLeads}
-        weeksWithoutPaymentMin={weeksWithoutPaymentMin}
-      />
+      <TopLocationsCard locations={topLocationsFromLeads} />
 
       {/* ===== WEEKLY EXPENSES ===== */}
       {expensesByCategory && (

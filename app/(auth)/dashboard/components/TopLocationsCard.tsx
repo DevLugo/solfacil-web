@@ -14,19 +14,15 @@ import type { TopLocation } from './types'
 
 interface TopLocationsCardProps {
   locations: TopLocation[]
-  weeksWithoutPaymentMin: number
   title?: string
   description?: string
 }
 
 export function TopLocationsCard({
   locations,
-  weeksWithoutPaymentMin,
-  title = 'Top Localidades CV',
-  description,
+  title = 'Top Localidades CV Críticos',
+  description = 'Localidades con más clientes críticos (3+ sem sin pago)',
 }: TopLocationsCardProps) {
-  const finalDescription = description ||
-    `Localidades con mas clientes criticos (${weeksWithoutPaymentMin}+ sem sin pago)`
 
   return (
     <Card>
@@ -35,7 +31,7 @@ export function TopLocationsCard({
           <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
           <span className="truncate">{title}</span>
         </CardTitle>
-        <CardDescription className="text-xs sm:text-sm">{finalDescription}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
       </CardHeader>
       <CardContent>
         {locations.length > 0 ? (

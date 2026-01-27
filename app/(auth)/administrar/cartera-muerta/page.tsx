@@ -51,6 +51,7 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Download,
   Filter,
   RefreshCw,
   Skull,
@@ -62,6 +63,7 @@ import {
 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { getApiBaseUrl } from '@/lib/constants/api'
 
 // GraphQL Queries
 const GET_DEAD_DEBT_MONTHLY_SUMMARY = gql`
@@ -132,6 +134,10 @@ const GET_DEAD_DEBT_MONTHLY_SUMMARY = gql`
             locality
             route
           }
+          collateral {
+            fullName
+            phone
+          }
           payments {
             receivedAt
             amount
@@ -175,6 +181,10 @@ interface DeadDebtLoan {
     locality: string
     route: string
   }
+  collateral: {
+    fullName: string | null
+    phone: string | null
+  } | null
   payments: {
     receivedAt: string | null
     amount: string
@@ -280,14 +290,18 @@ function MonthCard({
   onSelectLoan,
   onSelectAllMonth,
   onMarkMonth,
+  onExportPDF,
   isMarking,
+  routeName,
 }: {
   monthData: MonthSummary
   selectedLoans: Set<string>
   onSelectLoan: (loanId: string) => void
   onSelectAllMonth: (loans: DeadDebtLoan[]) => void
   onMarkMonth: (monthData: MonthSummary) => void
+  onExportPDF: (monthData: MonthSummary) => void
   isMarking: boolean
+  routeName?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const hasLoans = monthData.loans.length > 0
@@ -295,7 +309,7 @@ function MonthCard({
   const someSelected = hasLoans && monthData.loans.some(loan => selectedLoans.has(loan.id))
 
   const selectedInMonth = monthData.loans.filter(loan => selectedLoans.has(loan.id))
-  const selectedTotal = selectedInMonth.reduce((sum, loan) => sum + parseFloat(loan.badDebtCandidate), 0)
+  const selectedTotal = selectedInMonth.reduce((sum, loan) => sum + parseFloat(loan.pendingAmountStored), 0)
 
   return (
     <Card className={cn(
@@ -322,13 +336,7 @@ function MonthCard({
               <div className="flex items-center gap-4 text-right">
                 <div>
                   <p className="text-sm text-muted-foreground">Deuda Pendiente</p>
-                  <p className="font-semibold">{formatCurrency(parseFloat(monthData.summary.totalPendingAmount))}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cartera Muerta</p>
-                  <p className="font-bold text-red-600 dark:text-red-400">
-                    {formatCurrency(parseFloat(monthData.summary.totalBadDebtCandidate))}
-                  </p>
+                  <p className="font-bold text-red-600 dark:text-red-400">{formatCurrency(parseFloat(monthData.summary.totalPendingAmount))}</p>
                 </div>
                 {hasLoans && (
                   <Badge variant={monthData.summary.totalLoans > 0 ? 'destructive' : 'secondary'}>
@@ -353,7 +361,7 @@ function MonthCard({
                         {selectedInMonth.length} crédito(s) seleccionado(s)
                       </span>
                       <span className="text-muted-foreground">
-                        ({formatCurrency(selectedTotal)} cartera muerta)
+                        ({formatCurrency(selectedTotal)} deuda pendiente)
                       </span>
                     </div>
                   </div>
@@ -371,19 +379,30 @@ function MonthCard({
                       Seleccionar todos
                     </Label>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onMarkMonth(monthData)}
-                    disabled={isMarking || monthData.loans.length === 0}
-                  >
-                    {isMarking ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Skull className="h-4 w-4 mr-2" />
-                    )}
-                    Marcar Mes Completo
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onExportPDF(monthData)}
+                      disabled={monthData.loans.length === 0}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar PDF
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onMarkMonth(monthData)}
+                      disabled={isMarking || monthData.loans.length === 0}
+                    >
+                      {isMarking ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Skull className="h-4 w-4 mr-2" />
+                      )}
+                      Marcar Mes Completo
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Loans table */}
@@ -393,12 +412,11 @@ function MonthCard({
                       <TableRow className="bg-muted/50">
                         <TableHead className="w-12"></TableHead>
                         <TableHead>Cliente</TableHead>
-                        <TableHead>Localidad / Ruta</TableHead>
+                        <TableHead>Aval</TableHead>
                         <TableHead className="text-center">Sem. Crédito</TableHead>
                         <TableHead className="text-center">Sem. Sin Pago</TableHead>
                         <TableHead className="text-center">Último Pago</TableHead>
                         <TableHead className="text-right">Pendiente</TableHead>
-                        <TableHead className="text-right">Cartera Muerta</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -426,8 +444,8 @@ function MonthCard({
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="text-sm">{loan.lead.locality}</p>
-                              <p className="text-xs text-muted-foreground">{loan.lead.route}</p>
+                              <p className="text-sm">{loan.collateral?.fullName || '-'}</p>
+                              <p className="text-xs text-muted-foreground">{loan.collateral?.phone || ''}</p>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
@@ -447,11 +465,8 @@ function MonthCard({
                                 })
                               : 'Sin pagos'}
                           </TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="text-right font-medium text-red-600 dark:text-red-400">
                             {formatCurrency(parseFloat(loan.pendingAmountStored))}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                            {formatCurrency(parseFloat(loan.badDebtCandidate))}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -624,6 +639,65 @@ export default function CarteraMuertaPage() {
     setConfirmDialogOpen(true)
   }
 
+  const handleExportPDF = async (monthData: MonthSummary) => {
+    if (monthData.loans.length === 0) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay créditos para exportar',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      const selectedRoute = routes.find((r: Route) => r.id === selectedRouteId)
+      const response = await fetch(`${getApiBaseUrl()}/api/export-dead-debt-monthly-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          monthName: monthData.month.name,
+          year: monthData.month.year,
+          routeName: selectedRoute?.name,
+          loans: monthData.loans,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al generar el PDF')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const monthSlug = monthData.month.name.replace(/\s+/g, '_').toLowerCase()
+      let filename = `cartera_muerta_${monthSlug}_${monthData.month.year}`
+      if (selectedRoute?.name) {
+        filename += `_${selectedRoute.name.replace(/\s+/g, '_').toLowerCase()}`
+      }
+      filename += '.pdf'
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: 'PDF generado',
+        description: `Se exportaron ${monthData.loans.length} créditos de ${monthData.month.name}`,
+      })
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo generar el PDF',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const handleConfirmMark = () => {
     if (!pendingMarkAction?.date) return
 
@@ -663,10 +737,10 @@ export default function CarteraMuertaPage() {
         title: 'Marcar créditos seleccionados',
         description: `¿Está seguro de marcar ${selectedTotals.count} crédito(s) como cartera muerta?`,
         count: selectedTotals.count,
-        amount: selectedTotals.badDebtCandidate,
+        amount: selectedTotals.pendingAmount,
       }
     } else if (pendingMarkAction.type === 'month' && pendingMarkAction.monthData) {
-      const total = parseFloat(pendingMarkAction.monthData.summary.totalBadDebtCandidate)
+      const total = parseFloat(pendingMarkAction.monthData.summary.totalPendingAmount)
       return {
         title: `Marcar ${pendingMarkAction.monthData.month.name}`,
         description: `¿Está seguro de marcar todos los créditos de ${pendingMarkAction.monthData.month.name} como cartera muerta?`,
@@ -678,7 +752,7 @@ export default function CarteraMuertaPage() {
         title: 'Marcar todos los créditos',
         description: '¿Está seguro de marcar TODOS los créditos como cartera muerta?',
         count: allLoans.length,
-        amount: parseFloat(yearTotals?.totalBadDebtCandidate || '0'),
+        amount: parseFloat(yearTotals?.totalPendingAmount || '0'),
       }
     }
 
@@ -829,21 +903,13 @@ export default function CarteraMuertaPage() {
               value={formatCurrency(parseFloat(yearTotals?.totalPendingAmount || '0'))}
               subtitle="Monto total adeudado"
               icon={DollarSign}
-              variant="warning"
-              loading={loading}
-            />
-            <KPICard
-              title="Cartera Muerta Estimada"
-              value={formatCurrency(parseFloat(yearTotals?.totalBadDebtCandidate || '0'))}
-              subtitle="Capital irrecuperable"
-              icon={Skull}
               variant="danger"
               loading={loading}
             />
             <KPICard
               title="Seleccionados"
               value={selectedTotals.count}
-              subtitle={formatCurrency(selectedTotals.badDebtCandidate)}
+              subtitle={formatCurrency(selectedTotals.pendingAmount)}
               icon={CheckCircle2}
               variant={selectedTotals.count > 0 ? 'success' : 'default'}
               loading={loading}
@@ -868,7 +934,7 @@ export default function CarteraMuertaPage() {
                   <div className="flex items-center gap-3">
                     {selectedLoans.size > 0 && (
                       <div className="text-sm text-muted-foreground">
-                        {selectedTotals.count} seleccionado(s) • {formatCurrency(selectedTotals.badDebtCandidate)}
+                        {selectedTotals.count} seleccionado(s) • {formatCurrency(selectedTotals.pendingAmount)}
                       </div>
                     )}
                     <Button
@@ -922,7 +988,9 @@ export default function CarteraMuertaPage() {
                   onSelectLoan={handleSelectLoan}
                   onSelectAllMonth={handleSelectAllMonth}
                   onMarkMonth={handleMarkMonth}
+                  onExportPDF={handleExportPDF}
                   isMarking={isMarking}
+                  routeName={routes.find((r: Route) => r.id === selectedRouteId)?.name}
                 />
               ))}
             </div>
@@ -950,7 +1018,7 @@ export default function CarteraMuertaPage() {
                 <span className="font-bold">{confirmMessage.count}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Cartera muerta:</span>
+                <span className="text-sm text-muted-foreground">Deuda pendiente:</span>
                 <span className="font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(confirmMessage.amount)}
                 </span>

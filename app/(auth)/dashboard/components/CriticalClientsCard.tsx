@@ -25,8 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Skull, ChevronRight, Copy, Check, Filter } from 'lucide-react'
+import { Skull, ChevronRight, Copy, Check, Filter, FileDown, Loader2 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
+import { getApiBaseUrl } from '@/lib/constants/api'
 import html2canvas from 'html2canvas'
 
 interface CriticalClientPayment {
@@ -48,6 +49,39 @@ interface CriticalClient {
     route: string
   }
   payments: CriticalClientPayment[]
+}
+
+// Week filter options - more flexible ranges
+type WeekFilterOption = 'all' | '3' | '4' | '5' | '6' | '1-3' | '4-6' | '7+'
+
+const WEEK_FILTER_OPTIONS: { value: WeekFilterOption; label: string }[] = [
+  { value: 'all', label: 'Todas las semanas' },
+  { value: '3', label: 'Semana 3' },
+  { value: '4', label: 'Semana 4' },
+  { value: '5', label: 'Semana 5' },
+  { value: '6', label: 'Semana 6' },
+  { value: '1-3', label: 'Semanas 1-3' },
+  { value: '4-6', label: 'Semanas 4-6' },
+  { value: '7+', label: 'Semanas 7+' },
+]
+
+// Filter clients by week selection
+function filterByWeeks(clients: CriticalClient[], filter: WeekFilterOption): CriticalClient[] {
+  if (filter === 'all') return clients
+
+  return clients.filter(client => {
+    const weeks = client.weeksWithoutPayment
+    switch (filter) {
+      case '3': return weeks === 3
+      case '4': return weeks === 4
+      case '5': return weeks === 5
+      case '6': return weeks === 6
+      case '1-3': return weeks >= 1 && weeks <= 3
+      case '4-6': return weeks >= 4 && weeks <= 6
+      case '7+': return weeks >= 7
+      default: return true
+    }
+  })
 }
 
 // Helper to get the last payment date
@@ -73,34 +107,35 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
+// Get week filter label for display
+function getWeekFilterLabel(filter: WeekFilterOption): string {
+  const option = WEEK_FILTER_OPTIONS.find(o => o.value === filter)
+  return option?.label || 'Todas'
+}
+
 interface CriticalClientsCardProps {
-  clients: CriticalClient[]
+  clients: CriticalClient[]  // All critical clients (3+ weeks without payment)
   totalPendingAmount: string
-  weeksWithoutPayment: number
-  onWeeksChange: (weeks: number) => void
 }
 
 export function CriticalClientsCard({
   clients,
   totalPendingAmount,
-  weeksWithoutPayment,
-  onWeeksChange,
 }: CriticalClientsCardProps) {
   const [showModal, setShowModal] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<string>('all')
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<WeekFilterOption>('all')
   const [isCopying, setIsCopying] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [isExportingPDF, setIsExportingPDF] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
 
-  const previewClients = clients.slice(0, 3)
-
-  const weeksOptions = [
-    { value: 3, label: '3 semanas' },
-    { value: 4, label: '4 semanas' },
-    { value: 5, label: '5 semanas' },
-    { value: 6, label: '6 semanas' },
-    { value: 8, label: '8+ semanas' },
-  ]
+  // Preview: show top 3 clients with most weeks without payment
+  const previewClients = useMemo(() => {
+    return [...clients]
+      .sort((a, b) => b.weeksWithoutPayment - a.weeksWithoutPayment)
+      .slice(0, 3)
+  }, [clients])
 
   // Get unique routes from clients
   const availableRoutes = useMemo(() => {
@@ -113,11 +148,15 @@ export function CriticalClientsCard({
     return Array.from(routes).sort()
   }, [clients])
 
-  // Filter clients by selected route and sort by locality
+  // Filter clients by week filter and route, then sort by locality
   const filteredClients = useMemo(() => {
-    const filtered = selectedRoute === 'all'
-      ? clients
-      : clients.filter((client) => client.lead.route === selectedRoute)
+    // First filter by weeks
+    let filtered = filterByWeeks(clients, selectedWeekFilter)
+
+    // Then filter by route
+    if (selectedRoute !== 'all') {
+      filtered = filtered.filter((client) => client.lead.route === selectedRoute)
+    }
 
     // Sort by locality name
     return [...filtered].sort((a, b) => {
@@ -125,7 +164,7 @@ export function CriticalClientsCard({
       const localityB = b.lead.locality || 'ZZZ'
       return localityA.localeCompare(localityB, 'es')
     })
-  }, [clients, selectedRoute])
+  }, [clients, selectedRoute, selectedWeekFilter])
 
   // Calculate filtered total
   const filteredTotal = useMemo(() => {
@@ -134,6 +173,13 @@ export function CriticalClientsCard({
       0
     )
   }, [filteredClients])
+
+  // Reset filters when modal opens
+  const handleOpenModal = () => {
+    setSelectedWeekFilter('all')
+    setSelectedRoute('all')
+    setShowModal(true)
+  }
 
   // Copy table as image to clipboard
   const handleCopyAsImage = async () => {
@@ -177,6 +223,53 @@ export function CriticalClientsCard({
     }
   }
 
+  // Export to PDF
+  const handleExportPDF = async () => {
+    if (isExportingPDF || filteredClients.length === 0) return
+
+    setIsExportingPDF(true)
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/export-critical-clients-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clients: filteredClients,
+          totalPendingAmount: filteredTotal.toString(),
+          weekFilter: getWeekFilterLabel(selectedWeekFilter),
+          routeFilter: selectedRoute !== 'all' ? selectedRoute : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al generar PDF')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `cv_criticos_${new Date().toISOString().split('T')[0]}.pdf`
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/)
+        if (match) filename = decodeURIComponent(match[1])
+      }
+
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+    } finally {
+      setIsExportingPDF(false)
+    }
+  }
+
   if (clients.length === 0) {
     return (
       <Card>
@@ -184,29 +277,14 @@ export function CriticalClientsCard({
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Skull className="h-5 w-5" />
-              CV Criticos
+              CV Críticos
             </CardTitle>
-            <Select
-              value={weeksWithoutPayment.toString()}
-              onValueChange={(val) => onWeeksChange(parseInt(val))}
-            >
-              <SelectTrigger className="w-[130px] h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {weeksOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value.toString()}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <Skull className="h-8 w-8 mb-2 opacity-50" />
-            <p className="text-sm">Sin clientes con {weeksWithoutPayment} sem sin pago</p>
+            <p className="text-sm">Sin clientes en cartera vencida crítica</p>
           </div>
         </CardContent>
       </Card>
@@ -220,26 +298,14 @@ export function CriticalClientsCard({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2">
               <Skull className="h-5 w-5 text-red-600 shrink-0" />
-              CV Criticos
+              CV Críticos
+              <Badge variant="outline" className="text-xs font-normal">
+                3+ sem
+              </Badge>
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
-              <Select
-                value={weeksWithoutPayment.toString()}
-                onValueChange={(val) => onWeeksChange(parseInt(val))}
-              >
-                <SelectTrigger className="w-[100px] sm:w-[130px] h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {weeksOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value.toString()}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Badge variant="destructive" className="whitespace-nowrap">{clients.length}</Badge>
-              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 whitespace-nowrap text-xs">
+              <Badge variant="outline" className="bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800 whitespace-nowrap text-xs">
                 {formatCurrency(totalPendingAmount)}
               </Badge>
             </div>
@@ -273,7 +339,7 @@ export function CriticalClientsCard({
           <Button
             variant="ghost"
             className="w-full mt-3 text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenModal}
           >
             Ver todos ({clients.length})
             <ChevronRight className="h-4 w-4 ml-1" />
@@ -286,22 +352,41 @@ export function CriticalClientsCard({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 flex-wrap">
               <Skull className="h-5 w-5 text-red-600" />
-              <span>CV Criticos ({weeksWithoutPayment} sem)</span>
+              <span>CV Críticos</span>
               <Badge variant="outline" className="ml-2">
                 {filteredClients.length} clientes
               </Badge>
-              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
+              <Badge variant="outline" className="bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800">
                 {formatCurrency(filteredTotal)} pendiente
               </Badge>
             </DialogTitle>
           </DialogHeader>
 
           {/* Filters and Actions Bar */}
-          <div className="flex items-center justify-between gap-4 py-2 border-b">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-2 border-b">
+            <div className="flex flex-wrap items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
+
+              {/* Week Filter - NEW */}
+              <Select
+                value={selectedWeekFilter}
+                onValueChange={(val) => setSelectedWeekFilter(val as WeekFilterOption)}
+              >
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="Filtrar por semanas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEK_FILTER_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Route Filter */}
               <Select value={selectedRoute} onValueChange={setSelectedRoute}>
-                <SelectTrigger className="w-[180px] h-9">
+                <SelectTrigger className="w-[160px] h-9">
                   <SelectValue placeholder="Filtrar por ruta" />
                 </SelectTrigger>
                 <SelectContent>
@@ -315,36 +400,58 @@ export function CriticalClientsCard({
               </Select>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyAsImage}
-              disabled={isCopying}
-              className="gap-2"
-            >
-              {copySuccess ? (
-                <>
-                  <Check className="h-4 w-4 text-green-600" />
-                  Copiado
-                </>
-              ) : isCopying ? (
-                <>
-                  <Copy className="h-4 w-4 animate-pulse" />
-                  Copiando...
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  Copiar como imagen
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportPDF}
+                disabled={isExportingPDF || filteredClients.length === 0}
+                className="gap-2"
+              >
+                {isExportingPDF ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Exportando...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="h-4 w-4" />
+                    Exportar PDF
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyAsImage}
+                disabled={isCopying}
+                className="gap-2"
+              >
+                {copySuccess ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-600" />
+                    Copiado
+                  </>
+                ) : isCopying ? (
+                  <>
+                    <Copy className="h-4 w-4 animate-pulse" />
+                    Copiando...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copiar imagen
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Table with ref for image capture */}
-          <div ref={tableRef} className="bg-white p-4 rounded-lg">
+          <div ref={tableRef} className="bg-background p-4 rounded-lg border">
             <div className="text-center mb-4 pb-2 border-b">
-              <h3 className="font-bold text-lg">CV Críticos - {weeksWithoutPayment} semanas sin pago</h3>
+              <h3 className="font-bold text-lg">CV Críticos - {getWeekFilterLabel(selectedWeekFilter)}</h3>
               <p className="text-sm text-muted-foreground">
                 {filteredClients.length} clientes | {formatCurrency(filteredTotal)} pendiente
                 {selectedRoute !== 'all' && ` | ${selectedRoute}`}
@@ -374,7 +481,7 @@ export function CriticalClientsCard({
                       </TableCell>
                       <TableCell>{client.lead.route}</TableCell>
                       <TableCell>{client.lead.locality}</TableCell>
-                      <TableCell className="text-right font-bold text-red-600">
+                      <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
                         {formatCurrency(client.pendingAmountStored)}
                       </TableCell>
                       <TableCell className="text-center">
@@ -382,8 +489,8 @@ export function CriticalClientsCard({
                           variant="outline"
                           className={cn(
                             client.weeksWithoutPayment >= 8
-                              ? 'bg-red-100 text-red-700 border-red-300'
-                              : 'bg-amber-100 text-amber-700 border-amber-300'
+                              ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800'
+                              : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800'
                           )}
                         >
                           {client.weeksWithoutPayment}
