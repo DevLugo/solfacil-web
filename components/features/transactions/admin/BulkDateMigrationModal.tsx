@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useLazyQuery, useMutation } from '@apollo/client'
+import { useState, useCallback } from 'react'
+import { useLazyQuery, useMutation, useQuery } from '@apollo/client'
 import { Loader2, ArrowRight, AlertTriangle } from 'lucide-react'
 import {
   Dialog,
@@ -15,6 +15,13 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -22,7 +29,7 @@ import {
   PREVIEW_BULK_DATE_MIGRATION,
   EXECUTE_BULK_DATE_MIGRATION,
 } from '@/graphql/mutations/bulkDateMigration'
-import { useTransactionContext } from '../transaction-context'
+import { ROUTES_QUERY } from '@/graphql/queries/transactions'
 
 interface BulkDateMigrationModalProps {
   open: boolean
@@ -36,38 +43,41 @@ export function BulkDateMigrationModal({
   onSuccess,
 }: BulkDateMigrationModalProps) {
   const { toast } = useToast()
-  const { selectedRouteId } = useTransactionContext()
 
-  // Form state - simplified to just two dates
+  const { data: routesData } = useQuery(ROUTES_QUERY)
+  const routes = routesData?.routes || []
+
+  const [selectedRoute, setSelectedRoute] = useState('')
   const [sourceDate, setSourceDate] = useState('')
   const [targetDate, setTargetDate] = useState('')
-
-  // Preview state
   const [previewData, setPreviewData] = useState<any>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  // GraphQL hooks
+  const resetPreview = useCallback(() => {
+    setPreviewData(null)
+    setShowConfirm(false)
+  }, [])
+
+  const showToast = useCallback((title: string, description: string, variant?: 'destructive') => {
+    toast({ title, description, variant })
+  }, [toast])
+
   const [previewMigration, { loading: previewing }] = useLazyQuery(
     PREVIEW_BULK_DATE_MIGRATION,
     {
       fetchPolicy: 'network-only',
       onCompleted: (data) => {
-        setPreviewData(data.previewBulkDateMigration)
-        if (data.previewBulkDateMigration.totalRecords > 0) {
+        const preview = data.previewBulkDateMigration
+        setPreviewData(preview)
+
+        if (preview.totalRecords > 0) {
           setShowConfirm(true)
         } else {
-          toast({
-            title: 'Sin registros',
-            description: 'No hay registros en esa fecha',
-          })
+          showToast('Sin registros', 'No hay registros en esa fecha')
         }
       },
       onError: (error) => {
-        toast({
-          title: 'Error al previsualizar',
-          description: error.message,
-          variant: 'destructive',
-        })
+        showToast('Error al previsualizar', error.message, 'destructive')
       },
     }
   )
@@ -76,87 +86,82 @@ export function BulkDateMigrationModal({
     EXECUTE_BULK_DATE_MIGRATION,
     {
       onCompleted: (data) => {
-        toast({
-          title: 'Migración completada',
-          description: data.executeBulkDateMigration.message,
-        })
+        showToast('Migración completada', data.executeBulkDateMigration.message)
         handleClose()
         onSuccess?.()
       },
       onError: (error) => {
-        toast({
-          title: 'Error en la migración',
-          description: error.message,
-          variant: 'destructive',
-        })
+        showToast('Error en la migración', error.message, 'destructive')
       },
     }
   )
 
-  /**
-   * Build migration input - source date covers the full day
-   */
-  const buildMigrationInput = () => {
-    // Source: full day (00:00 to 23:59:59 Mexico time)
-    const startBusinessDate = new Date(`${sourceDate}T00:00:00.000-06:00`)
-    const endBusinessDate = new Date(`${sourceDate}T23:59:59.999-06:00`)
-    // Target: normalized to 06:00 Mexico (12:00 UTC)
-    const newDate = new Date(`${targetDate}T06:00:00.000-06:00`)
+  const buildMigrationInput = useCallback(() => {
+    // Send dates at UTC midnight - backend will build the full day range
+    // This avoids double normalization and timezone confusion
+    const businessDate = new Date(`${sourceDate}T00:00:00.000Z`)
+    const newBusinessDate = new Date(`${targetDate}T00:00:00.000Z`)
 
     return {
-      startBusinessDate: startBusinessDate.toISOString(),
-      endBusinessDate: endBusinessDate.toISOString(),
-      newBusinessDate: newDate.toISOString(),
-      routeId: selectedRouteId || undefined,
+      // Send same date for start/end - backend will expand to full day
+      startBusinessDate: businessDate.toISOString(),
+      endBusinessDate: businessDate.toISOString(),
+      newBusinessDate: newBusinessDate.toISOString(),
+      routeId: selectedRoute,
     }
-  }
+  }, [sourceDate, targetDate, selectedRoute])
 
-  const handlePreview = () => {
+  const handlePreview = useCallback(() => {
     if (!sourceDate || !targetDate) {
-      toast({
-        title: 'Campos requeridos',
-        description: 'Selecciona ambas fechas',
-        variant: 'destructive',
-      })
+      showToast('Campos requeridos', 'Selecciona ambas fechas', 'destructive')
       return
     }
 
     if (sourceDate === targetDate) {
-      toast({
-        title: 'Fechas iguales',
-        description: 'Las fechas origen y destino deben ser diferentes',
-        variant: 'destructive',
-      })
+      showToast('Fechas iguales', 'Las fechas origen y destino deben ser diferentes', 'destructive')
       return
     }
 
     previewMigration({
-      variables: {
-        input: buildMigrationInput(),
-      },
+      variables: { input: buildMigrationInput() },
     })
-  }
+  }, [sourceDate, targetDate, buildMigrationInput, previewMigration, showToast])
 
-  const handleExecute = () => {
+  const handleExecute = useCallback(() => {
     executeMigration({
-      variables: {
-        input: buildMigrationInput(),
-      },
+      variables: { input: buildMigrationInput() },
     })
-  }
+  }, [buildMigrationInput, executeMigration])
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    setSelectedRoute('')
     setSourceDate('')
     setTargetDate('')
-    setPreviewData(null)
-    setShowConfirm(false)
+    resetPreview()
     onOpenChange(false)
-  }
+  }, [onOpenChange, resetPreview])
 
-  const formatDisplayDate = (dateStr: string) => {
+  const formatDisplayDate = useCallback((dateStr: string) => {
     if (!dateStr) return ''
     return format(new Date(dateStr + 'T12:00:00'), "d 'de' MMMM", { locale: es })
-  }
+  }, [])
+
+  const handleRouteChange = useCallback((value: string) => {
+    setSelectedRoute(value)
+    resetPreview()
+  }, [resetPreview])
+
+  const handleSourceDateChange = useCallback((value: string) => {
+    setSourceDate(value)
+    resetPreview()
+  }, [resetPreview])
+
+  const handleTargetDateChange = useCallback((value: string) => {
+    setTargetDate(value)
+    resetPreview()
+  }, [resetPreview])
+
+  const isPreviewDisabled = previewing || !selectedRoute || !sourceDate || !targetDate
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -169,17 +174,24 @@ export function BulkDateMigrationModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Route indicator */}
-          {!selectedRouteId && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Sin ruta seleccionada. Se migrarán datos de TODAS las rutas.
-              </AlertDescription>
-            </Alert>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="route">
+              Ruta <span className="text-destructive">*</span>
+            </Label>
+            <Select value={selectedRoute} onValueChange={handleRouteChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona una ruta" />
+              </SelectTrigger>
+              <SelectContent>
+                {routes.map((route: { id: string; name: string }) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Date inputs */}
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-2">
               <Label htmlFor="sourceDate">De</Label>
@@ -187,11 +199,7 @@ export function BulkDateMigrationModal({
                 id="sourceDate"
                 type="date"
                 value={sourceDate}
-                onChange={(e) => {
-                  setSourceDate(e.target.value)
-                  setPreviewData(null)
-                  setShowConfirm(false)
-                }}
+                onChange={(e) => handleSourceDateChange(e.target.value)}
               />
             </div>
             <ArrowRight className="h-5 w-5 mb-2.5 text-muted-foreground" />
@@ -201,16 +209,11 @@ export function BulkDateMigrationModal({
                 id="targetDate"
                 type="date"
                 value={targetDate}
-                onChange={(e) => {
-                  setTargetDate(e.target.value)
-                  setPreviewData(null)
-                  setShowConfirm(false)
-                }}
+                onChange={(e) => handleTargetDateChange(e.target.value)}
               />
             </div>
           </div>
 
-          {/* Preview Results */}
           {previewData && (
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-center">
@@ -222,7 +225,6 @@ export function BulkDateMigrationModal({
             </div>
           )}
 
-          {/* Confirmation */}
           {showConfirm && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -238,7 +240,7 @@ export function BulkDateMigrationModal({
             Cancelar
           </Button>
           {!showConfirm ? (
-            <Button onClick={handlePreview} disabled={previewing || !sourceDate || !targetDate}>
+            <Button onClick={handlePreview} disabled={isPreviewDisabled}>
               {previewing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Ver registros
             </Button>
