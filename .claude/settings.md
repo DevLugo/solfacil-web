@@ -78,6 +78,70 @@ docs/
 
 ---
 
+## Features Recientes
+
+### Listado de Lideres (`/administrar/lideres`)
+
+Pagina para ver todos los lideres con sus datos y detectar faltantes.
+
+**Archivos:**
+- `app/(auth)/administrar/lideres/page.tsx` - Pagina principal con tabla
+- `app/(auth)/administrar/lideres/components/edit-leader-dialog.tsx` - Dialog para editar datos del lider
+- `graphql/queries/leader.ts` - Query `GET_LEADERS`
+- `graphql/mutations/leader.ts` - Mutations `CREATE_NEW_LEADER`, `UPDATE_LEADER`
+- `components/layout/sidebar.tsx` - Link "Lideres" en sidebar (antes era "Nuevo Lider")
+- `lib/permissions.ts` - Permisos ADMIN + CAPTURA
+
+**Funcionalidad:**
+- Tabla con nombre, cumpleanos, telefono, localidad y ruta
+- Indicadores visuales de datos faltantes (sin cumpleanos, sin telefono)
+- Filtro por ruta
+- Edicion inline de datos del lider
+
+### Auto-Distribucion de Comisiones en Abonos (`/transacciones` > Abonos)
+
+Sistema para distribuir automaticamente la comision reportada entre los creditos.
+
+**Archivos:**
+- `components/features/transactions/abonos/components/ActionBar.tsx` - Barra con input "Comision reportada" y boton "Distribuir"
+- `components/features/transactions/abonos/components/LoanPaymentRow.tsx` - Fila de pago con resaltado visual de casos especiales
+- `components/features/transactions/abonos/hooks/usePayments.ts` - Hook con logica de distribucion
+- `components/features/transactions/abonos/types.ts` - Tipos actualizados
+- `components/features/transactions/abonos/utils.ts` - Utilidades de distribucion
+
+**Logica de distribucion:**
+- Ingresa total de comision reportada → se distribuye automaticamente segun tipo de credito
+- Respeta: comision doble si pago >= 2x esperado, comision mitad si pago < esperado, comision diferente por tipo de credito
+- Deja sin abono creditos que no cuadren para hacer match con el total
+- Resalta visualmente los casos especiales (comision 0, doble, diferente) para el capturista
+
+**UX:**
+- Input prominente "Comision reportada" con boton "Distribuir" (color indigo, fila superior)
+- Comision fija (global) como control secundario compacto
+- Casos especiales resaltados para deteccion rapida
+
+### Comision Global por Primer Pago (Modal de Creditos)
+
+Control de comisiones globales en el modal de creacion de creditos.
+
+**Archivos:**
+- `components/features/transactions/creditos/components/CreateLoansModal/GlobalCommissionControl.tsx` - Control rediseñado con dos inputs
+- `components/features/transactions/creditos/components/CreateLoansModal/PendingLoanCard.tsx` - Card que muestra ambas comisiones
+- `components/features/transactions/creditos/components/CreateLoansModal/index.tsx` - Estado y handler de aplicacion
+
+**Funcionalidad:**
+- Seccion "Comisiones globales" con dos inputs: "Por credito" y "Primer pago"
+- "Primer pago" solo aparece si algun credito pendiente tiene primer pago habilitado
+- Boton "Aplicar" aplica ambas comisiones en un solo paso (sin race condition)
+- Si hay un credito en edicion, los inputs del formulario tambien se actualizan
+- PendingLoanCard muestra "Com. credito: $X" y "Com. 1er pago: $X" por separado
+
+**Reglas de aplicacion:**
+- Comision por credito: solo aplica a creditos que ya tienen comision > 0
+- Comision primer pago: solo aplica a creditos que tienen primer pago habilitado
+
+---
+
 ## Flujo de Trabajo Recomendado
 
 ```
