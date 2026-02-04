@@ -52,11 +52,16 @@ export function PendingLoanCard({ loan, isEditing, onEdit, onRemove }: PendingLo
               <DollarSign className="h-3 w-3" />
               {formatCurrency(parseFloat(loan.amountGived))}
             </div>
-            {loan.comissionAmount && parseFloat(loan.comissionAmount) > 0 && (
-              <div className="text-xs text-muted-foreground">
-                Comisión: {formatCurrency(parseFloat(loan.comissionAmount))}
+            {(loan.comissionAmount && parseFloat(loan.comissionAmount) > 0) || (loan.firstPayment?.comission && parseFloat(loan.firstPayment.comission) > 0) ? (
+              <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                {loan.comissionAmount && parseFloat(loan.comissionAmount) > 0 && (
+                  <span>Com. crédito: {formatCurrency(parseFloat(loan.comissionAmount))}</span>
+                )}
+                {loan.firstPayment?.comission && parseFloat(loan.firstPayment.comission) > 0 && (
+                  <span>Com. 1er pago: {formatCurrency(parseFloat(loan.firstPayment.comission))}</span>
+                )}
               </div>
-            )}
+            ) : null}
             {loan.collateralName && (
               <div className="text-xs text-muted-foreground truncate">
                 Aval: {loan.collateralName}

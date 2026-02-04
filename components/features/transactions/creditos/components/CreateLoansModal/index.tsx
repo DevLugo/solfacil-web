@@ -71,6 +71,7 @@ export function CreateLoansModal({
   const [firstPaymentAmount, setFirstPaymentAmount] = useState<string>('')
   const [firstPaymentComission, setFirstPaymentComission] = useState<string>('')
   const [globalComissionAmount, setGlobalComissionAmount] = useState<string>('')
+  const [globalFirstPaymentComission, setGlobalFirstPaymentComission] = useState<string>('')
   // Track when first payment was auto-updated for visual feedback
   const [firstPaymentAutoUpdated, setFirstPaymentAutoUpdated] = useState(false)
 
@@ -514,20 +515,53 @@ export function CreateLoansModal({
     resetForm()
   }
 
-  // Apply global commission
+  // Apply global commissions (loan grant + first payment) in a single pass
   const handleApplyGlobalCommission = () => {
-    if (globalComissionAmount) {
-      pendingLoans.forEach((loan) => {
-        if (parseFloat(loan.comissionAmount) > 0) {
-          updatePendingLoan(loan.tempId, {
-            ...loan,
-            comissionAmount: globalComissionAmount,
-          })
+    const appliedParts: string[] = []
+    let creditApplied = false
+    let firstPaymentApplied = false
+
+    pendingLoans.forEach((loan) => {
+      const updates: Partial<PendingLoan> = {}
+
+      if (globalComissionAmount && parseFloat(loan.comissionAmount) > 0) {
+        updates.comissionAmount = globalComissionAmount
+        creditApplied = true
+      }
+
+      if (globalFirstPaymentComission && loan.firstPayment) {
+        updates.firstPayment = {
+          ...loan.firstPayment,
+          comission: globalFirstPaymentComission,
         }
-      })
+        firstPaymentApplied = true
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updatePendingLoan(loan.tempId, { ...loan, ...updates })
+      }
+    })
+
+    // Sync form state if the currently edited loan was affected
+    if (editingLoanId) {
+      const editingLoan = pendingLoans.find((l) => l.tempId === editingLoanId)
+      if (editingLoan) {
+        if (globalComissionAmount && parseFloat(editingLoan.comissionAmount) > 0) {
+          setComissionAmount(globalComissionAmount)
+        }
+        if (globalFirstPaymentComission && editingLoan.firstPayment) {
+          setFirstPaymentComission(globalFirstPaymentComission)
+        }
+      }
+    }
+
+    if (creditApplied) appliedParts.push('por crédito')
+    if (firstPaymentApplied) appliedParts.push('primer pago')
+
+    if (appliedParts.length > 0) {
       toast({
         title: 'Comisión actualizada',
-        description: 'Se aplicó la comisión a todos los créditos con comisión',
+        description: `Se aplicó la comisión ${appliedParts.join(' y ')} a los créditos correspondientes`,
       })
     }
   }
@@ -764,6 +798,8 @@ export function CreateLoansModal({
             <GlobalCommissionControl
               globalComissionAmount={globalComissionAmount}
               onGlobalComissionChange={setGlobalComissionAmount}
+              globalFirstPaymentComission={globalFirstPaymentComission}
+              onGlobalFirstPaymentComissionChange={setGlobalFirstPaymentComission}
               pendingLoans={pendingLoans}
               onApply={handleApplyGlobalCommission}
             />
