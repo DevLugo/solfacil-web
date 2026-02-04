@@ -45,6 +45,7 @@ export function AbonosTab() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false)
   const [globalCommission, setGlobalCommission] = useState('')
+  const [distributionCommissionTotal, setDistributionCommissionTotal] = useState('')
   const [showDistributionModal, setShowDistributionModal] = useState(false)
   const [isEditingDistributionOnly, setIsEditingDistributionOnly] = useState(false)
   // For edit distribution mode: store the original cash (before distribution) and money transfer sum
@@ -164,9 +165,10 @@ export function AbonosTab() {
     setExtraLoans((prev) => [...prev, { instanceId, loan }])
   }, [])
 
-  // Clear extra loans when lead changes
+  // Clear extra loans and distribution input when lead changes
   React.useEffect(() => {
     setExtraLoans([])
+    setDistributionCommissionTotal('')
   }, [selectedLeadId])
 
   // Payments management - use allLoansWithKeys (query loans + extra loans with unique keys)
@@ -181,6 +183,7 @@ export function AbonosTab() {
     handleSetAllNoPayment,
     handleClearAll,
     handleApplyGlobalCommission,
+    handleDistributeCommissionTotal,
     handleStartEditPayment,
     handleEditPaymentChange,
     handleToggleDeletePayment,
@@ -1150,6 +1153,9 @@ export function AbonosTab() {
               globalCommission={globalCommission}
               onGlobalCommissionChange={setGlobalCommission}
               onApplyGlobalCommission={() => handleApplyGlobalCommission(globalCommission)}
+              distributionCommissionTotal={distributionCommissionTotal}
+              onDistributionCommissionTotalChange={setDistributionCommissionTotal}
+              onDistributeCommissionTotal={() => handleDistributeCommissionTotal(distributionCommissionTotal, globalCommission || undefined)}
               onSetAllWeekly={() => handleSetAllWeekly(filteredLoansWithKeys)}
               onSetAllNoPayment={() => handleSetAllNoPayment(filteredLoansWithKeys, registeredPaymentsMap)}
               onClearAll={handleClearAll}
@@ -1231,6 +1237,7 @@ export function AbonosTab() {
                       leadPaymentReceivedId={isExtra ? null : leadPaymentReceivedId}
                       isAdmin={isAdmin}
                       isExtra={isExtra}
+                      commissionBaseOverride={globalCommission ? parseFloat(globalCommission) : undefined}
                       onPaymentChange={(amount) => handlePaymentChange(rowKey, amount)}
                       onCommissionChange={(commission) => handleCommissionChange(rowKey, commission)}
                       onPaymentMethodChange={(method) => handlePaymentMethodChange(rowKey, method)}
@@ -1275,6 +1282,7 @@ export function AbonosTab() {
                       leadPaymentReceivedId={isExtra ? null : leadPaymentReceivedId}
                       isAdmin={isAdmin}
                       isExtra={isExtra}
+                      commissionBaseOverride={globalCommission ? parseFloat(globalCommission) : undefined}
                       onPaymentChange={(amount) => handlePaymentChange(rowKey, amount)}
                       onCommissionChange={(commission) => handleCommissionChange(rowKey, commission)}
                       onPaymentMethodChange={(method) => handlePaymentMethodChange(rowKey, method)}

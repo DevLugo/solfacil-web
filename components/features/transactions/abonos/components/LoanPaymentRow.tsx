@@ -28,7 +28,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { ActiveLoan, PaymentEntry, EditedPayment, LoanPayment } from '../types'
-import { hasIncompleteAval, hasIncompletePhone } from '../utils'
+import { hasIncompleteAval, hasIncompletePhone, getCommissionHighlight } from '../utils'
 import { textStyles } from '../../shared/theme'
 
 interface LoanPaymentRowProps {
@@ -41,6 +41,7 @@ interface LoanPaymentRowProps {
   leadPaymentReceivedId: string | null
   isAdmin?: boolean
   isExtra?: boolean
+  commissionBaseOverride?: number
   onPaymentChange: (amount: string) => void
   onCommissionChange: (commission: string) => void
   onPaymentMethodChange: (method: 'CASH' | 'MONEY_TRANSFER') => void
@@ -61,6 +62,7 @@ export function LoanPaymentRow({
   leadPaymentReceivedId,
   isAdmin,
   isExtra,
+  commissionBaseOverride,
   onPaymentChange,
   onCommissionChange,
   onPaymentMethodChange,
@@ -106,6 +108,9 @@ export function LoanPaymentRow({
 
   // Is this row in "captured" visual state? (muted colors)
   const isCaptured = isDayCaptured || isRegistered
+
+  // === COMMISSION HIGHLIGHT ===
+  const commissionHighlight = isRegistered ? 'none' : getCommissionHighlight(payment, loan, commissionBaseOverride)
 
   const aval = loan.collaterals?.[0]
   const isIncompleteAval = hasIncompleteAval(loan)
@@ -338,19 +343,39 @@ export function LoanPaymentRow({
             </div>
           )
         ) : (
-          // Pending or falta - show input (enabled when adding payment)
-          <Input
-            type="number"
-            placeholder="0"
-            value={payment?.commission || ''}
-            onChange={(e) => onCommissionChange(e.target.value)}
-            onWheel={(e) => e.currentTarget.blur()}
-            className={cn(
-              "w-[70px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
-              showAsNoPayment && "opacity-50"
+          // Pending or falta - show input with commission highlight
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              placeholder="0"
+              value={payment?.commission || ''}
+              onChange={(e) => onCommissionChange(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={cn(
+                "w-[70px] border-2 border-dashed border-muted-foreground/30 bg-muted/30 focus:border-solid focus:border-primary focus:bg-background",
+                showAsNoPayment && "opacity-50",
+                commissionHighlight === 'zero-removed' && "border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/40",
+                commissionHighlight === 'reduced' && "border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-950/40",
+                commissionHighlight === 'extra' && "border-purple-400 dark:border-purple-500 bg-purple-50 dark:bg-purple-950/40",
+              )}
+              disabled={showAsNoPayment}
+            />
+            {commissionHighlight === 'zero-removed' && (
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400" title="Comisión removida">
+                x0
+              </span>
             )}
-            disabled={showAsNoPayment}
-          />
+            {commissionHighlight === 'reduced' && (
+              <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400" title="Comisión parcial">
+                ½
+              </span>
+            )}
+            {commissionHighlight === 'extra' && (
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400" title="Comisión extra">
+                x{Math.max(2, Math.floor(parseFloat(payment?.amount || '0') / parseFloat(loan.expectedWeeklyPayment || '1')))}
+              </span>
+            )}
+          </div>
         )}
       </TableCell>
 

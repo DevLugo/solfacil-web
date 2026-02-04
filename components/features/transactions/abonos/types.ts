@@ -111,4 +111,6 @@ export interface ModalTotals {
   noPayment: number
 }
 
+export type CommissionHighlight = 'none' | 'zero-removed' | 'reduced' | 'extra'
+
 // RowStyle type removed - now using theme constants from shared/theme.ts

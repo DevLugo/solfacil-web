@@ -423,6 +423,157 @@ export function usePayments({
     })
   }, [toast])
 
+  // Distribute total commission across eligible loans (forced exact match)
+  const handleDistributeCommissionTotal = useCallback((reportedTotalStr: string, baseCommissionOverride?: string) => {
+    const reportedTotal = parseFloat(reportedTotalStr || '0')
+    if (isNaN(reportedTotal) || reportedTotal < 0) {
+      toast({ title: 'Error', description: 'Ingresa un monto válido de comisión total.', variant: 'destructive' })
+      return
+    }
+
+    // Build eligible loans with expected commissions
+    const eligible: Array<{
+      rowKey: string
+      expectedCommission: number
+      baseCommission: number
+      paymentAmount: number
+    }> = []
+
+    const overrideValue = baseCommissionOverride ? parseFloat(baseCommissionOverride) : 0
+    const hasOverride = overrideValue > 0
+
+    Object.entries(payments).forEach(([rowKey, payment]) => {
+      if (payment.isNoPayment) return
+      const amountNum = parseFloat(payment.amount || '0')
+      if (amountNum <= 0) return
+
+      const loanWithKey = loansWithKeys.find((l) => l.rowKey === rowKey)
+      const loan = loanWithKey?.loan
+      if (!loan) return
+
+      const expectedWeekly = parseFloat(loan.expectedWeeklyPayment || '0')
+      const loantypeCommission = parseFloat(loan.loantype?.loanPaymentComission || '0')
+      // Only use override if the loantype has a commission > 0
+      const baseCommission = (hasOverride && loantypeCommission > 0) ? overrideValue : loantypeCommission
+      if (expectedWeekly <= 0 || baseCommission <= 0) return
+
+      const multiplier = Math.floor(amountNum / expectedWeekly)
+      const expectedCommission = multiplier >= 1 ? baseCommission * multiplier : 0
+
+      eligible.push({ rowKey, expectedCommission, baseCommission, paymentAmount: amountNum })
+    })
+
+    if (eligible.length === 0) {
+      toast({ title: 'Sin comisiones', description: 'No hay préstamos con abono elegibles para comisión.' })
+      return
+    }
+
+    const expectedTotal = eligible.reduce((sum, l) => sum + l.expectedCommission, 0)
+
+    // Build the final commission map - forced exact match
+    const commissionMap = new Map<string, number>()
+
+    if (reportedTotal === 0) {
+      // All commissions $0
+      eligible.forEach((l) => commissionMap.set(l.rowKey, 0))
+    } else if (reportedTotal === expectedTotal) {
+      // Exact match - apply expected
+      eligible.forEach((l) => commissionMap.set(l.rowKey, l.expectedCommission))
+    } else if (reportedTotal < expectedTotal) {
+      // DEFICIT: need to reduce. Remove from smallest payments first.
+      // If removing a full commission overshoots, partially reduce that loan.
+      const sorted = [...eligible].sort((a, b) => a.paymentAmount - b.paymentAmount)
+      // Start with all expected
+      sorted.forEach((l) => commissionMap.set(l.rowKey, l.expectedCommission))
+
+      let deficit = expectedTotal - reportedTotal
+      for (const loan of sorted) {
+        if (deficit <= 0) break
+        const currentComm = commissionMap.get(loan.rowKey) || 0
+        if (currentComm <= 0) continue
+
+        if (deficit >= currentComm) {
+          // Remove entire commission
+          commissionMap.set(loan.rowKey, 0)
+          deficit -= currentComm
+        } else {
+          // Partial reduction - reduce only what's needed
+          commissionMap.set(loan.rowKey, Math.round((currentComm - deficit) * 100) / 100)
+          deficit = 0
+        }
+      }
+    } else {
+      // SURPLUS: need to add more. Give extra commission units to largest payments first.
+      // Start with all expected
+      eligible.forEach((l) => commissionMap.set(l.rowKey, l.expectedCommission))
+
+      // Sort by payment amount DESC - biggest payers get extra first
+      const sorted = [...eligible].sort((a, b) => b.paymentAmount - a.paymentAmount)
+      let surplus = reportedTotal - expectedTotal
+
+      // Keep looping until surplus is consumed (may need multiple passes)
+      while (surplus > 0.01) {
+        let distributed = false
+        for (const loan of sorted) {
+          if (surplus <= 0.01) break
+          if (surplus >= loan.baseCommission) {
+            // Add a full commission unit
+            commissionMap.set(loan.rowKey, (commissionMap.get(loan.rowKey) || 0) + loan.baseCommission)
+            surplus -= loan.baseCommission
+            distributed = true
+          } else {
+            // Add partial remainder to this loan
+            commissionMap.set(loan.rowKey, Math.round(((commissionMap.get(loan.rowKey) || 0) + surplus) * 100) / 100)
+            surplus = 0
+            distributed = true
+          }
+        }
+        // Safety: if no distribution happened in a full pass, add remainder to first loan
+        if (!distributed && surplus > 0.01) {
+          const first = sorted[0]
+          commissionMap.set(first.rowKey, Math.round(((commissionMap.get(first.rowKey) || 0) + surplus) * 100) / 100)
+          surplus = 0
+        }
+      }
+    }
+
+    // Apply to state
+    setPayments((prev) => {
+      const updated = { ...prev }
+      commissionMap.forEach((commission, rowKey) => {
+        if (updated[rowKey]) {
+          updated[rowKey] = {
+            ...updated[rowKey],
+            commission: commission.toString(),
+          }
+        }
+      })
+      return updated
+    })
+
+    // Toast feedback
+    const finalTotal = Array.from(commissionMap.values()).reduce((sum, v) => sum + v, 0)
+    const zeroCount = Array.from(commissionMap.values()).filter((v) => v === 0).length
+    const extraCount = Array.from(commissionMap.entries()).filter(([rowKey, comm]) => {
+      const loan = eligible.find((l) => l.rowKey === rowKey)
+      return loan && comm > loan.expectedCommission
+    }).length
+    const reducedCount = Array.from(commissionMap.entries()).filter(([rowKey, comm]) => {
+      const loan = eligible.find((l) => l.rowKey === rowKey)
+      return loan && comm > 0 && comm < loan.expectedCommission
+    }).length
+
+    const parts: string[] = []
+    if (extraCount > 0) parts.push(`${extraCount} con comisión extra`)
+    if (reducedCount > 0) parts.push(`${reducedCount} con comisión parcial`)
+    if (zeroCount > 0) parts.push(`${zeroCount} sin comisión`)
+
+    toast({
+      title: 'Comisión distribuida',
+      description: `${formatCurrency(Math.round(finalTotal * 100) / 100)} distribuido en ${eligible.length} préstamo(s). ${parts.length > 0 ? parts.join(', ') + '.' : ''}`,
+    })
+  }, [payments, loansWithKeys, toast])
+
   // === Edited Payments ===
   // Key by paymentId to support editing any payment (including multiple payments per loan)
   const handleStartEditPayment = useCallback((loanId: string, registeredPayment: LoanPayment, startDeleted: boolean = false) => {
@@ -499,6 +650,7 @@ export function usePayments({
     handleSetAllNoPayment,
     handleClearAll,
     handleApplyGlobalCommission,
+    handleDistributeCommissionTotal,
     resetPayments,
     // Edited payment handlers
     handleStartEditPayment,
