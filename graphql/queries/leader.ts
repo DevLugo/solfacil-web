@@ -49,6 +49,21 @@ export const CHECK_EXISTING_LEADER = gql`
   }
 `
 
+export const GET_LEADERS = gql`
+  query GetLeaders($routeId: ID) {
+    leaders(routeId: $routeId) {
+      id
+      fullName
+      birthDate
+      phone
+      locationName
+      routeId
+      routeName
+      createdAt
+    }
+  }
+`
+
 export const GET_LEADER_BIRTHDAYS = gql`
   query GetLeaderBirthdays($routeId: ID) {
     leaderBirthdays(routeId: $routeId) {
