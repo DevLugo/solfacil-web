@@ -218,8 +218,12 @@ export function BulkDateMigrationModal({
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-center">
                 Se moverán <span className="font-bold">{previewData.totalRecords}</span> registros
-                {previewData.loansCount > 0 && (
-                  <span className="text-muted-foreground"> ({previewData.loansCount} créditos, {previewData.loanPaymentsCount} abonos)</span>
+                {(previewData.loansCount > 0 || previewData.loanPaymentsCount > 0 || previewData.expensesCount > 0) && (
+                  <span className="text-muted-foreground"> ({[
+                    previewData.loansCount > 0 && `${previewData.loansCount} créditos`,
+                    previewData.loanPaymentsCount > 0 && `${previewData.loanPaymentsCount} abonos`,
+                    previewData.expensesCount > 0 && `${previewData.expensesCount} gastos`,
+                  ].filter(Boolean).join(', ')})</span>
                 )}
               </p>
             </div>

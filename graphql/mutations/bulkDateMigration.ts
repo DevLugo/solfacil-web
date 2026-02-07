@@ -6,6 +6,7 @@ export const PREVIEW_BULK_DATE_MIGRATION = gql`
       transactionsCount
       loanPaymentsCount
       loansCount
+      expensesCount
       totalRecords
     }
   }
