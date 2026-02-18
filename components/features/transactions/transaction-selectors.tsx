@@ -19,8 +19,6 @@ import { useTransactionContext } from './transaction-context'
 import { ROUTES_WITH_ACCOUNTS_QUERY } from '@/graphql/queries/transactions'
 import { cn, formatCurrency } from '@/lib/utils'
 import { gql } from '@apollo/client'
-import { useAuth } from '@/hooks/use-auth'
-import { OCRUploadButton } from './ocr/OCRUploadButton'
 
 // Query para obtener líderes por ruta - incluye direcciones para mostrar localidad
 const LEADS_BY_ROUTE_QUERY = gql`
@@ -111,9 +109,6 @@ export function TransactionSelectors() {
       getLeads({ variables: { routeId: selectedRouteId } })
     }
   }, [selectedRouteId, getLeads])
-
-  const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
 
   const routes = routesData?.routes || []
   const leads = leadsData?.employees || []
@@ -258,11 +253,6 @@ export function TransactionSelectors() {
               </Button>
             )}
           </div>
-        )}
-
-        {/* OCR Upload Button (ADMIN only) */}
-        {selectedRouteId && isAdmin && (
-          <OCRUploadButton routeId={selectedRouteId} businessDate={selectedDate} accounts={accounts} />
         )}
 
         {/* Current Selection Summary */}
