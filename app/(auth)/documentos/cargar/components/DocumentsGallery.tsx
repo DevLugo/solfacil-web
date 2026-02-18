@@ -227,9 +227,10 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
   const currentLoan = loanData?.loan || loan
 
   // Get documents for current person
+  // Use selectedAval.id when user changes aval via autocomplete, otherwise use tab value
   const currentPersonId = selectedPerson === 'cliente'
     ? loan.borrower.personalData.id
-    : selectedPerson
+    : selectedAval?.id || selectedPerson
 
   const personDocuments = currentLoan.documentPhotos?.filter(
     (doc: DocumentPhoto) => doc.personalData?.id === currentPersonId
@@ -240,10 +241,10 @@ export function DocumentsGallery({ loan, onUploadSuccess }: DocumentsGalleryProp
     ? DOCUMENT_TYPES_CLIENTE
     : DOCUMENT_TYPES_AVAL
 
-  // Get person name
+  // Get person name - use selectedAval.fullName when aval is changed
   const personName = selectedPerson === 'cliente'
     ? loan.borrower.personalData.fullName
-    : loan.collaterals?.find(c => c.id === selectedPerson)?.fullName || ''
+    : selectedAval?.fullName || loan.collaterals?.find(c => c.id === selectedPerson)?.fullName || ''
 
   const handleUploadSuccess = () => {
     setUploadingType(null)

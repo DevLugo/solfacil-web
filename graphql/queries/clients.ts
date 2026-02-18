@@ -18,6 +18,7 @@ export const SEARCH_CLIENTS_QUERY = gql`
       limit: $limit
     ) {
       id
+      borrowerId
       name
       clientCode
       phone
@@ -31,6 +32,7 @@ export const SEARCH_CLIENTS_QUERY = gql`
       hasBeenCollateral
       totalLoans
       activeLoans
+      activeLoanIds
       finishedLoans
       collateralLoans
       pendingDebt

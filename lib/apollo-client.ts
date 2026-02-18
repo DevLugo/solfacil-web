@@ -283,80 +283,75 @@ export async function uploadFileWithGraphQL(options: {
   query: string
   variables: Record<string, unknown>
   operationName: string
+  fileVariablePath?: string
   timeoutMs?: number
 }) {
   const { file, query, variables, operationName, timeoutMs = 60000 } = options
+  const fileVariablePath = options.fileVariablePath || 'variables.input.file'
 
-  const formData = new FormData()
+  function buildFormData(token: string | null) {
+    const formData = new FormData()
 
-  // GraphQL multipart request spec
-  const inputVar = variables.input as Record<string, unknown> | undefined
-  const operations = {
-    query,
-    variables: {
-      ...variables,
-      input: {
-        ...(inputVar || {}),
-        file: null, // Will be mapped
-      },
-    },
-    operationName,
+    // Build operations JSON with null placeholder for the file
+    const ops = { query, variables: JSON.parse(JSON.stringify(variables)), operationName }
+    // Set the file placeholder to null at the correct path
+    const pathParts = fileVariablePath.replace(/^variables\./, '').split('.')
+    let target: any = ops.variables
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      if (!target[pathParts[i]]) target[pathParts[i]] = {}
+      target = target[pathParts[i]]
+    }
+    target[pathParts[pathParts.length - 1]] = null
+
+    formData.append('operations', JSON.stringify(ops))
+    formData.append('map', JSON.stringify({ '0': [fileVariablePath] }))
+    formData.append('0', file)
+
+    const headers: Record<string, string> = { 'apollo-require-preflight': 'true' }
+    if (token) headers['authorization'] = `Bearer ${token}`
+
+    return { formData, headers }
   }
 
-  const map = {
-    '0': ['variables.input.file'],
-  }
+  async function doUpload(token: string | null) {
+    const { formData, headers } = buildFormData(token)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  formData.append('operations', JSON.stringify(operations))
-  formData.append('map', JSON.stringify(map))
-  formData.append('0', file)
+    try {
+      const response = await fetch(GRAPHQL_URL, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: formData,
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      return await response.json()
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('La subida tardó demasiado. Verifica tu conexión e intenta de nuevo.')
+      }
+      throw error
+    }
+  }
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
+  let result = await doUpload(token)
 
-  const headers: Record<string, string> = {
-    'apollo-require-preflight': 'true',
-  }
-
-  if (token) {
-    headers['authorization'] = `Bearer ${token}`
-  }
-
-  console.log('Uploading to GraphQL:', {
-    url: GRAPHQL_URL,
-    headers,
-    operationName,
-    fileName: file.name,
-    fileType: file.type,
-    fileSize: file.size,
-  })
-
-  // Create AbortController for timeout handling
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-  try {
-    const response = await fetch(GRAPHQL_URL, {
-      method: 'POST',
-      headers,
-      credentials: 'include',
-      body: formData,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    const result = await response.json()
-
-    if (result.errors) {
-      throw new Error(result.errors[0]?.message || 'Upload failed')
+  // If UNAUTHENTICATED, try refreshing token and retry once
+  if (result.errors?.[0]?.extensions?.code === 'UNAUTHENTICATED') {
+    const refreshed = await refreshTokens()
+    if (refreshed) {
+      const newToken = localStorage.getItem('accessToken')
+      result = await doUpload(newToken)
     }
-
-    return result.data
-  } catch (error) {
-    clearTimeout(timeoutId)
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('La subida tardó demasiado. Verifica tu conexión e intenta de nuevo.')
-    }
-    throw error
   }
+
+  if (result.errors) {
+    throw new Error(result.errors[0]?.message || 'Upload failed')
+  }
+
+  return result.data
 }
