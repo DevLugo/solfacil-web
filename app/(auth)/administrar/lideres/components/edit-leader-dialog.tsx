@@ -64,16 +64,25 @@ export function EditLeaderDialog({ leader, open, onOpenChange, onSuccess }: Edit
     if (!leader || !fullName.trim()) return
 
     try {
-      await updateLeader({
+      // Convert date-only string to ISO format for DateTime scalar
+      // Input type="date" returns "YYYY-MM-DD" but GraphQL DateTime expects ISO 8601
+      const birthDateISO = birthDate ? new Date(birthDate).toISOString() : null
+
+      const result = await updateLeader({
         variables: {
           input: {
             id: leader.id,
             fullName: fullName.trim(),
-            birthDate: birthDate || null,
+            birthDate: birthDateISO,
             phone: phone.trim() || null,
           },
         },
       })
+
+      // With errorPolicy: 'all', errors don't throw - check explicitly
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0].message)
+      }
 
       toast({
         title: 'Lider actualizado',

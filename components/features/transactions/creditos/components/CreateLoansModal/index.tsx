@@ -669,7 +669,7 @@ export function CreateLoansModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-4 pt-4 pb-1 shrink-0">
           <DialogTitle className="text-base">Registrar Créditos</DialogTitle>
           <DialogDescription className="text-xs">
