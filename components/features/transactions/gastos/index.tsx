@@ -355,7 +355,8 @@ export function GastosTab() {
 
   const handleSaveDistributedExpenses = async (
     expenses: { routeId: string; accountId: string; amount: number }[],
-    expenseSource: string
+    expenseSource: string,
+    description: string
   ) => {
     setIsDistributedSaving(true)
     try {
@@ -366,6 +367,7 @@ export function GastosTab() {
               amount: expense.amount.toString(),
               date: selectedDate.toISOString(),
               type: 'EXPENSE',
+              description: description || undefined,
               expenseSource,
               sourceAccountId: expense.accountId,
               routeId: expense.routeId,

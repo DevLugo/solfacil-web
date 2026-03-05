@@ -51,7 +51,7 @@ interface DistributedExpenseModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   selectedDate: Date
-  onSave: (expenses: DistributedExpenseInput[], expenseSource: string) => Promise<void>
+  onSave: (expenses: DistributedExpenseInput[], expenseSource: string, description: string) => Promise<void>
   isSaving: boolean
 }
 
@@ -64,7 +64,9 @@ export function DistributedExpenseModal({
 }: DistributedExpenseModalProps) {
   const [totalAmount, setTotalAmount] = useState('')
   const [expenseSource, setExpenseSource] = useState('')
+  const [description, setDescription] = useState('')
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
+
   // Global source account (applies to all routes - no restrictions)
   const [selectedSourceAccountId, setSelectedSourceAccountId] = useState<string>('')
 
@@ -97,6 +99,7 @@ export function DistributedExpenseModal({
     if (open) {
       setTotalAmount('')
       setExpenseSource('')
+      setDescription('')
       setSelectedRouteIds([])
       setSelectedSourceAccountId('')
     }
@@ -144,7 +147,7 @@ export function DistributedExpenseModal({
       return // Some routes don't have valid accounts
     }
 
-    await onSave(validExpenses, expenseSource)
+    await onSave(validExpenses, expenseSource, description)
     onOpenChange(false)
   }
 
@@ -189,6 +192,16 @@ export function DistributedExpenseModal({
               onChange={(e) => setTotalAmount(e.target.value)}
               onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="grid gap-2">
+            <Label>Concepto</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descripcion del gasto"
             />
           </div>
 

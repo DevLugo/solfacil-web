@@ -625,7 +625,7 @@ export default function CarteraMuertaPage() {
     setPendingMarkAction({
       type: 'month',
       monthData,
-      date: getLastDayOfMonth(monthData.month.year, monthData.month.month),
+      date: new Date().toISOString().split('T')[0],
     })
     setConfirmDialogOpen(true)
   }
@@ -1026,7 +1026,20 @@ export default function CarteraMuertaPage() {
               {pendingMarkAction?.date && (
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Fecha de marcado:</span>
-                  <span className="font-medium">{pendingMarkAction.date}</span>
+                  {pendingMarkAction.type === 'month' ? (
+                    <Input
+                      type="date"
+                      value={pendingMarkAction.date}
+                      onChange={(e) =>
+                        setPendingMarkAction(prev =>
+                          prev ? { ...prev, date: e.target.value } : prev
+                        )
+                      }
+                      className="h-8 w-auto"
+                    />
+                  ) : (
+                    <span className="font-medium">{pendingMarkAction.date}</span>
+                  )}
                 </div>
               )}
             </div>

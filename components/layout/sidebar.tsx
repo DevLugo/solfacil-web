@@ -67,6 +67,7 @@ const navegacion: NavItem[] = [
       { titulo: 'Planificacion de Rutas', href: '/administrar/planificacion-rutas', icono: Map },
       { titulo: 'Lideres', href: '/administrar/lideres', icono: Users },
       { titulo: 'Gastos', href: '/administrar/gastos', icono: BarChart3 },
+      { titulo: 'Cuentas', href: '/administrar/cuentas', icono: Wallet },
       { titulo: 'Cartera Muerta', href: '/administrar/cartera-muerta', icono: Skull },
       { titulo: 'Notificaciones', href: '/administrar/notificaciones-telegram', icono: Bell },
     ],

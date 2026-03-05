@@ -32,6 +32,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRoleType[]> = {
   '/administrar/lideres': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
   '/administrar/lideres/nuevo': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
   '/administrar/gastos': ROLE_GROUPS.ADMIN_ONLY,
+  '/administrar/cuentas': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/cartera-muerta': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/usuarios': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/usuarios-telegram': ROLE_GROUPS.ADMIN_ONLY,
