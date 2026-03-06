@@ -625,7 +625,7 @@ export function CreateLoansModal({
               isFromDifferentLocation: loan.isFromDifferentLocation,
             })),
             sourceAccountId: defaultAccount.id,
-            signDate: new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 12, 0, 0).toISOString(),
+            signDate: selectedDate.toISOString(),
             leadId,
             grantorId,
           },
