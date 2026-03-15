@@ -292,3 +292,87 @@ export interface CreditosTotals {
   totalRenovations: number
   totalNewLoans: number
 }
+
+// --- Aval Capture Mode types ---
+
+export interface LoanForAval {
+  id: string
+  signDate: string
+  requestedAmount: string
+  totalDebtAcquired: string
+  createdAt: string
+  updatedAt: string
+  loantype: { name: string; weekDuration: number }
+  lead: {
+    id: string
+    location: { id: string; name: string } | null
+  }
+  borrower: {
+    id: string
+    personalData: {
+      id: string
+      fullName: string
+      phones: { id: string; number: string }[]
+    }
+  }
+  collaterals: {
+    id: string
+    fullName: string
+    updatedAt: string
+    phones: { id: string; number: string }[]
+  }[]
+}
+
+export interface LocationGroupData {
+  locationId: string
+  locationName: string
+  loans: LoanForAval[]
+  captured: number
+  pending: number
+}
+
+export function isAvalCaptured(loan: LoanForAval): boolean {
+  if (loan.collaterals.length === 0) return false
+  const loanCreated = new Date(loan.createdAt).getTime()
+  const collateralUpdated = new Date(loan.collaterals[0].updatedAt).getTime()
+  return collateralUpdated > loanCreated
+}
+
+export function groupLoansByLocation(loans: LoanForAval[]): LocationGroupData[] {
+  const groups = new Map<string, LocationGroupData>()
+
+  for (const loan of loans) {
+    const location = loan.lead?.location
+    const locationId = location?.id || 'unknown'
+    const locationName = location?.name || 'Sin localidad'
+
+    if (!groups.has(locationId)) {
+      groups.set(locationId, {
+        locationId,
+        locationName,
+        loans: [],
+        captured: 0,
+        pending: 0,
+      })
+    }
+
+    const group = groups.get(locationId)!
+    group.loans.push(loan)
+    if (isAvalCaptured(loan)) {
+      group.captured++
+    } else {
+      group.pending++
+    }
+  }
+
+  const result = Array.from(groups.values())
+    .sort((a, b) => {
+      const aFirst = Math.min(...a.loans.map(l => new Date(l.createdAt).getTime()))
+      const bFirst = Math.min(...b.loans.map(l => new Date(l.createdAt).getTime()))
+      return aFirst - bFirst
+    })
+  for (const group of result) {
+    group.loans.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  }
+  return result
+}

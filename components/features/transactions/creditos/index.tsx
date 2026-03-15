@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { useMutation } from '@apollo/client'
-import { MapPin } from 'lucide-react'
+import { MapPin, ShieldCheck, ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTransactionContext } from '../transaction-context'
 import { CANCEL_LOAN_WITH_ACCOUNT_RESTORE } from '@/graphql/mutations/transactions'
@@ -18,6 +19,7 @@ import {
   LoansTable,
   CancelLoanDialog,
 } from './components'
+import { AvalCaptureMode } from './components/avales'
 import type { Loan } from './types'
 
 function EmptyState() {
@@ -90,6 +92,7 @@ export function CreditosTab() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
 
+  const [avalCaptureMode, setAvalCaptureMode] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
@@ -209,8 +212,50 @@ export function CreditosTab() {
     refetchAccounts()
   }
 
-  if (!selectedRouteId || !selectedLeadId) {
+  if (!selectedRouteId) {
     return <EmptyState />
+  }
+
+  // Aval capture mode only needs routeId, not leadId
+  if (avalCaptureMode) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 shrink-0"
+            onClick={() => setAvalCaptureMode(false)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="text-sm font-medium">Captura de Avales</span>
+          </div>
+        </div>
+        <AvalCaptureMode />
+      </div>
+    )
+  }
+
+  if (!selectedLeadId) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            onClick={() => setAvalCaptureMode(true)}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Captura Avales
+          </Button>
+        </div>
+        <EmptyState />
+      </div>
+    )
   }
 
   if (loansLoading) {
@@ -219,6 +264,19 @@ export function CreditosTab() {
 
   return (
     <div className="space-y-6">
+      {/* Header with Aval Capture toggle */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+          onClick={() => setAvalCaptureMode(true)}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Captura Avales
+        </Button>
+      </div>
+
       {/* Summary Cards */}
       <SummaryCards totals={totals} />
 
