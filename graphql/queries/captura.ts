@@ -240,6 +240,18 @@ export const FINANCIAL_ACTIVITY_BY_WEEK_QUERY = gql`
   }
 `
 
+export const CAPTURA_HEALTH_CHECK_QUERY = gql`
+  query CapturaHealthCheck {
+    capturaHealthCheck {
+      python
+      googleCredentials
+      googleVisionApi
+      anthropicKey
+      errors
+    }
+  }
+`
+
 export const CAPTURA_ROUTE_LEADS_QUERY = gql`
   query CapturaRouteLeads($routeId: ID!) {
     employees(routeId: $routeId, type: LEAD) {
