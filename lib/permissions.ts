@@ -20,6 +20,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRoleType[]> = {
   '/dashboard': ROLE_GROUPS.ADMIN_ONLY,
   '/historial-clientes': ROLE_GROUPS.ALL,
   '/transacciones': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
+  '/captura-ocr': ROLE_GROUPS.ADMIN_AND_DATA_ENTRY,
   '/listados/generar': ROLE_GROUPS.OPERATIONAL,
   '/documentos/cargar': ROLE_GROUPS.ADMIN_AND_REVIEWER,
   '/reportes/financiero': ROLE_GROUPS.ADMIN_ONLY,

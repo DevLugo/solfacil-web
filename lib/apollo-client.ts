@@ -276,7 +276,7 @@ export function resetApolloClient(): void {
 /**
  * Upload a file using multipart/form-data with GraphQL
  * This bypasses Apollo Client's normal flow to handle file uploads properly
- * Includes timeout to prevent hanging on slow mobile networks
+ * Uses XMLHttpRequest for upload progress tracking
  */
 export async function uploadFileWithGraphQL(options: {
   file: File
@@ -285,8 +285,9 @@ export async function uploadFileWithGraphQL(options: {
   operationName: string
   fileVariablePath?: string
   timeoutMs?: number
+  onProgress?: (loaded: number, total: number) => void
 }) {
-  const { file, query, variables, operationName, timeoutMs = 60000 } = options
+  const { file, query, variables, operationName, timeoutMs = 300000, onProgress } = options
   const fileVariablePath = options.fileVariablePath || 'variables.input.file'
 
   function buildFormData(token: string | null) {
@@ -313,28 +314,52 @@ export async function uploadFileWithGraphQL(options: {
     return { formData, headers }
   }
 
-  async function doUpload(token: string | null) {
+  function doUpload(token: string | null): Promise<any> {
     const { formData, headers } = buildFormData(token)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-    try {
-      const response = await fetch(GRAPHQL_URL, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: formData,
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-      return await response.json()
-    } catch (error) {
-      clearTimeout(timeoutId)
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('La subida tardó demasiado. Verifica tu conexión e intenta de nuevo.')
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', GRAPHQL_URL)
+      xhr.withCredentials = true
+      xhr.timeout = timeoutMs
+
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value)
       }
-      throw error
-    }
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            onProgress(e.loaded, e.total)
+          }
+        })
+      }
+
+      xhr.addEventListener('load', () => {
+        try {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
+          reject(new Error(`Respuesta inválida del servidor (status ${xhr.status})`))
+        }
+      })
+
+      xhr.addEventListener('timeout', () => {
+        reject(new Error(
+          `La subida tardó más de ${Math.round(timeoutMs / 60000)} minutos. ` +
+          'Verifica tu conexión e intenta de nuevo.'
+        ))
+      })
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Error de red al subir el archivo. Verifica tu conexión.'))
+      })
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('La subida fue cancelada.'))
+      })
+
+      xhr.send(formData)
+    })
   }
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null

@@ -139,7 +139,7 @@ export const TRANSACTIONS_QUERY = gql`
 
 export const LOANS_BY_DATE_LEAD_QUERY = gql`
   query LoansByDateLead($fromDate: DateTime!, $toDate: DateTime!, $leadId: ID!) {
-    loans(fromDate: $fromDate, toDate: $toDate, leadId: $leadId, status: ACTIVE) {
+    loans(fromDate: $fromDate, toDate: $toDate, leadId: $leadId) {
       edges {
         node {
           id

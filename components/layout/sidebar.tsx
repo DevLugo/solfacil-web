@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Cake,
   Map,
+  ScanLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -45,6 +46,7 @@ const navegacion: NavItem[] = [
   { titulo: 'Dashboard', href: '/dashboard', icono: LayoutDashboard },
   { titulo: 'Historial Clientes', href: '/historial-clientes', icono: History },
   { titulo: 'Operaciones del Día', href: '/transacciones', icono: CalendarDays },
+  { titulo: 'Captura OCR', href: '/captura-ocr', icono: ScanLine },
   { titulo: 'Listados', href: '/listados/generar', icono: ListChecks },
   { titulo: 'Documentos', href: '/documentos/cargar', icono: Upload },
   {
