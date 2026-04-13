@@ -181,6 +181,7 @@ function getCellState(dbJob?: CapturaJobSummary, localUpload?: UploadItem): Cell
   // DB job states
   if (dbJob) {
     if (dbJob.confirmedAt) return 'confirmed'
+    if (dbJob.hasEdits && dbJob.status === 'COMPLETED') return 'edited'
     if (dbJob.status === 'COMPLETED') return 'completed'
     if (dbJob.status === 'QUEUED') return 'queued'
     if (dbJob.status === 'PROCESSING') return 'processing'

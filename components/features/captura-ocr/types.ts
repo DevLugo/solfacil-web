@@ -262,6 +262,7 @@ export interface CapturaJobSummary {
   localityCount: number
   processingTimeSeconds: number | null
   costUsd: number | null
+  hasEdits: boolean
   confirmedAt: string | null
   createdAt: string
 }

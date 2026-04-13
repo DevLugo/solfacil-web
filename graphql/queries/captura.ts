@@ -205,6 +205,7 @@ export const CAPTURA_JOBS_BY_DATE_QUERY = gql`
       localityCount
       processingTimeSeconds
       costUsd
+      hasEdits
       confirmedAt
       createdAt
     }
@@ -223,6 +224,7 @@ export const CAPTURA_JOBS_BY_WEEK_QUERY = gql`
       localityCount
       processingTimeSeconds
       costUsd
+      hasEdits
       confirmedAt
       createdAt
     }
