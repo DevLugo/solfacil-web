@@ -479,6 +479,7 @@ export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
             personalData {
               id
               fullName
+              clientCode
               phones {
                 number
               }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
+import { useQuery } from '@apollo/client'
 import { Wallet, Building2, ArrowRight, Pencil, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,11 +25,82 @@ import { CapturaKPIBadges } from './captura-kpi-badges'
 import { CapturaActionBar } from './captura-action-bar'
 import type { CommissionMode } from './captura-action-bar'
 import { CapturaDistributionModal } from './captura-distribution-modal'
+import { ACTIVE_LOANS_BY_LEAD_QUERY } from '@/graphql/queries/transactions'
 import type { CapturaLocalityResult, CapturaClient, CapturaException } from './types'
 
 interface Props {
   jobId: string
   locality: CapturaLocalityResult
+}
+
+/**
+ * Fetch live ACTIVE loans from DB and merge with OCR clientsList.
+ * - OCR clients keep their original pos (critical for exception matching)
+ * - New DB loans not in OCR get appended with pos = maxPos + 1, +2, ...
+ * - FINISHED loans from OCR are excluded
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapLoanToClient(loan: any, pos: number): CapturaClient {
+  const pd = loan.borrower?.personalData || {}
+  const lt = loan.loantype || {}
+  const collateral = loan.collaterals?.[0] || {}
+  return {
+    pos,
+    loanId: loan.id,
+    borrowerId: loan.borrower?.id || '',
+    clientCode: pd.clientCode || '',
+    borrowerName: pd.fullName || '',
+    expectedWeeklyPayment: loan.expectedWeeklyPayment || 0,
+    loanPaymentComission: lt.loanPaymentComission || 0,
+    requestedAmount: loan.requestedAmount || 0,
+    totalPaid: loan.totalPaid || 0,
+    pendingBalance: loan.pendingAmountStored || 0,
+    totalDebtAcquired: (loan.pendingAmountStored || 0) + (loan.totalPaid || 0),
+    loantypeId: lt.id || '',
+    loantypeName: lt.name || '',
+    weekDuration: lt.weekDuration || 0,
+    rate: lt.rate || 0,
+    loanGrantedComission: lt.loanGrantedComission || 0,
+    collateralName: collateral.fullName || '',
+    collateralPhone: collateral.phones?.[0]?.number || '',
+    borrowerPhone: pd.phones?.[0]?.number || '',
+    loanStatus: 'ACTIVE',
+  }
+}
+
+function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[]) {
+  const { data, loading } = useQuery(ACTIVE_LOANS_BY_LEAD_QUERY, {
+    variables: { leadId: leadId || '' },
+    skip: !leadId,
+    fetchPolicy: 'cache-and-network',
+  })
+
+  return useMemo(() => {
+    if (!data?.loans?.edges) return { clients: ocrClients, loading }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbLoans: any[] = data.loans.edges.map((e: any) => e.node)
+    const dbLoanIds = new Set(dbLoans.map((l: any) => l.id))
+
+    // 1. Keep OCR clients that are still ACTIVE in DB (preserve original pos for exception matching)
+    const merged: CapturaClient[] = []
+    const seenLoanIds = new Set<string>()
+    for (const oc of ocrClients) {
+      if (oc.loanStatus === 'FINISHED') continue
+      merged.push(oc)
+      seenLoanIds.add(oc.loanId)
+    }
+
+    // 2. Append DB loans not present in OCR (new since processing)
+    let maxPos = ocrClients.length > 0 ? Math.max(...ocrClients.map(c => c.pos)) : 0
+    for (const loan of dbLoans) {
+      if (seenLoanIds.has(loan.id)) continue
+      maxPos++
+      merged.push(mapLoanToClient(loan, maxPos))
+    }
+
+    return { clients: merged, loading }
+  }, [data, ocrClients, loading])
 }
 
 /**
@@ -71,11 +143,9 @@ function buildPaymentStates(
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal } = useCapturaOcr()
 
-  // Filter out FINISHED loans (only present for renewal matching, not for payments)
-  const clients = useMemo(() =>
-    (locality.clientsList || []).filter(c => c.loanStatus !== 'FINISHED'),
-    [locality.clientsList]
-  )
+  // Fetch live loans from DB, merged with OCR clientsList
+  const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
+  const { clients } = useLiveClients(locality.leadId, ocrClients)
   const excepciones = locality.excepciones || []
   const defaultComision = locality.resumenInferior?.tarifaComision || 0
 
