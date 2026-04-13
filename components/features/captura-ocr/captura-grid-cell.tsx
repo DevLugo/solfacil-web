@@ -160,6 +160,9 @@ export function CapturaGridCell({
       {state === 'error' && localUpload && (
         <ErrorCell error={localUpload.error} onRemove={onUnassign} />
       )}
+      {state === 'error' && !localUpload && dbJob && (
+        <ErrorCell error={dbJob.status === 'FAILED' ? 'Procesamiento falló' : 'Error'} onRemove={() => onDelete?.(dbJob.id)} />
+      )}
     </div>
   )
 }
