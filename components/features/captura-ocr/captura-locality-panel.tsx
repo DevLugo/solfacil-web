@@ -10,9 +10,10 @@ interface Props {
   jobId: string
   locality: CapturaLocalityResult
   loantypes: CapturaLoanType[]
+  isActive?: boolean
 }
 
-export function CapturaLocalityPanel({ jobId, locality, loantypes }: Props) {
+export function CapturaLocalityPanel({ jobId, locality, loantypes, isActive }: Props) {
   return (
     <div className="space-y-4">
       {/* KPI summary */}
@@ -22,6 +23,7 @@ export function CapturaLocalityPanel({ jobId, locality, loantypes }: Props) {
       <CapturaPaymentsTable
         jobId={jobId}
         locality={locality}
+        isActive={isActive}
       />
 
       {/* Credits table */}

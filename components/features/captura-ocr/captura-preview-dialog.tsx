@@ -373,6 +373,7 @@ export function CapturaPreviewDialog({ jobId, upload, dbResult, dbEditedResult, 
                       jobId={jobId}
                       locality={loc}
                       loantypes={loantypes}
+                      isActive={activeTab === loc.localidad}
                     />
                   </TabsContent>
                 )
