@@ -33,7 +33,7 @@ function saveUploadsToStorage(uploads: UploadItem[]) {
   try {
     const state: PersistedState = {
       uploads: uploads
-        .filter(u => u.file || u.routeId || u.date)
+        .filter(u => u.status !== 'failed' && (u.file || u.routeId || u.date))
         .map(({ file, ...rest }) => rest),
       savedAt: Date.now(),
     }
@@ -60,14 +60,10 @@ function loadUploadsFromStorage(): UploadItem[] | null {
     }
 
     return state.uploads
-      .filter(u => u.status === 'completed' || u.status === 'failed' || u.status === 'pending')
+      .filter(u => u.status === 'completed' || u.status === 'pending')
       .map(u => ({
         ...u,
         file: null,
-        ...((u.status === 'processing' || u.status === 'uploading' || u.status === 'queued')
-          ? { status: 'failed' as const, error: 'Interrupted — page was reloaded' }
-          : {}
-        ),
       }))
   } catch {
     return null
