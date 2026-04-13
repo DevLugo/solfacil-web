@@ -80,26 +80,24 @@ function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[])
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbLoans: any[] = data.loans.edges.map((e: any) => e.node)
-    const dbLoanIds = new Set(dbLoans.map((l: any) => l.id))
 
-    // 1. Keep OCR clients that are still ACTIVE in DB (preserve original pos for exception matching)
-    const merged: CapturaClient[] = []
-    const seenLoanIds = new Set<string>()
-    for (const oc of ocrClients) {
-      if (oc.loanStatus === 'FINISHED') continue
-      merged.push(oc)
-      seenLoanIds.add(oc.loanId)
-    }
-
-    // 2. Append DB loans not present in OCR (new since processing)
+    // DB is the source of truth for which clients to show.
+    // OCR data is only used to preserve original pos (for exception matching).
+    const ocrByLoanId = new Map(ocrClients.map(c => [c.loanId, c]))
     let maxPos = ocrClients.length > 0 ? Math.max(...ocrClients.map(c => c.pos)) : 0
-    for (const loan of dbLoans) {
-      if (seenLoanIds.has(loan.id)) continue
-      maxPos++
-      merged.push(mapLoanToClient(loan, maxPos))
-    }
 
-    return { clients: merged, loading }
+    const clients: CapturaClient[] = dbLoans.map(loan => {
+      const ocr = ocrByLoanId.get(loan.id)
+      if (ocr) {
+        // Loan exists in OCR — keep original pos (exceptions reference it)
+        return ocr
+      }
+      // New loan not in OCR — assign fresh pos
+      maxPos++
+      return mapLoanToClient(loan, maxPos)
+    })
+
+    return { clients, loading }
   }, [data, ocrClients, loading])
 }
 
