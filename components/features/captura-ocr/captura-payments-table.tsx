@@ -72,8 +72,9 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal } = useCapturaOcr()
 
   const allClients = locality.clientsList || []
-  // Only show ACTIVE loans in payments table (FINISHED are only for renewal matching)
-  const clients = useMemo(() => allClients.filter(c => c.loanStatus !== 'FINISHED'), [allClients])
+  const totalActive = locality.totalClientes || allClients.length
+  // Only show ACTIVE loans (pos 1..totalClientes). FINISHED are appended after and only used for renewal matching.
+  const clients = useMemo(() => allClients.filter(c => c.pos <= totalActive), [allClients, totalActive])
   const excepciones = locality.excepciones || []
   const defaultComision = locality.resumenInferior?.tarifaComision || 0
 

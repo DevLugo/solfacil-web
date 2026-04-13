@@ -57,7 +57,8 @@ export function computeProjection(
   const rows: LocalityCalc[] = localities.map(loc => {
     const r = loc.resumenInferior
     const credits = loc.creditos || []
-    const clients = (loc.clientsList || []).filter(c => c.loanStatus !== 'FINISHED')
+    const totalActive = loc.totalClientes || (loc.clientsList || []).length
+    const clients = (loc.clientsList || []).filter(c => c.pos <= totalActive)
     const excepciones = loc.excepciones || []
     const defaultComision = r?.tarifaComision || 0
 
