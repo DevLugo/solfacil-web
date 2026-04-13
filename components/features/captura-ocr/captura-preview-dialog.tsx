@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
+import { cn } from '@/lib/utils'
 import { useCapturaOcr } from './captura-ocr-context'
 import { CapturaLocalityPanel } from './captura-locality-panel'
 import { CapturaResumenTotal, computeProjection } from './captura-resumen-total'
@@ -353,7 +354,7 @@ export function CapturaPreviewDialog({ jobId, upload, dbResult, dbEditedResult, 
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              <TabsContent value="__resumen__" className="m-0 p-6 mt-0 space-y-4">
+              <TabsContent value="__resumen__" forceMount className={cn("m-0 p-6 mt-0 space-y-4", activeTab !== "__resumen__" && "hidden")}>
                 <CapturaResumenTotal
                   jobId={jobId}
                   localities={localities}
@@ -367,7 +368,7 @@ export function CapturaPreviewDialog({ jobId, upload, dbResult, dbEditedResult, 
               </TabsContent>
               {localities.map((loc) => {
                 return (
-                  <TabsContent key={loc.localidad} value={loc.localidad} className="m-0 p-6 mt-0">
+                  <TabsContent key={loc.localidad} value={loc.localidad} forceMount className={cn("m-0 p-6 mt-0", activeTab !== loc.localidad && "hidden")}>
                     <CapturaLocalityPanel
                       jobId={jobId}
                       locality={loc}
