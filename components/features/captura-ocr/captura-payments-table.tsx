@@ -31,7 +31,6 @@ import type { CapturaLocalityResult, CapturaClient, CapturaException } from './t
 interface Props {
   jobId: string
   locality: CapturaLocalityResult
-  isActive?: boolean
 }
 
 /**
@@ -69,10 +68,10 @@ function mapLoanToClient(loan: any, pos: number): CapturaClient {
   }
 }
 
-function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[], isActive?: boolean) {
+function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[]) {
   const { data, loading } = useQuery(ACTIVE_LOANS_BY_LEAD_QUERY, {
     variables: { leadId: leadId || '' },
-    skip: !leadId || !isActive,
+    skip: !leadId,
     fetchPolicy: 'cache-and-network',
   })
 
@@ -141,12 +140,12 @@ function buildPaymentStates(
   return states
 }
 
-export function CapturaPaymentsTable({ jobId, locality, isActive }: Props) {
+export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal } = useCapturaOcr()
 
   // Fetch live loans from DB, merged with OCR clientsList
   const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
-  const { clients } = useLiveClients(locality.leadId, ocrClients, isActive)
+  const { clients } = useLiveClients(locality.leadId, ocrClients)
   const excepciones = locality.excepciones || []
   const defaultComision = locality.resumenInferior?.tarifaComision || 0
 
