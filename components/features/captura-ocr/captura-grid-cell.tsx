@@ -13,6 +13,7 @@ import {
   MapPin,
   Clock,
   Trash2,
+  Copy,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -353,14 +354,30 @@ function ConfirmedCell({ dbJob, onDelete }: { dbJob: CapturaJobSummary; onDelete
 }
 
 function ErrorCell({ error, onRemove }: { error?: string; onRemove: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (error) {
+      navigator.clipboard.writeText(error)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center gap-1">
       <AlertCircle className="h-4 w-4 text-destructive" />
-      <span className="text-[10px] text-destructive truncate max-w-full px-1">
-        {error ? (error.length > 30 ? error.slice(0, 30) + '...' : error) : 'Error'}
-      </span>
-      <Badge variant="destructive" className="h-4 px-1.5 text-[9px]">
-        Error
+      <button
+        onClick={handleCopy}
+        className="text-[10px] text-destructive truncate max-w-full px-1 hover:underline cursor-pointer"
+        title={error || 'Error'}
+      >
+        {copied ? 'Copiado!' : error ? (error.length > 30 ? error.slice(0, 30) + '...' : error) : 'Error'}
+      </button>
+      <Badge variant="destructive" className="h-4 px-1.5 text-[9px] gap-0.5 cursor-pointer" onClick={handleCopy}>
+        <Copy className="h-2.5 w-2.5" />
+        {copied ? 'Copiado' : 'Copiar error'}
       </Badge>
       <button
         onClick={(e) => {
