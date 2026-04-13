@@ -110,6 +110,7 @@ export interface CapturaClient {
   collateralName?: string
   collateralPhone?: string
   borrowerPhone?: string
+  loanStatus?: string
 }
 
 export interface CapturaLocalityResult {
