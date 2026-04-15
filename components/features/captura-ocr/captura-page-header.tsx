@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { format, startOfWeek, addDays, getISOWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, CircleCheck, CircleX, Loader2, Activity } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleCheck, CircleX, Loader2, Activity, CalendarDays } from 'lucide-react'
 import { useQuery } from '@apollo/client'
 
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { CAPTURA_HEALTH_CHECK_QUERY } from '@/graphql/queries/captura'
 
@@ -88,11 +90,13 @@ function StatusRow({ label, ok }: { label: string; ok: boolean }) {
 }
 
 export function CapturaPageHeader({ weekStart, onWeekChange }: CapturaPageHeaderProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false)
+
   const monday = startOfWeek(weekStart, { weekStartsOn: 1 })
-  const friday = addDays(monday, 4)
+  const sunday = addDays(monday, 6)
   const weekNum = getISOWeek(monday)
 
-  const rangeLabel = `${format(monday, 'd MMM', { locale: es })} - ${format(friday, 'd MMM yyyy', { locale: es })}`
+  const rangeLabel = `${format(monday, 'd MMM', { locale: es })} - ${format(sunday, 'd MMM yyyy', { locale: es })}`
 
   const handlePrev = () => {
     onWeekChange(addDays(monday, -7))
@@ -104,6 +108,13 @@ export function CapturaPageHeader({ weekStart, onWeekChange }: CapturaPageHeader
 
   const handleToday = () => {
     onWeekChange(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  }
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      onWeekChange(startOfWeek(date, { weekStartsOn: 1 }))
+      setCalendarOpen(false)
+    }
   }
 
   const isCurrentWeek = startOfWeek(new Date(), { weekStartsOn: 1 }).getTime() === monday.getTime()
@@ -122,9 +133,24 @@ export function CapturaPageHeader({ weekStart, onWeekChange }: CapturaPageHeader
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[220px] text-center text-sm font-medium">
-            Semana {weekNum} ({rangeLabel})
-          </span>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1.5 min-w-[220px] justify-center text-sm font-medium hover:bg-accent rounded-md px-2 py-1 transition-colors">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                Semana {weekNum} ({rangeLabel})
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={monday}
+                onSelect={handleDateSelect}
+                defaultMonth={monday}
+                locale={es}
+                weekStartsOn={1}
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>

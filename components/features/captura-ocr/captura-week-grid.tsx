@@ -77,9 +77,9 @@ export function CapturaWeekGrid({ weekStart }: CapturaWeekGridProps) {
   // Delete confirmation state
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null)
 
-  // Build the 5 weekdays (Mon-Fri)
+  // Build the 7 weekdays (Mon-Sun)
   const monday = startOfWeek(weekStart, { weekStartsOn: 1 })
-  const weekDays = Array.from({ length: 5 }, (_, i) => {
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(monday, i)
     return {
       date,
