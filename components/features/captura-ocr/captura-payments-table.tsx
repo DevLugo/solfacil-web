@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useQuery } from '@apollo/client'
 import { Wallet, Building2, ArrowRight, Pencil, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -139,11 +139,22 @@ function buildPaymentStates(
 }
 
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
-  const { updateException, setAllRegular, setAllFalta, resetToOriginal } = useCapturaOcr()
+  const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList } = useCapturaOcr()
 
   // Fetch live loans from DB, merged with OCR clientsList
   const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
   const { clients } = useLiveClients(locality.leadId, ocrClients)
+
+  // Propagate DB-fetched clients back to editedResults when OCR failed for this
+  // locality (clientsList empty). This makes Resumen's delta and the backend's
+  // createLeadPaymentReceived see the clients transparently — the user doesn't
+  // need any special workflow. The context method is idempotent: it only patches
+  // if the current clientsList is still empty, so it won't fight user edits.
+  useEffect(() => {
+    if (ocrClients.length === 0 && clients.length > 0) {
+      setLocalityClientsList(jobId, locality.localidad, clients)
+    }
+  }, [jobId, locality.localidad, ocrClients.length, clients, setLocalityClientsList])
   const excepciones = locality.excepciones || []
   const defaultComision = locality.resumenInferior?.tarifaComision || 0
 

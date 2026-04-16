@@ -13,6 +13,7 @@ import type {
   CapturaResult,
   CapturaException,
   CapturaCredit,
+  CapturaClient,
   CapturaResumenInferior,
   CapturaGasto,
   CapturaJobSummary,
@@ -96,6 +97,9 @@ interface CapturaOcrContextType {
   // Locality CRUD (manual add/remove)
   addLocality: (jobId: string, locality: CapturaLocalityResult) => void
   removeLocality: (jobId: string, localidad: string) => void
+  // Patch clientsList for a locality (used when OCR failed and `useLiveClients`
+  // fetches clients from DB). Idempotent: only patches if current clientsList is empty.
+  setLocalityClientsList: (jobId: string, localidad: string, clients: CapturaClient[]) => void
   // Gastos CRUD (global, not per-locality)
   updateGasto: (jobId: string, index: number, changes: Partial<CapturaGasto>) => void
   addGasto: (jobId: string) => void
@@ -656,6 +660,32 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // Patch `clientsList` for a locality whose OCR failed. Called from
+  // CapturaPaymentsTable when `useLiveClients` resolves DB-fetched clients.
+  // Idempotent: only patches if the current clientsList is empty, so it doesn't
+  // fight edits or re-fire on every render.
+  const setLocalityClientsList = useCallback((jobId: string, localidad: string, clients: CapturaClient[]) => {
+    setEditedResults(prev => {
+      const result = prev.get(jobId)
+      if (!result) return prev
+      const locIdx = result.localities.findIndex(l => l.localidad === localidad)
+      if (locIdx === -1) return prev
+      const currentClients = result.localities[locIdx].clientsList || []
+      if (currentClients.length > 0) return prev // Already has clients — don't overwrite
+      if (clients.length === 0) return prev
+      const newLocalities = [...result.localities]
+      newLocalities[locIdx] = {
+        ...newLocalities[locIdx],
+        clientsList: [...clients],
+        totalClientes: clients.length,
+      }
+      const newResult = { ...result, localities: newLocalities }
+      const next = new Map(prev)
+      next.set(jobId, newResult)
+      return next
+    })
+  }, [])
+
   const updateResumen = useCallback((jobId: string, localidad: string, changes: Partial<CapturaResumenInferior>) => {
     setEditedResults(prev => {
       const result = prev.get(jobId)
@@ -851,6 +881,7 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
         removeCredit,
         addLocality,
         removeLocality,
+        setLocalityClientsList,
         updateResumen,
         updateGasto,
         addGasto,
