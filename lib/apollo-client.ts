@@ -11,17 +11,64 @@ import {
 } from '@apollo/client'
 import { setContext } from '@apollo/client/link/context'
 import { onError } from '@apollo/client/link/error'
+import { RetryLink } from '@apollo/client/link/retry'
 import { saveRedirectUrl } from '@/hooks/use-redirect-url'
 import { toast } from '@/hooks/use-toast'
 
 const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:4000/graphql'
 
+// Per-request timeout. Aborts stalled fetches (e.g. zombie HTTP/2 connections held open
+// by Chrome/Cloudflare) so the RetryLink below can open a fresh connection.
+const REQUEST_TIMEOUT_MS = 30_000
+
 // Shared promise for refresh token to handle race conditions
 let refreshPromise: Promise<boolean> | null = null
+
+// Custom fetch that aborts requests exceeding REQUEST_TIMEOUT_MS.
+// File uploads bypass Apollo (see uploadFileWithGraphQL) and keep their own longer timeout.
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  // Chain any externally-provided signal with our timeout signal
+  if (init?.signal) {
+    if (init.signal.aborted) controller.abort()
+    else init.signal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
+
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => {
+    clearTimeout(timeoutId)
+  })
+}
 
 const httpLink = createHttpLink({
   uri: GRAPHQL_URL,
   credentials: 'include',
+  fetch: fetchWithTimeout,
+})
+
+// Retry on transient network failures (timeouts, aborted stalled connections, 5xx).
+// Does NOT retry on GraphQL errors (those are handled by errorLink).
+const retryLink = new RetryLink({
+  delay: {
+    initial: 300,
+    max: 3_000,
+    jitter: true,
+  },
+  attempts: {
+    max: 3,
+    retryIf: (error, _operation) => {
+      if (!error) return false
+      // AbortError -> our timeout fired, likely a stalled HTTP/2 stream
+      if (error.name === 'AbortError') return true
+      // TypeError "Failed to fetch" -> network layer issues
+      if (error.name === 'TypeError') return true
+      // 5xx status codes
+      const status = (error as { statusCode?: number }).statusCode
+      if (typeof status === 'number' && status >= 500 && status < 600) return true
+      return false
+    },
+  },
 })
 
 const authLink = setContext((_, { headers }) => {
@@ -239,7 +286,7 @@ let apolloClient: ApolloClient<NormalizedCacheObject> | undefined
 function createApolloClient(): ApolloClient<NormalizedCacheObject> {
   return new ApolloClient({
     ssrMode: typeof window === 'undefined',
-    link: from([errorLink, authLink, httpLink]),
+    link: from([errorLink, retryLink, authLink, httpLink]),
     cache,
     defaultOptions: {
       watchQuery: {
