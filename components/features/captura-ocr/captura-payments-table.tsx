@@ -145,16 +145,21 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
   const { clients } = useLiveClients(locality.leadId, ocrClients)
 
-  // Propagate DB-fetched clients back to editedResults when OCR failed for this
-  // locality (clientsList empty). This makes Resumen's delta and the backend's
-  // createLeadPaymentReceived see the clients transparently — the user doesn't
-  // need any special workflow. The context method is idempotent: it only patches
-  // if the current clientsList is still empty, so it won't fight user edits.
+  // Sync DB-fetched clients back to editedResults. Covers two cases:
+  //   1. OCR failed (clientsList empty): seed from DB.
+  //   2. OCR captured loans that the DB filters out (baddebt / portfolio
+  //      cleanup): prune clientsList so Resumen totals match the payments tab
+  //      (only visible clients contribute to cobranza).
+  // setLocalityClientsList is content-equality guarded, so this effect does not
+  // cause render loops once the lists converge.
   useEffect(() => {
-    if (ocrClients.length === 0 && clients.length > 0) {
-      setLocalityClientsList(jobId, locality.localidad, clients)
-    }
-  }, [jobId, locality.localidad, ocrClients.length, clients, setLocalityClientsList])
+    if (clients.length === 0) return
+    const sameContent =
+      clients.length === ocrClients.length &&
+      clients.every((c, i) => c.loanId === ocrClients[i].loanId)
+    if (sameContent) return
+    setLocalityClientsList(jobId, locality.localidad, clients)
+  }, [jobId, locality.localidad, ocrClients, clients, setLocalityClientsList])
   const excepciones = locality.excepciones || []
   const defaultComision = locality.resumenInferior?.tarifaComision || 0
 

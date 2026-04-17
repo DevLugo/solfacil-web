@@ -660,10 +660,15 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Patch `clientsList` for a locality whose OCR failed. Called from
-  // CapturaPaymentsTable when `useLiveClients` resolves DB-fetched clients.
-  // Idempotent: only patches if the current clientsList is empty, so it doesn't
-  // fight edits or re-fire on every render.
+  // Sync `clientsList` for a locality with the DB-fetched truth. Called from
+  // CapturaPaymentsTable whenever `useLiveClients` resolves. Two cases:
+  //   1. OCR failed (clientsList empty): seed it with DB clients so Resumen and
+  //      createLeadPaymentReceived see them.
+  //   2. OCR produced clientsList that includes loans the DB filtered out
+  //      (e.g. badDebt or cleanup-excluded): prune clientsList so Resumen
+  //      matches the localidad tab (only visible clients count for cobranza).
+  // Convergence guard: skip update if content (by loanId sequence) is already
+  // equal, to avoid an infinite render loop.
   const setLocalityClientsList = useCallback((jobId: string, localidad: string, clients: CapturaClient[]) => {
     setEditedResults(prev => {
       const result = prev.get(jobId)
@@ -671,8 +676,11 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
       const locIdx = result.localities.findIndex(l => l.localidad === localidad)
       if (locIdx === -1) return prev
       const currentClients = result.localities[locIdx].clientsList || []
-      if (currentClients.length > 0) return prev // Already has clients — don't overwrite
       if (clients.length === 0) return prev
+      const sameContent =
+        currentClients.length === clients.length &&
+        currentClients.every((c, i) => c.loanId === clients[i].loanId)
+      if (sameContent) return prev
       const newLocalities = [...result.localities]
       newLocalities[locIdx] = {
         ...newLocalities[locIdx],
