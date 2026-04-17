@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
-import { Trash2, Minus, Plus, Shield, UserPlus, RotateCw } from 'lucide-react'
+import { Trash2, Minus, Plus, Shield, UserPlus, RotateCw, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn, formatCurrency } from '@/lib/utils'
 
 import { useCapturaOcr } from './captura-ocr-context'
@@ -30,6 +31,32 @@ function getPaymentForClient(
   // No exception = REGULAR, pays expectedWeeklyPayment
   const client = clientsList?.find(c => c.pos === clientPos)
   return client?.expectedWeeklyPayment || 0
+}
+
+/**
+ * Single source of truth for how much cash is physically delivered to the client.
+ *
+ * - Nuevo: entregado = monto (always)
+ * - Renovacion con match: entregado = monto - max(0, pendingBalance - sameSessionPayment)
+ *   The result is clamped to [0, monto] so we never show negative entregas
+ *   nor more than the new loan amount.
+ * - Renovacion sin match: fallback = monto (operator will pick client later)
+ */
+function computeEntregado(params: {
+  monto: number
+  isRenewal: boolean
+  matchedClient: CapturaClient | null
+  excepciones: CapturaException[]
+  clientsList: CapturaClient[]
+}): number {
+  const { monto, isRenewal, matchedClient, excepciones, clientsList } = params
+  if (!isRenewal || !matchedClient) return monto
+  const pendingBalance = matchedClient.pendingBalance || 0
+  const sameSessionPayment = getPaymentForClient(excepciones, clientsList, matchedClient.pos)
+  const debtAfterSessionPayment = Math.max(0, pendingBalance - sameSessionPayment)
+  const entregado = monto - debtAfterSessionPayment
+  // Clamp: never negative, never more than requested monto
+  return Math.min(monto, Math.max(0, entregado))
 }
 
 // Preset amounts for quick selection (same as CreateLoansModal)
@@ -142,6 +169,38 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
     return [...dbEntries, ...ocrEntries, ...newClientEntries]
   }, [clientsList, credit.aval?.nombre, credit.aval?.telefono, editedLocality?.creditos, index])
 
+  // Fuzzy match del nombre del aval contra todos los collaterals de clientsList.
+  //   - HIGH: match identico (post-normalization) → sin warning
+  //   - MEDIUM/LOW: match aproximado → warning ambar, operador debe validar
+  //   - null/NONE: aval nuevo, no hay candidato en BD
+  const avalDbFuzzyMatch = useMemo(() => {
+    const avalName = credit.aval?.nombre
+    if (!avalName) return null
+    const candidates: Array<{ borrowerName: string; phone: string }> = []
+    const seen = new Set<string>()
+    for (const c of clientsList) {
+      if (!c.collateralName) continue
+      const key = normalizeName(c.collateralName)
+      if (seen.has(key)) continue
+      seen.add(key)
+      candidates.push({ borrowerName: c.collateralName, phone: c.collateralPhone || '' })
+    }
+    if (candidates.length === 0) return null
+    const match = fuzzyMatchName(avalName, candidates, 2)
+    if (!match || match.confidence === 'NONE') return null
+    const hit = candidates[match.clientIndex]
+    return { confidence: match.confidence, name: hit.borrowerName, phone: hit.phone }
+  }, [credit.aval?.nombre, clientsList])
+
+  // Solo marcamos como "a validar" cuando el match NO es exacto (MEDIUM/LOW).
+  // HIGH = mismo nombre post-normalizacion (tildes, mayusculas, palabras filler)
+  // → no necesita validacion manual.
+  const avalNeedsValidation = avalDbFuzzyMatch != null && avalDbFuzzyMatch.confidence !== 'HIGH'
+
+  // Renovacion sin match: tipo=R pero no hay matchedClient. Posiblemente el
+  // nombre OCR no corresponde a ningun cliente en la lista de la localidad.
+  const unmatchedRenewal = isRenewal && !matchedClient
+
   // Save OCR original on first render for edit tracking
   useEffect(() => {
     if (hasInitOcr.current) return
@@ -185,6 +244,14 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         semanas: match.weekDuration,
         porcentaje: parseFloat(match.rate) * 100,
         comisionCredito: parseFloat(match.loanGrantedComission) || 0,
+        // Keep entregado consistent in case the prior value was stale/missing.
+        entregado: computeEntregado({
+          monto: credit.monto,
+          isRenewal,
+          matchedClient,
+          excepciones,
+          clientsList,
+        }),
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,9 +312,13 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       return
     }
 
-    const pendingBalance = client.pendingBalance || 0
-    const sameSessionPayment = getPaymentForClient(excepciones, clientsList, client.pos)
-    const entregado = credit.monto - (pendingBalance - sameSessionPayment)
+    const entregado = computeEntregado({
+      monto: credit.monto,
+      isRenewal: true,
+      matchedClient: client,
+      excepciones,
+      clientsList,
+    })
 
     // Auto-fill loantype from matched client (by id, or by weekDuration, or default 14-week)
     const clientLoanType = (client.loantypeId
@@ -316,6 +387,16 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       semanas: lt.weekDuration,
       porcentaje: parseFloat(lt.rate) * 100,
       comisionCredito: parseFloat(lt.loanGrantedComission) || 0,
+      // Recompute entregado: monto didn't change but the client context might
+      // have (e.g. operator changed loan type after the client paid this week).
+      // Keep entregado in sync so Resumen projection is correct.
+      entregado: computeEntregado({
+        monto: credit.monto,
+        isRenewal,
+        matchedClient,
+        excepciones,
+        clientsList,
+      }),
     }
     // Recalc first payment amount if active (commission stays as user set it)
     if (credit.primerPago) {
@@ -325,16 +406,19 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       changes.primerPagoMonto = Math.round(wp)
     }
     update(changes)
-  }, [loantypes, credit.monto, credit.primerPago, update])
+  }, [loantypes, credit.monto, credit.primerPago, isRenewal, matchedClient, excepciones, clientsList, update])
 
   const handlePresetAmount = useCallback((amount: number) => {
     setIsCustomMode(false)
-    const changes: Partial<CapturaCredit> = { monto: amount }
-    if (isRenewal && matchedClient) {
-      const sameSessionPayment = getPaymentForClient(excepciones, clientsList, matchedClient.pos)
-      changes.entregado = amount - ((matchedClient.pendingBalance || 0) - sameSessionPayment)
-    } else {
-      changes.entregado = amount
+    const changes: Partial<CapturaCredit> = {
+      monto: amount,
+      entregado: computeEntregado({
+        monto: amount,
+        isRenewal,
+        matchedClient,
+        excepciones,
+        clientsList,
+      }),
     }
     if (credit.primerPago && selectedLoanType) {
       const rate = parseFloat(selectedLoanType.rate) || 0
@@ -353,12 +437,15 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   }, [credit.monto])
 
   const handleMontoChange = useCallback((monto: number) => {
-    const changes: Partial<CapturaCredit> = { monto }
-    if (isRenewal && matchedClient) {
-      const sameSessionPayment = getPaymentForClient(excepciones, clientsList, matchedClient.pos)
-      changes.entregado = monto - ((matchedClient.pendingBalance || 0) - sameSessionPayment)
-    } else {
-      changes.entregado = monto
+    const changes: Partial<CapturaCredit> = {
+      monto,
+      entregado: computeEntregado({
+        monto,
+        isRenewal,
+        matchedClient,
+        excepciones,
+        clientsList,
+      }),
     }
     if (credit.primerPago && selectedLoanType) {
       const rate = parseFloat(selectedLoanType.rate) || 0
@@ -419,58 +506,85 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       'group relative border rounded-lg bg-card shadow-sm px-2.5 pt-2 pb-2 space-y-2',
       isRenewal && 'border-blue-200/60 bg-blue-50/20 dark:bg-blue-950/10',
     )}>
-      {/* HEADER: badge + cliente + titular phone + trash
-          Responsive: por defecto inline (nombre | tel) para pantallas grandes,
-          a xl (laptop con 2 cards lado a lado) apila tel debajo del nombre,
-          a 2xl vuelve a inline porque hay espacio suficiente. */}
-      <div className="flex items-start gap-1.5">
-        <span className="shrink-0 inline-flex h-8 items-center">
-          <span
-            title={isRenewal ? 'Renovacion' : 'Cliente nuevo'}
-            aria-label={isRenewal ? 'Renovacion' : 'Cliente nuevo'}
-            className={cn(
-              'inline-flex h-6 w-6 items-center justify-center rounded-full',
-              isRenewal
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
-                : 'bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300'
-            )}
-          >
-            {isRenewal ? <RotateCw className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
-          </span>
+      {/* HEADER: tipo badge + trash button.
+          Minimal header — name/phone fields live in the identidades block
+          below so they sit next to aval fields for visual phone validation. */}
+      <div className="flex items-center gap-1.5">
+        <span
+          title={isRenewal ? 'Renovacion' : 'Cliente nuevo'}
+          aria-label={isRenewal ? 'Renovacion' : 'Cliente nuevo'}
+          className={cn(
+            'inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium',
+            isRenewal
+              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+              : 'bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300'
+          )}
+        >
+          {isRenewal ? <RotateCw className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+          {isRenewal ? 'Renovacion' : 'Nuevo'}
         </span>
+        <span className="flex-1" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0 shrink-0 text-muted-foreground opacity-60 hover:opacity-100 hover:text-destructive"
+          onClick={() => removeCredit(jobId, localidad, index)}
+          aria-label="Eliminar credito"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 xl:flex-col xl:items-stretch xl:gap-1 2xl:flex-row 2xl:items-center 2xl:gap-1.5">
-          {/* Name */}
-          <div className="flex items-center gap-1 flex-1 min-w-0 w-full 2xl:w-auto">
+      {/* IDENTIDADES: Cliente + Aval lado a lado, con telefonos alineados
+          verticalmente (misma altura de fila) para validar visualmente que
+          coinciden o difieren.
+          - Cada bloque: nombre arriba, telefono abajo
+          - En mobile: stack vertical; en md+: grid 2 columnas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {/* CLIENTE */}
+        <div className={cn(
+          'relative rounded-md border pl-2.5 pr-2 py-1.5 space-y-1 before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full',
+          unmatchedRenewal
+            ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-400 dark:border-amber-700 ring-1 ring-amber-300 before:bg-amber-500'
+            : 'bg-blue-50/20 dark:bg-blue-950/10 border-blue-200/60 dark:border-blue-800/40 before:bg-blue-500/60',
+        )}>
+          <div className="flex items-center gap-1.5">
+            {unmatchedRenewal ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" aria-label="Cliente sin match" />
+            ) : (
+              <UserPlus className="h-3.5 w-3.5 text-blue-600 shrink-0" aria-label="Cliente" />
+            )}
+            <span className={cn(
+              'text-[10px] uppercase tracking-wide',
+              unmatchedRenewal ? 'text-amber-700 dark:text-amber-400 font-semibold' : 'text-muted-foreground',
+            )}>
+              {unmatchedRenewal ? 'Renovación sin match' : 'Cliente'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
             {matchedClient ? (
               <CapturaClientAutocomplete
                 clientsList={clientsList}
                 selectedClient={matchedClient}
                 onSelect={handleClientSelect}
                 initialSearch={credit.nombre}
-                className="w-full h-8 text-sm"
+                className="w-full h-7 text-xs"
               />
             ) : isRenewal ? (
-              // Renovacion sin match: mostrar autocomplete completo para que el
-              // usuario seleccione del dropdown y se dispare el flujo de renovacion
-              // (recuadro verde + calculo de "A entregar").
               <CapturaClientAutocomplete
                 clientsList={clientsList}
                 selectedClient={null}
                 onSelect={handleClientSelect}
                 initialSearch={credit.nombre}
-                className="w-full h-8 text-sm"
+                className="w-full h-7 text-xs"
               />
             ) : (
-              // Cliente nuevo: permitir edicion libre del nombre + boton iconOnly
-              // por si el usuario quiere convertirlo en renovacion seleccionando
-              // un cliente existente.
               <>
-                <Input
-                  value={credit.nombre || ''}
-                  onChange={(e) => update({ nombre: e.target.value })}
+                <TruncatingInput
+                  value={(credit.nombre || '').toUpperCase()}
+                  onChange={(e) => update({ nombre: e.target.value.toUpperCase() })}
                   className={cn(
-                    'h-8 text-sm flex-1 min-w-0',
+                    'h-7 text-xs flex-1 min-w-0',
                     isNameEdited && 'border-l-2 border-l-neutral-400'
                   )}
                   placeholder="Nombre del cliente nuevo"
@@ -485,18 +599,15 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
               </>
             )}
           </div>
-
-          {/* Titular phone */}
-          <div className="relative flex items-center w-[140px] shrink-0 xl:w-full xl:shrink 2xl:w-[140px] 2xl:shrink-0">
+          <div className="flex items-center gap-1">
             <Input
               value={credit.telefonoTitular || ''}
               onChange={(e) => update({ telefonoTitular: e.target.value })}
               placeholder="Tel. titular"
               aria-label="Telefono titular"
-              className={cn('h-8 text-xs w-full pr-6 tabular-nums')}
+              className={cn('h-7 text-xs w-full tabular-nums')}
             />
-            <DataSourceDots
-              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+            <DataSourceBadges
               currentValue={credit.telefonoTitular || ''}
               ocrValue={ocrPhone}
               dbValue={dbPhone}
@@ -504,22 +615,105 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
               onUseDb={() => update({ telefonoTitular: dbPhone })}
             />
           </div>
+          {unmatchedRenewal && (
+            <p className="flex items-start gap-1 text-[10px] text-amber-700 dark:text-amber-400 leading-tight">
+              <AlertTriangle className="h-3 w-3 shrink-0 mt-[1px]" />
+              <span>
+                Renovación sin cliente en BD de esta localidad. Selecciona manualmente o convierte a <strong>Nuevo</strong>.
+              </span>
+            </p>
+          )}
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-7 p-0 shrink-0 text-muted-foreground opacity-60 hover:opacity-100 hover:text-destructive"
-          onClick={() => removeCredit(jobId, localidad, index)}
-          aria-label="Eliminar credito"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {/* AVAL */}
+        <div className="relative rounded-md border bg-amber-50/20 dark:bg-amber-950/10 border-amber-200/70 dark:border-amber-800/40 pl-2.5 pr-2 py-1.5 space-y-1 before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-amber-500/70">
+          <div className="flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5 text-amber-600 shrink-0" aria-label="Aval" />
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Aval</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <TruncatingInput
+                value={(credit.aval?.nombre || '').toUpperCase()}
+                onChange={(e) => update({
+                  aval: { nombre: e.target.value.toUpperCase(), telefono: credit.aval?.telefono || '' }
+                })}
+                className={cn(
+                  'h-7 text-xs flex-1 min-w-0',
+                  isAvalNameEdited && 'border-l-2 border-l-neutral-400',
+                  avalNeedsValidation && 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/30 ring-1 ring-amber-300 focus-visible:ring-amber-400'
+                )}
+                placeholder="Nombre del aval"
+              />
+              {avalNeedsValidation && avalDbFuzzyMatch && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => update({
+                          aval: {
+                            nombre: avalDbFuzzyMatch.name.toUpperCase(),
+                            telefono: avalDbFuzzyMatch.phone || credit.aval?.telefono || '',
+                          }
+                        })}
+                        className="inline-flex items-center gap-0.5 rounded border border-amber-400 bg-amber-100 px-1 text-[10px] font-semibold text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-100 dark:hover:bg-amber-900/60"
+                        aria-label="Aplicar match sugerido de BD"
+                      >
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                        DB?
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-[320px] break-words">
+                      Posible match ({avalDbFuzzyMatch.confidence}):{' '}
+                      <strong>{avalDbFuzzyMatch.name.toUpperCase()}</strong>
+                      {avalDbFuzzyMatch.phone && ` · ${avalDbFuzzyMatch.phone}`}
+                      <br />
+                      <span className="text-muted-foreground">Click para aplicar</span>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              <DataSourceBadges
+                currentValue={credit.aval?.nombre || ''}
+                ocrValue={ocrAvalNombre}
+                dbValue={dbAvalNombre}
+                onUseOcr={() => update({ aval: { ...credit.aval, nombre: ocrAvalNombre, telefono: credit.aval?.telefono || '' } })}
+                onUseDb={() => update({ aval: { ...credit.aval, nombre: dbAvalNombre, telefono: credit.aval?.telefono || '' } })}
+              />
+            </div>
+            <CapturaAvalAutocomplete
+              avales={availableAvals}
+              selectedAval={credit.aval || null}
+              onSelect={handleAvalSelect}
+              iconOnly
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <Input
+              value={credit.aval?.telefono || ''}
+              onChange={(e) => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: e.target.value } })}
+              placeholder="Tel. aval"
+              aria-label="Telefono aval"
+              className={cn(
+                'h-7 w-full text-xs tabular-nums',
+                isAvalPhoneEdited && 'border-l-2 border-l-neutral-400'
+              )}
+            />
+            <DataSourceBadges
+              currentValue={credit.aval?.telefono || ''}
+              ocrValue={ocrAvalPhone}
+              dbValue={dbAvalPhone}
+              onUseOcr={() => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: ocrAvalPhone } })}
+              onUseDb={() => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: dbAvalPhone } })}
+            />
+          </div>
+        </div>
       </div>
 
       {isNameEdited && ocrOrig?.nombre && (
         <p className="text-[10px] text-muted-foreground pl-1 -mt-1">
-          OCR: <span className="line-through">{ocrOrig.nombre}</span>
+          OCR: <span className="line-through">{ocrOrig.nombre.toUpperCase()}</span>
         </p>
       )}
 
@@ -534,7 +728,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         />
       )}
 
-      {/* BODY */}
+      {/* CREDITO */}
       <div className="space-y-1.5">
         {/* Row A: loan type + amount presets + custom */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -617,93 +811,17 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
           )}
         </div>
 
-        {/* Row B: AVAL — bloque distintivo con acento ambar + shield icon
-            Responsive igual que el header: default inline, xl stack, 2xl inline. */}
-        <div className={cn(
-          'relative rounded-md border bg-amber-50/20 dark:bg-amber-950/10',
-          'border-amber-200/70 dark:border-amber-800/40 pl-2.5 pr-2 py-1.5',
-          'before:absolute before:left-0 before:top-1 before:bottom-1',
-          'before:w-[3px] before:rounded-full before:bg-amber-500/70',
-        )}>
-          <div className="flex items-start gap-1.5">
-            <span className="inline-flex h-7 items-center shrink-0">
-              <Shield className="h-3.5 w-3.5 text-amber-600" aria-label="Aval" />
-            </span>
-
-            <div className="flex-1 min-w-0 flex items-center gap-1.5 xl:flex-col xl:items-stretch xl:gap-1 2xl:flex-row 2xl:items-center 2xl:gap-1.5">
-              {/* Aval name + iconOnly autocomplete */}
-              <div className="flex items-center gap-1 flex-1 min-w-0 w-full 2xl:w-auto">
-                <div className="relative flex-1 min-w-0">
-                  <Input
-                    value={credit.aval?.nombre || ''}
-                    onChange={(e) => update({
-                      aval: { nombre: e.target.value, telefono: credit.aval?.telefono || '' }
-                    })}
-                    className={cn(
-                      'h-7 text-xs pr-6',
-                      isAvalNameEdited && 'border-l-2 border-l-neutral-400'
-                    )}
-                    placeholder="Nombre del aval"
-                  />
-                  <DataSourceDots
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2"
-                    currentValue={credit.aval?.nombre || ''}
-                    ocrValue={ocrAvalNombre}
-                    dbValue={dbAvalNombre}
-                    onUseOcr={() => update({ aval: { ...credit.aval, nombre: ocrAvalNombre, telefono: credit.aval?.telefono || '' } })}
-                    onUseDb={() => update({ aval: { ...credit.aval, nombre: dbAvalNombre, telefono: credit.aval?.telefono || '' } })}
-                  />
-                </div>
-                <CapturaAvalAutocomplete
-                  avales={availableAvals}
-                  selectedAval={credit.aval || null}
-                  onSelect={handleAvalSelect}
-                  iconOnly
-                />
-              </div>
-
-              {/* Aval phone */}
-              <div className="relative flex items-center w-[140px] shrink-0 xl:w-full xl:shrink 2xl:w-[140px] 2xl:shrink-0">
-                <Input
-                  value={credit.aval?.telefono || ''}
-                  onChange={(e) => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: e.target.value } })}
-                  placeholder="Tel. aval"
-                  aria-label="Telefono aval"
-                  className={cn(
-                    'h-7 w-full text-xs pr-6 tabular-nums',
-                    isAvalPhoneEdited && 'border-l-2 border-l-neutral-400'
-                  )}
-                />
-                <DataSourceDots
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2"
-                  currentValue={credit.aval?.telefono || ''}
-                  ocrValue={ocrAvalPhone}
-                  dbValue={dbAvalPhone}
-                  onUseOcr={() => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: ocrAvalPhone } })}
-                  onUseDb={() => update({ aval: { ...credit.aval, nombre: credit.aval?.nombre || '', telefono: dbAvalPhone } })}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Row C: summary strip inline + primer pago toggle/expand */}
+        {/* Row B: summary strip inline + primer pago toggle/expand */}
         {selectedLoanType && credit.monto > 0 && (
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs px-1.5 py-1 rounded bg-muted/40 border">
             <SummaryChip label="Semanal" value={formatCurrency(weeklyPayment)} emphasize />
             <SummaryChip label="Total" value={formatCurrency(totalDebt)} />
             {isRenewal && (
-              <InlineNumberChip
+              <SummaryChip
                 label="Entregar"
-                value={credit.entregado ?? credit.monto}
-                onChange={(v) => update({ entregado: v })}
+                value={formatCurrency(credit.entregado ?? credit.monto)}
               />
             )}
-            <InlineNumberChip
-              label="Com"
-              value={credit.comisionCredito ?? 0}
-              onChange={(v) => update({ comisionCredito: v })}
-            />
 
             <span className="flex-1" />
 
@@ -746,11 +864,17 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
 // --- Compact UI helpers ---
 
 /**
- * Two-dot indicator (amber=OCR, blue=DB) shown inside an input's right padding.
- * Renders nothing when OCR and DB agree or both are empty.
- * Filled dot = currently used; pale dot = alternative, click to switch.
+ * Text badges for OCR vs BD origin. Replaces the older two-dot indicator.
+ *
+ * Rules:
+ *   - Returns null when both OCR and DB are empty.
+ *   - When OCR === DB (case-insensitive): shows a single green [OK] badge.
+ *   - When they differ: shows [OCR] and [BD] badges side by side.
+ *       The badge matching `currentValue` is emphasized; the other is pale
+ *       and clickable to swap the input's value to that source.
+ *   - Tooltip on each badge exposes the exact alternate value.
  */
-function DataSourceDots({ currentValue, ocrValue, dbValue, onUseOcr, onUseDb, className }: {
+function DataSourceBadges({ currentValue, ocrValue, dbValue, onUseOcr, onUseDb, className }: {
   currentValue: string
   ocrValue?: string
   dbValue?: string
@@ -761,42 +885,99 @@ function DataSourceDots({ currentValue, ocrValue, dbValue, onUseOcr, onUseDb, cl
   const ocr = (ocrValue || '').trim()
   const db = (dbValue || '').trim()
   if (!ocr && !db) return null
-  if (ocr && db && ocr.toLowerCase() === db.toLowerCase()) return null
 
-  const usingOcr = currentValue === ocr
-  const usingDb = currentValue === db
+  if (ocr && db && ocr.toLowerCase() === db.toLowerCase()) {
+    return (
+      <span
+        title={`OCR y BD coinciden: ${ocr}`}
+        className={cn(
+          'inline-flex items-center rounded px-1 text-[10px] font-medium',
+          'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+          className,
+        )}
+      >
+        OK
+      </span>
+    )
+  }
+
+  const current = (currentValue || '').trim()
+  const usingOcr = !!ocr && current === ocr
+  const usingDb = !!db && current === db
+
+  const baseBadge = 'inline-flex items-center rounded px-1 text-[10px] font-medium transition-colors cursor-pointer'
+  const ocrActive = 'bg-amber-200 text-amber-900 dark:bg-amber-800/60 dark:text-amber-100 ring-1 ring-amber-500/60'
+  const ocrIdle = 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300'
+  const dbActive = 'bg-blue-200 text-blue-900 dark:bg-blue-800/60 dark:text-blue-100 ring-1 ring-blue-500/60'
+  const dbIdle = 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300'
 
   return (
-    <span className={cn('flex items-center gap-1', className)}>
+    <span className={cn('inline-flex items-center gap-0.5', className)}>
       {ocr && (
         <button
           type="button"
           onClick={onUseOcr}
-          title={`OCR: ${ocr}`}
+          title={`OCR: ${ocr}${db ? `\nBD: ${db || '—'}` : ''}`}
           aria-label={`Usar valor OCR ${ocr}`}
-          className={cn(
-            'h-2 w-2 rounded-full transition-all',
-            usingOcr
-              ? 'bg-amber-500 ring-1 ring-amber-700/50'
-              : 'bg-amber-300 hover:bg-amber-500',
-          )}
-        />
+          className={cn(baseBadge, usingOcr ? ocrActive : ocrIdle)}
+        >
+          OCR
+        </button>
       )}
       {db && (
         <button
           type="button"
           onClick={onUseDb}
-          title={`BD: ${db}`}
+          title={`BD: ${db}${ocr ? `\nOCR: ${ocr || '—'}` : ''}`}
           aria-label={`Usar valor BD ${db}`}
-          className={cn(
-            'h-2 w-2 rounded-full transition-all',
-            usingDb
-              ? 'bg-blue-500 ring-1 ring-blue-700/50'
-              : 'bg-blue-300 hover:bg-blue-500',
-          )}
-        />
+          className={cn(baseBadge, usingDb ? dbActive : dbIdle)}
+        >
+          BD
+        </button>
       )}
     </span>
+  )
+}
+
+/**
+ * Input que muestra un tooltip con el valor completo cuando el texto no
+ * entra visualmente en el campo (scrollWidth > clientWidth). Mantiene
+ * exactamente el mismo contrato visual que `Input` — si no hay truncado,
+ * no se renderiza `TooltipContent` y el hover es invisible.
+ *
+ * Requiere un `TooltipProvider` ancestor (ya montado en CapturaPreviewDialog).
+ */
+function TruncatingInput(props: React.ComponentProps<typeof Input>) {
+  const innerRef = useRef<HTMLInputElement>(null)
+  const [truncated, setTruncated] = useState(false)
+  const value = props.value
+
+  useEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    const check = () => setTruncated(el.scrollWidth > el.clientWidth + 1)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [value])
+
+  const content = String(value ?? '').trim()
+  const showTooltip = truncated && content.length > 0
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Input ref={innerRef} {...props} />
+        </TooltipTrigger>
+        {showTooltip && (
+          <TooltipContent side="top" className="text-xs max-w-[320px] break-words">
+            {content}
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
@@ -817,27 +998,3 @@ function SummaryChip({ label, value, emphasize }: {
   )
 }
 
-/** Editable number chip that looks like text with a dashed underline; becomes a normal input on focus. */
-function InlineNumberChip({ label, value, onChange }: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-}) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
-      <Input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        onWheel={(e) => e.currentTarget.blur()}
-        className={cn(
-          'h-6 w-[76px] text-right text-xs tabular-nums px-1 py-0',
-          '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
-          'bg-transparent border-0 border-b border-dashed border-muted-foreground/30 rounded-none',
-          'focus-visible:ring-0 focus-visible:border-primary focus-visible:border-solid',
-        )}
-      />
-    </span>
-  )
-}

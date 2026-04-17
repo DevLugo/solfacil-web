@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Check, ChevronsUpDown, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -8,6 +8,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn, formatCurrency } from '@/lib/utils'
 import { normalizeName } from '@/lib/fuzzy-match'
 import type { CapturaClient } from './types'
@@ -33,8 +34,23 @@ export function CapturaClientAutocomplete({
   const [search, setSearch] = useState('')
 
   const displayLabel = selectedClient
-    ? `${selectedClient.borrowerName || ''} (${selectedClient.clientCode})`
-    : initialSearch || ''
+    ? `${(selectedClient.borrowerName || '').toUpperCase()} (${selectedClient.clientCode})`
+    : (initialSearch || '').toUpperCase()
+
+  // Truncation detection for the trigger label. Usa ResizeObserver para
+  // reaccionar al resize del contenedor (PDF viewer split, 1 vs 2 cols).
+  const labelRef = useRef<HTMLSpanElement>(null)
+  const [truncated, setTruncated] = useState(false)
+  useEffect(() => {
+    const el = labelRef.current
+    if (!el) return
+    const check = () => setTruncated(el.scrollWidth > el.clientWidth + 1)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [displayLabel])
+  const showTooltip = !iconOnly && truncated && displayLabel.length > 0
 
   // Custom filter: normalize both query and candidate for accent/case insensitive matching
   const filterFn = useMemo(() => {
@@ -52,8 +68,8 @@ export function CapturaClientAutocomplete({
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
-      <PopoverTrigger asChild>
-        {iconOnly ? (
+      {iconOnly ? (
+        <PopoverTrigger asChild>
           <Button
             variant="outline"
             size="icon"
@@ -63,34 +79,47 @@ export function CapturaClientAutocomplete({
           >
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
-        ) : (
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn('h-8 justify-between text-xs font-normal', className)}
-          >
-            <span className="truncate min-w-0">
-              {selectedClient ? displayLabel : (initialSearch || 'Buscar cliente...')}
-            </span>
-            <div className="flex items-center gap-0.5 ml-1 shrink-0">
-              {selectedClient && (
-                <span
-                  role="button"
-                  className="h-4 w-4 flex items-center justify-center rounded-sm hover:bg-muted"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onSelect(null)
-                  }}
-                >
-                  <X className="h-3 w-3" />
+        </PopoverTrigger>
+      ) : (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className={cn('h-8 justify-between text-xs font-normal', className)}
+              >
+                <span ref={labelRef} className="truncate min-w-0">
+                  {selectedClient ? displayLabel : (initialSearch || 'Buscar cliente...')}
                 </span>
-              )}
-              <ChevronsUpDown className="h-3 w-3 opacity-50" />
-            </div>
-          </Button>
-        )}
-      </PopoverTrigger>
+                <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                  {selectedClient && (
+                    <span
+                      role="button"
+                      className="h-4 w-4 flex items-center justify-center rounded-sm hover:bg-muted"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelect(null)
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  )}
+                  <ChevronsUpDown className="h-3 w-3 opacity-50" />
+                </div>
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+            {showTooltip && (
+              <TooltipContent side="top" className="text-xs max-w-[320px] break-words">
+                {displayLabel}
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      )}
       <PopoverContent className="w-[350px] p-0 z-[60]" align="start">
         <Command filter={filterFn}>
           <CommandInput
@@ -122,7 +151,7 @@ export function CapturaClientAutocomplete({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{client.borrowerName || '---'}</span>
+                      <span className="truncate font-medium">{(client.borrowerName || '').toUpperCase() || '---'}</span>
                       <span className="font-mono text-muted-foreground shrink-0">{client.clientCode}</span>
                     </div>
                     {client.pendingBalance != null && client.pendingBalance > 0 && (

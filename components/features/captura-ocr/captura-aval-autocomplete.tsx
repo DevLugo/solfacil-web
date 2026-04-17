@@ -88,7 +88,7 @@ export function CapturaAvalAutocomplete({
             className={cn('h-8 justify-between text-xs font-normal', className)}
           >
             <span className="truncate min-w-0">
-              {displayLabel || 'Buscar aval...'}
+              {displayLabel ? displayLabel.toUpperCase() : 'Buscar aval...'}
             </span>
             <div className="flex items-center gap-0.5 ml-1 shrink-0">
               {selectedAval?.nombre && (
@@ -139,7 +139,7 @@ export function CapturaAvalAutocomplete({
                       )}
                     />
                     <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <span className="font-medium truncate">{aval.name}</span>
+                      <span className="font-medium truncate">{aval.name.toUpperCase()}</span>
                       {aval.phone && (
                         <span className="text-muted-foreground shrink-0">{aval.phone}</span>
                       )}
@@ -167,7 +167,7 @@ export function CapturaAvalAutocomplete({
                       )}
                     />
                     <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <span className="font-medium truncate">{aval.name}</span>
+                      <span className="font-medium truncate">{aval.name.toUpperCase()}</span>
                       {aval.phone && (
                         <span className="text-muted-foreground shrink-0">{aval.phone}</span>
                       )}
@@ -195,7 +195,7 @@ export function CapturaAvalAutocomplete({
                       )}
                     />
                     <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <span className="font-medium truncate">{aval.name}</span>
+                      <span className="font-medium truncate">{aval.name.toUpperCase()}</span>
                       {aval.phone && (
                         <span className="text-muted-foreground shrink-0">{aval.phone}</span>
                       )}

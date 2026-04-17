@@ -94,7 +94,14 @@ export function computeProjection(
     )
 
     const cobranza = cobranzaFromClients + primerPagoCobranza
-    const comisiones = comisionFromClients + primerPagoComision + comisionCreditos
+    // Unified commission: if user set an explicit override, it fully replaces
+    // abonos + creditos commission (but primer pago stays separate since it
+    // represents a different operation). Otherwise sum all sources.
+    const comisionesDefault = comisionFromClients + comisionCreditos
+    const comisionesUnified = r?.comisionOverride != null
+      ? r.comisionOverride
+      : comisionesDefault
+    const comisiones = comisionesUnified + primerPagoComision
     const cashToBank = r?.cashToBank ?? 0
     const delta = cobranza - comisiones - creditosEntregado - cashToBank
 

@@ -77,6 +77,12 @@ export interface CapturaResumenInferior {
   comisionRegular: CapturaComision
   comisionCreditos: CapturaComision
   comisionTotal: number
+  /**
+   * User-set override for the unified commission (abonos + creditos).
+   * When null/undefined, projection uses OCR default = comisionRegular.total + comisionCreditos.total.
+   * When set, takes precedence over OCR-derived sum in computeProjection.
+   */
+  comisionOverride?: number | null
   cashToBank?: number
   inicialCaja?: number | null
 }

@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, RotateCcw } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -22,6 +23,15 @@ export function CapturaResumenEditor({ jobId, locality }: Props) {
   const resumen = locality.resumenInferior
   const [isOpen, setIsOpen] = useState(false)
   if (!resumen) return null
+
+  // Unified commission: OCR default = abonos + creditos (from OCR).
+  // Primer pago commission stays separate (different concept) and is shown
+  // read-only so the operator sees the total projection.
+  const ocrComisionAbonos = resumen.comisionRegular?.total ?? 0
+  const ocrComisionCreditos = resumen.comisionCreditos?.total ?? 0
+  const ocrComisionSum = ocrComisionAbonos + ocrComisionCreditos
+  const hasOverride = resumen.comisionOverride != null
+  const comisionValue = hasOverride ? (resumen.comisionOverride as number) : ocrComisionSum
 
   return (
     <Card>
@@ -57,25 +67,47 @@ export function CapturaResumenEditor({ jobId, locality }: Props) {
             value={resumen.tarifaComision}
             onChange={(v) => updateResumen(jobId, locality.localidad, { tarifaComision: v })}
           />
-          <Field
-            label="Comision Regular"
-            value={resumen.comisionRegular.total}
-            onChange={(v) => updateResumen(jobId, locality.localidad, {
-              comisionRegular: { ...resumen.comisionRegular, total: v },
-            })}
-          />
-          <Field
-            label="Comision Creditos"
-            value={resumen.comisionCreditos.total}
-            onChange={(v) => updateResumen(jobId, locality.localidad, {
-              comisionCreditos: { ...resumen.comisionCreditos, total: v },
-            })}
-          />
-          <Field
-            label="Comision Total"
-            value={resumen.comisionTotal}
-            onChange={(v) => updateResumen(jobId, locality.localidad, { comisionTotal: v })}
-          />
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">
+                Comision (abonos + creditos)
+                {hasOverride && (
+                  <Badge variant="outline" className="ml-2 text-[10px] border-amber-400 text-amber-600 dark:text-amber-400">
+                    override
+                  </Badge>
+                )}
+              </label>
+              {hasOverride && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1.5 text-[10px] gap-1"
+                  onClick={() => updateResumen(jobId, locality.localidad, { comisionOverride: null })}
+                  title={`Restaurar al valor OCR: ${formatCurrency(ocrComisionSum)}`}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  OCR
+                </Button>
+              )}
+            </div>
+            <Input
+              type="number"
+              value={comisionValue}
+              onChange={(e) => {
+                const parsed = parseFloat(e.target.value)
+                const v = isNaN(parsed) ? 0 : parsed
+                updateResumen(jobId, locality.localidad, { comisionOverride: v })
+              }}
+              className={cn(
+                'h-8 text-sm tabular-nums',
+                hasOverride && 'border-amber-400 dark:border-amber-600',
+              )}
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+              OCR: abonos {formatCurrency(ocrComisionAbonos)} + creditos {formatCurrency(ocrComisionCreditos)} = {formatCurrency(ocrComisionSum)}
+            </p>
+          </div>
           <Field
             label="Cash to Bank"
             value={resumen.cashToBank || 0}

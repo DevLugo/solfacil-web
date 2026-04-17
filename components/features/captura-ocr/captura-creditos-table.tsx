@@ -1,16 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Plus, RefreshCw, ChevronRight } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 import { useCapturaOcr } from './captura-ocr-context'
@@ -24,6 +20,12 @@ interface Props {
   loantypes: CapturaLoanType[]
 }
 
+// Ancho mínimo (en px) que debe tener el grid de créditos para que quepan 2
+// columnas sin truncar nombres/teléfonos. Valor derivado empíricamente:
+// ~420 px por CapturaCreditoRow (Cliente+Aval apilados + badges OCR/BD)
+// × 2 + gap-3 (12 px) = 852 px; redondeado a 900 px para dejar holgura.
+const TWO_COL_MIN_WIDTH = 900
+
 export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
   const { updateCredit, addCredit, getEditedResult } = useCapturaOcr()
 
@@ -35,6 +37,23 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
   const clientsList = editedLocality?.clientsList || locality.clientsList || []
   const excepciones = editedLocality?.excepciones || locality.excepciones || []
   const hasAutoMatched = useRef(false)
+
+  // Container-aware responsive grid: decidimos 1 vs 2 columnas según el ancho
+  // REAL del wrapper (no del viewport), para reaccionar al resize del PDF
+  // viewer en el preview dialog.
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+  useEffect(() => {
+    const node = gridRef.current
+    if (!node) return
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0
+      setContainerWidth(width)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  const twoCols = containerWidth >= TWO_COL_MIN_WIDTH
 
   // Auto-match credits on first render:
   //   - R credits: find matching client by loanId/name
@@ -102,27 +121,6 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
 
   const [isOpen, setIsOpen] = useState(creditos.length > 0)
 
-  // Batch commission controls for creditos
-  const [creditCommissionMode, setCreditCommissionMode] = useState<'tarifa' | 'hardcoded'>('tarifa')
-  const [creditGlobalCommission, setCreditGlobalCommission] = useState('')
-
-  const handleApplyCreditCommission = useCallback(() => {
-    const value = parseFloat(creditGlobalCommission)
-    if (isNaN(value)) return
-
-    if (creditCommissionMode === 'tarifa') {
-      // Tarifa fija: apply to all credits
-      creditos.forEach((_, i) => {
-        updateCredit(jobId, locality.localidad, i, { comisionCredito: value })
-      })
-    } else {
-      // Hardcoded: apply to the first credit, all others get 0
-      creditos.forEach((_, i) => {
-        updateCredit(jobId, locality.localidad, i, { comisionCredito: i === 0 ? value : 0 })
-      })
-    }
-  }, [jobId, locality.localidad, creditos, creditCommissionMode, creditGlobalCommission, updateCredit])
-
   return (
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -166,43 +164,10 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
         <CollapsibleContent>
           {creditos.length > 0 && (
             <CardContent className="space-y-3 pt-0">
-              {/* Batch commission controls */}
-              <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-                <span className="text-xs font-medium text-muted-foreground shrink-0">Comision credito:</span>
-                <Select value={creditCommissionMode} onValueChange={(v) => setCreditCommissionMode(v as 'tarifa' | 'hardcoded')}>
-                  <SelectTrigger className="h-7 w-[120px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tarifa" className="text-xs">Tarifa fija</SelectItem>
-                    <SelectItem value="hardcoded" className="text-xs">Monto unico</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  value={creditGlobalCommission}
-                  onChange={(e) => setCreditGlobalCommission(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder={creditCommissionMode === 'tarifa' ? 'Tarifa c/u' : 'Total unico'}
-                  className="h-7 w-[90px] text-xs text-right"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={handleApplyCreditCommission}
-                  disabled={!creditGlobalCommission}
-                >
-                  Aplicar
-                </Button>
-                <span className="text-[10px] text-muted-foreground ml-1">
-                  {creditCommissionMode === 'tarifa'
-                    ? 'Aplica a todos (omite com=0)'
-                    : 'Solo al 1ro, resto en 0'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div
+                ref={gridRef}
+                className={cn('grid gap-3', twoCols ? 'grid-cols-2' : 'grid-cols-1')}
+              >
                 {creditos.map((credit, index) => (
                   <CapturaCreditoRow
                     key={index}
