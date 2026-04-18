@@ -438,8 +438,21 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
     if (!edited) return
     setSavingJobId(jobId)
     try {
+      // Force `comisionCredito: 0` on every credit before persisting.
+      // Desde captura-OCR la comisión de otorgamiento SIEMPRE es 0: la
+      // comisión combinada (abonos + créditos) vive en `excepciones[i].comision`
+      // y se persiste como LoanPayment.comission. Enviar 0 explícito evita el
+      // fallback del backend a `loantype.loanGrantedComission` que crearía un
+      // LOAN_GRANT_COMMISSION debit no contemplado por la proyección.
+      const payload = {
+        ...edited,
+        localities: edited.localities.map(loc => ({
+          ...loc,
+          creditos: (loc.creditos || []).map(c => ({ ...c, comisionCredito: 0 })),
+        })),
+      }
       await saveEditsMutation({
-        variables: { jobId, editedResult: edited },
+        variables: { jobId, editedResult: payload },
       })
       // Refresh cash fund + route accounts so grid badges and BalanceBox reflect the save
       const job = weekJobs.find(j => j.id === jobId)
