@@ -348,10 +348,11 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
 
   const startAllAssigned = useCallback(async () => {
     const pending = uploads.filter(u => u.status === 'pending' && u.file && u.routeId && u.date)
-    const MAX_CONCURRENT_UPLOADS = 3
-    for (let i = 0; i < pending.length; i += MAX_CONCURRENT_UPLOADS) {
-      const batch = pending.slice(i, i + MAX_CONCURRENT_UPLOADS)
-      await Promise.all(batch.map(u => startProcessing(u.id)))
+    // Serialize uploads: concurrent uploads on the 1vCPU/2GB API pod spike memory
+    // (multipart buffers + double-write to /tmp) and trigger OOM kills.
+    // Uploading one-by-one keeps the API stable until the pod is scaled.
+    for (const u of pending) {
+      await startProcessing(u.id)
     }
   }, [uploads, startProcessing])
 
