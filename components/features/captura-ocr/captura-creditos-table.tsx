@@ -81,7 +81,9 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
       const sameSessionPayment = exc
         ? (exc.marca === 'FALTA' ? 0 : (exc.montoPagado || 0))
         : (matchedClient.expectedWeeklyPayment || 0)
-      const entregado = credit.monto - (pendingBalance - sameSessionPayment)
+      // Clamp a [0, monto]: evita valores negativos o mayores al nuevo préstamo.
+      const rawEntregado = credit.monto - (pendingBalance - sameSessionPayment)
+      const entregado = Math.min(credit.monto, Math.max(0, rawEntregado))
 
       updateCredit(jobId, locality.localidad, i, {
         tipo: 'R',
@@ -117,7 +119,7 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <CardHeader className="py-3 cursor-pointer hover:bg-muted/50 transition-colors select-none">
+          <CardHeader className="py-3 cursor-pointer hover:bg-muted/50 transition-colors select-none sticky top-0 z-10 bg-card border-b">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-90")} />

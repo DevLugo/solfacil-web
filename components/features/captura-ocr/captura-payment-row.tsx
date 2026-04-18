@@ -25,7 +25,6 @@ interface Props {
   matchConfidence?: string
   onToggleFalta: (shiftKey: boolean) => void
   onAmountChange: (amount: number) => void
-  onCommissionChange: (commission: number) => void
   onPaymentMethodChange: (method: 'CASH' | 'MONEY_TRANSFER') => void
   onNotesChange: (notes: string) => void
 }
@@ -88,11 +87,10 @@ export function CapturaPaymentRow({
   matchConfidence,
   onToggleFalta,
   onAmountChange,
-  onCommissionChange,
   onPaymentMethodChange,
   onNotesChange,
 }: Props) {
-  const { marca, montoPagado, comision, paymentMethod, notas } = paymentState
+  const { marca, montoPagado, paymentMethod, notas } = paymentState
   const isFalta = marca === 'FALTA'
 
   const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
@@ -165,21 +163,11 @@ export function CapturaPaymentRow({
           )}
           disabled={isFalta}
         />
-        {!isFalta && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-[10px] text-muted-foreground">com:</span>
-            <Input
-              type="number"
-              value={comision}
-              onChange={(e) => onCommissionChange(parseFloat(e.target.value) || 0)}
-              onWheel={(e) => e.currentTarget.blur()}
-              className="h-5 w-[55px] text-[10px] text-right tabular-nums px-1"
-            />
-            {amountDiffers && (
-              <span className="text-[10px] text-muted-foreground line-through tabular-nums ml-auto">
-                {formatCurrency(client.expectedWeeklyPayment)}
-              </span>
-            )}
+        {!isFalta && amountDiffers && (
+          <div className="flex items-center justify-end mt-0.5">
+            <span className="text-[10px] text-muted-foreground line-through tabular-nums">
+              {formatCurrency(client.expectedWeeklyPayment)}
+            </span>
           </div>
         )}
       </TableCell>

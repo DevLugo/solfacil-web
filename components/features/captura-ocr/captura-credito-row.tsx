@@ -611,12 +611,20 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
             />
           </div>
           {unmatchedRenewal && (
-            <p className="flex items-start gap-1 text-[10px] text-amber-700 dark:text-amber-400 leading-tight">
-              <AlertTriangle className="h-3 w-3 shrink-0 mt-[1px]" />
-              <span>
-                Renovación sin cliente en BD de esta localidad. Selecciona manualmente o convierte a <strong>Nuevo</strong>.
-              </span>
-            </p>
+            <div className="flex items-start justify-between gap-2 rounded-md bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 px-2 py-1">
+              <p className="flex items-start gap-1 text-[10px] text-amber-700 dark:text-amber-400 leading-tight flex-1">
+                <AlertTriangle className="h-3 w-3 shrink-0 mt-[1px]" />
+                <span>Renovación sin cliente en BD de esta localidad.</span>
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[10px] shrink-0"
+                onClick={() => handleClientSelect(null)}
+              >
+                Convertir a Nuevo
+              </Button>
+            </div>
           )}
         </div>
 

@@ -3,7 +3,6 @@
 import { CapturaLocalitySummary } from './captura-locality-summary'
 import { CapturaPaymentsTable } from './captura-payments-table'
 import { CapturaCreditosTable } from './captura-creditos-table'
-import { CapturaResumenEditor } from './captura-resumen-editor'
 import type { CapturaLocalityResult, CapturaLoanType } from './types'
 
 interface Props {
@@ -29,12 +28,6 @@ export function CapturaLocalityPanel({ jobId, locality, loantypes }: Props) {
         jobId={jobId}
         locality={locality}
         loantypes={loantypes}
-      />
-
-      {/* Resumen editor */}
-      <CapturaResumenEditor
-        jobId={jobId}
-        locality={locality}
       />
     </div>
   )

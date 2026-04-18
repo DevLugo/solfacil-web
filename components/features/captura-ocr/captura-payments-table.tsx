@@ -135,7 +135,7 @@ function buildPaymentStates(
 }
 
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
-  const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission } = useCapturaOcr()
+  const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission, updateResumen } = useCapturaOcr()
 
   // Fetch live loans from DB, merged with OCR clientsList
   const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
@@ -167,7 +167,15 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
 
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
-  const [globalCommission, setGlobalCommission] = useState('')
+  // Initialize global commission from persisted excepciones. Tras aplicar
+  // applyAbonosCommission el total vive en una sola row non-FALTA; sumar
+  // cubre también jobs legacy con comisiones per-cliente.
+  const [globalCommission, setGlobalCommission] = useState(() => {
+    const total = (locality.excepciones || [])
+      .filter(e => e.marca !== 'FALTA')
+      .reduce((s, e) => s + (e.comision || 0), 0)
+    return total > 0 ? total.toString() : ''
+  })
   const [showDistributionModal, setShowDistributionModal] = useState(false)
   // Pre-load cashToBank from OCR data
   const [cashToBank, setCashToBank] = useState(
@@ -297,13 +305,14 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
     }
 
     lastSelectedIndex.current = clientIndex
-  }, [jobId, locality.localidad, clients, filteredClients, paymentStates, updateException])
 
-  const handleApplyGlobalCommission = useCallback(() => {
-    const value = parseFloat(globalCommission)
-    if (isNaN(value)) return
-    applyAbonosCommission(jobId, locality.localidad, value)
-  }, [globalCommission, jobId, locality.localidad, applyAbonosCommission])
+    // Re-aplicar comisión global: si el cliente que la tenía quedó FALTA,
+    // applyAbonosCommission la migra a la primera row elegible vigente.
+    const total = parseFloat(globalCommission)
+    if (!isNaN(total) && total > 0) {
+      applyAbonosCommission(jobId, locality.localidad, total)
+    }
+  }, [jobId, locality.localidad, clients, filteredClients, paymentStates, updateException, globalCommission, applyAbonosCommission])
 
   return (
     <Card>
@@ -355,7 +364,6 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
                   matchConfidence={confidenceMap.get(client.pos)}
                   onToggleFalta={(shiftKey) => handleToggleFalta(client.pos, shiftKey)}
                   onAmountChange={(amount) => syncToContext(client.pos, { montoPagado: amount })}
-                  onCommissionChange={(commission) => syncToContext(client.pos, { comision: commission })}
                   onPaymentMethodChange={(method) => syncToContext(client.pos, { paymentMethod: method })}
                   onNotesChange={(notes) => syncToContext(client.pos, { notas: notes })}
                 />
@@ -444,20 +452,16 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
             <Input
               type="number"
               value={globalCommission}
-              onChange={(e) => setGlobalCommission(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                setGlobalCommission(v)
+                const num = parseFloat(v)
+                applyAbonosCommission(jobId, locality.localidad, isNaN(num) ? 0 : num)
+              }}
               onWheel={(e) => e.currentTarget.blur()}
               placeholder="Total"
               className="h-7 w-[80px] text-xs text-right"
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={handleApplyGlobalCommission}
-              disabled={!globalCommission}
-            >
-              Aplicar
-            </Button>
           </div>
 
           {/* Edit distribution button */}
@@ -478,7 +482,11 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
         onOpenChange={setShowDistributionModal}
         totals={distributionTotals}
         cashToBank={cashToBank}
-        onCashToBankChange={setCashToBank}
+        onCashToBankChange={(v) => {
+          setCashToBank(v)
+          const num = parseFloat(v || '0')
+          updateResumen(jobId, locality.localidad, { cashToBank: isNaN(num) ? 0 : num })
+        }}
         onConfirm={() => setShowDistributionModal(false)}
         isSubmitting={false}
       />

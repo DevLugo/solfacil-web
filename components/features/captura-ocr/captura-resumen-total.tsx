@@ -74,7 +74,10 @@ export function computeProjection(
       if (marca === 'FALTA') { faltaCount++; return }
       const montoPagado = exc ? exc.montoPagado : client.expectedWeeklyPayment
       const comision = exc?.comision ?? client.loanPaymentComission ?? defaultComision
-      cobranzaFromClients += montoPagado
+      // Sólo efectivo entra al fondo de caja del líder. Los pagos por
+      // transferencia van directo al banco y no afectan el cash fund.
+      const method = exc?.paymentMethod ?? 'CASH'
+      if (method === 'CASH') cobranzaFromClients += montoPagado
       comisionFromClients += comision
     })
 
@@ -91,10 +94,13 @@ export function computeProjection(
       (sum, c) => sum + (c.entregado ?? c.monto ?? 0), 0
     )
 
-    const cobranza = cobranzaFromClients + primerPagoCobranza
-    const comisiones = comisionFromClients + primerPagoComision
+    // Cobranza efectivo neto: lo recibido en CASH menos lo que la líder
+    // transfirió al banco en la distribución. Ese es el efectivo que
+    // realmente entra al fondo de caja.
     const cashToBank = r?.cashToBank ?? 0
-    const delta = cobranza - comisiones - creditosEntregado - cashToBank
+    const cobranza = cobranzaFromClients + primerPagoCobranza - cashToBank
+    const comisiones = comisionFromClients + primerPagoComision
+    const delta = cobranza - comisiones - creditosEntregado
 
     return { localidad: loc.localidad, cobranza, comisiones, creditos: creditosEntregado, cashToBank, delta, faltaCount, clientCount: clients.length }
   })
@@ -130,7 +136,9 @@ export function computeProjection(
     if (!r) return sum
     const locCredits = loc.creditos || []
     const locCreditosEntregado = locCredits.reduce((s, c) => s + (c.entregado ?? c.monto ?? 0), 0)
-    return sum + (r.cobranzaTotal ?? 0) - (r.comisionTotal ?? 0) - locCreditosEntregado - (r.cashToBank ?? 0)
+    // Cobranza efectivo = cobranzaTotal - cashToBank (lo que quedó en efectivo real)
+    const cobranzaEfectivo = (r.cobranzaTotal ?? 0) - (r.cashToBank ?? 0)
+    return sum + cobranzaEfectivo - (r.comisionTotal ?? 0) - locCreditosEntregado
   }, 0) - originalGastosCash + extrasCash
   const finalPdf = inicialPdf != null ? inicialPdf + deltaPdf : null
 
@@ -148,16 +156,16 @@ export function computeProjection(
     const r = loc.resumenInferior
     if (!r) return { localidad: loc.localidad, cobranza: 0, comisiones: 0, creditos: 0, cashToBank: 0, delta: 0, faltaCount: 0, clientCount: 0 }
     const creditosEntregado = (loc.creditos || []).reduce((s, c) => s + (c.entregado ?? c.monto ?? 0), 0)
-    const cobranza = r.cobranzaTotal ?? 0
-    const comisiones = r.comisionTotal ?? 0
     const cashToBank = r.cashToBank ?? 0
+    const cobranza = (r.cobranzaTotal ?? 0) - cashToBank
+    const comisiones = r.comisionTotal ?? 0
     return {
       localidad: loc.localidad,
       cobranza,
       comisiones,
       creditos: creditosEntregado,
       cashToBank,
-      delta: cobranza - comisiones - creditosEntregado - cashToBank,
+      delta: cobranza - comisiones - creditosEntregado,
       faltaCount: 0,
       clientCount: 0,
     }
@@ -201,8 +209,7 @@ export function CapturaResumenTotal({ jobId, localities: propLocalities, origina
 
   const calc = computeProjection(localities, originalLocalities, gastos, originalGastos || [], effectiveCashFundBalance, extracobranzas)
 
-  const showBank = calc.totals.cashToBank > 0 || calc.pdfTotals.cashToBank > 0
-  const colsPerSide = showBank ? 5 : 4 // Cobr, Com, Cred, [Banco], Delta
+  const colsPerSide = 4 // Cobr, Com, Cred, Delta
 
   const differs = (a: number, b: number) => Math.abs(a - b) >= 1
   const diffCellBg = 'bg-amber-100 dark:bg-amber-900/40'
@@ -236,7 +243,6 @@ export function CapturaResumenTotal({ jobId, localities: propLocalities, origina
         <Cell value={row.cobranza} other={otherRow.cobranza} color="text-green-600" prefix="+" />
         <Cell value={row.comisiones} other={otherRow.comisiones} color="text-red-500" prefix="-" />
         <Cell value={row.creditos} other={otherRow.creditos} color="text-red-500" prefix="-" />
-        {showBank && <Cell value={row.cashToBank} other={otherRow.cashToBank} color="text-blue-500" prefix="-" />}
         <DeltaCell value={row.delta} other={otherRow.delta} extra={isLast ? undefined : 'border-r'} />
       </>
     )
@@ -383,12 +389,10 @@ export function CapturaResumenTotal({ jobId, localities: propLocalities, origina
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Cobr</th>
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Com</th>
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Cred</th>
-                  {showBank && <th className="text-right py-1 px-2 font-medium text-muted-foreground">Banco</th>}
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground border-r">Delta</th>
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Cobr</th>
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Com</th>
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Cred</th>
-                  {showBank && <th className="text-right py-1 px-2 font-medium text-muted-foreground">Banco</th>}
                   <th className="text-right py-1 px-2 font-medium text-muted-foreground">Delta</th>
                 </tr>
               </thead>
