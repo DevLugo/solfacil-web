@@ -243,7 +243,6 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         loantypeId: match.id,
         semanas: match.weekDuration,
         porcentaje: parseFloat(match.rate) * 100,
-        comisionCredito: parseFloat(match.loanGrantedComission) || 0,
         // Keep entregado consistent in case the prior value was stale/missing.
         entregado: computeEntregado({
           monto: credit.monto,
@@ -359,9 +358,6 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       semanas: clientLoanType?.weekDuration || client.weekDuration || credit.semanas,
       porcentaje: clientLoanType ? parseFloat(clientLoanType.rate) * 100 : (client.rate != null ? client.rate * 100 : credit.porcentaje),
       loantypeId: clientLoanType?.id || credit.loantypeId,
-      comisionCredito: clientLoanType
-        ? parseFloat(clientLoanType.loanGrantedComission) || 0
-        : credit.comisionCredito,
       // Aval: default = OCR value (or DB if OCR had nothing)
       aval: (avalNombre || avalTelefono)
         ? { nombre: avalNombre, telefono: avalTelefono }
@@ -377,7 +373,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       _ocrAvalPhone: ocrAvalPhone,
       _ocrAvalNombre: ocrAvalNombre,
     })
-  }, [credit.monto, credit.semanas, credit.porcentaje, credit.loantypeId, credit.comisionCredito, credit.aval, credit.telefonoTitular, credit._ocrPhone, credit._ocrAvalPhone, credit._ocrAvalNombre, loantypes, excepciones, clientsList, update])
+  }, [credit.monto, credit.semanas, credit.porcentaje, credit.loantypeId, credit.aval, credit.telefonoTitular, credit._ocrPhone, credit._ocrAvalPhone, credit._ocrAvalNombre, loantypes, excepciones, clientsList, update])
 
   const handleLoanTypeChange = useCallback((ltId: string) => {
     const lt = loantypes.find(l => l.id === ltId)
@@ -386,7 +382,6 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       loantypeId: lt.id,
       semanas: lt.weekDuration,
       porcentaje: parseFloat(lt.rate) * 100,
-      comisionCredito: parseFloat(lt.loanGrantedComission) || 0,
       // Recompute entregado: monto didn't change but the client context might
       // have (e.g. operator changed loan type after the client paid this week).
       // Keep entregado in sync so Resumen projection is correct.

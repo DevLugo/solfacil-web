@@ -25,20 +25,21 @@ export function CapturaLocalitySummary({ locality }: Props) {
       (s, c) => s + (c.entregado ?? c.monto ?? 0), 0
     )
 
-    // Comisiones = comision abonos + comision credito otorgado + primer pago comision
+    // Comisiones = comision abonos (live from excepciones) + primer pago comision
+    // Single source of truth: excepciones[i].comision (what backend persists).
     const primerPagoComision = credits.reduce(
       (s, c) => s + (c.primerPago ? (c.primerPagoComision ?? 0) : 0), 0
     )
-    const comisionCreditos = credits.reduce(
-      (s, c) => s + (c.comisionCredito ?? 0), 0
-    )
-    const comisiones = (r?.comisionTotal ?? 0) + primerPagoComision + comisionCreditos
+    const comisionFromClients = (locality.excepciones || [])
+      .filter(e => e.marca !== 'FALTA')
+      .reduce((s, e) => s + (e.comision || 0), 0)
+    const comisiones = comisionFromClients + primerPagoComision
 
     const cashToBank = r?.cashToBank ?? 0
     const delta = abonos - comisiones - colocado - cashToBank
 
     return { abonos, colocado, comisiones, cashToBank, delta }
-  }, [locality.resumenInferior, locality.creditos])
+  }, [locality.resumenInferior, locality.creditos, locality.excepciones])
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

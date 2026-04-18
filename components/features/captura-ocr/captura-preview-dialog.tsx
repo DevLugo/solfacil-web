@@ -81,10 +81,16 @@ export function CapturaPreviewDialog({ jobId, upload, dbResult, dbEditedResult, 
   const originalGastos = originalResult?.gastos || []
   const extracobranzas = editedResult?.extracobranzas || []
   const [activeTab, setActiveTab] = useState('__resumen__')
+  const tabContentRef = useRef<HTMLDivElement>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [showPdf, setShowPdf] = useState(false)
   const [addLocalityOpen, setAddLocalityOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+
+  // Reset scroll to top when switching tabs
+  useEffect(() => {
+    if (tabContentRef.current) tabContentRef.current.scrollTop = 0
+  }, [activeTab])
 
   // PDF panel width as percentage (20-80%)
   const [pdfWidthPct, setPdfWidthPct] = useState(50)
@@ -353,7 +359,7 @@ export function CapturaPreviewDialog({ jobId, upload, dbResult, dbEditedResult, 
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div ref={tabContentRef} className="flex-1 overflow-y-auto min-h-0">
               <TabsContent value="__resumen__" forceMount className={cn("m-0 p-6 mt-0 space-y-4", activeTab !== "__resumen__" && "hidden")}>
                 <CapturaResumenTotal
                   jobId={jobId}

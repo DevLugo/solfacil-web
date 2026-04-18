@@ -27,7 +27,12 @@ export interface CapturaCredit {
   // Auto-match fields
   matchedClientPos?: number
   matchConfidence?: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE'
-  // Commission (from loantype.loanGrantedComission)
+  /**
+   * @deprecated La comisión por crédito ya no se usa en UI ni en projection.
+   * La comisión combinada (abonos + créditos) vive en `excepciones[i].comision`
+   * (única fuente persistida). Este campo se conserva sólo por compatibilidad
+   * con jobs históricos en DB.
+   */
   comisionCredito?: number
   // First payment
   primerPago?: boolean
@@ -77,12 +82,6 @@ export interface CapturaResumenInferior {
   comisionRegular: CapturaComision
   comisionCreditos: CapturaComision
   comisionTotal: number
-  /**
-   * User-set override for the unified commission (abonos + creditos).
-   * When null/undefined, projection uses OCR default = comisionRegular.total + comisionCreditos.total.
-   * When set, takes precedence over OCR-derived sum in computeProjection.
-   */
-  comisionOverride?: number | null
   cashToBank?: number
   inicialCaja?: number | null
 }

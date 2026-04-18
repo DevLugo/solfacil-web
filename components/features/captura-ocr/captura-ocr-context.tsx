@@ -94,6 +94,9 @@ interface CapturaOcrContextType {
   addCredit: (jobId: string, localidad: string) => void
   removeCredit: (jobId: string, localidad: string, index: number) => void
   updateResumen: (jobId: string, localidad: string, changes: Partial<CapturaResumenInferior>) => void
+  // Apply a single total commission to the first eligible client (monto único).
+  // Used by both the Abonos tab (global apply) and the Resumen tab (synced input).
+  applyAbonosCommission: (jobId: string, localidad: string, total: number) => void
   // Locality CRUD (manual add/remove)
   addLocality: (jobId: string, locality: CapturaLocalityResult) => void
   removeLocality: (jobId: string, localidad: string) => void
@@ -712,6 +715,52 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // Unified commission helper: applies a single total amount to the first
+  // eligible client (monto único). Used by the Abonos tab (global apply) and
+  // the Resumen tab (synced input). This is the single source of truth for
+  // commission — `excepciones[i].comision` is what the backend persists as
+  // `LoanPayment.comission`.
+  const applyAbonosCommission = useCallback((jobId: string, localidad: string, total: number) => {
+    setEditedResults(prev => {
+      const result = prev.get(jobId)
+      if (!result) return prev
+      const locIdx = result.localities.findIndex(l => l.localidad === localidad)
+      if (locIdx === -1) return prev
+      const loc = result.localities[locIdx]
+      const clients = loc.clientsList || []
+      const excepciones = [...(loc.excepciones || [])]
+
+      let applied = false
+      clients.forEach(client => {
+        const existing = excepciones.find(e => e.pos === client.pos)
+        const marca = existing?.marca ?? 'REGULAR'
+        if (marca === 'FALTA') return
+        const baseComision = client.loanPaymentComission ?? loc.resumenInferior?.tarifaComision ?? 0
+        const comision = (!applied && baseComision > 0) ? total : 0
+        const excIdx = excepciones.findIndex(e => e.pos === client.pos)
+        if (excIdx === -1) {
+          excepciones.push({
+            pos: client.pos,
+            marca: 'REGULAR',
+            montoPagado: client.expectedWeeklyPayment || 0,
+            paymentMethod: 'CASH',
+            notas: '',
+            comision,
+          } as CapturaException)
+        } else {
+          excepciones[excIdx] = { ...excepciones[excIdx], comision }
+        }
+        if (!applied && baseComision > 0) applied = true
+      })
+
+      const newLocalities = [...result.localities]
+      newLocalities[locIdx] = { ...loc, excepciones }
+      const next = new Map(prev)
+      next.set(jobId, { ...result, localities: newLocalities })
+      return next
+    })
+  }, [])
+
   const updateGasto = useCallback((jobId: string, index: number, changes: Partial<CapturaGasto>) => {
     setEditedResults(prev => {
       const result = prev.get(jobId)
@@ -891,6 +940,7 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
         removeLocality,
         setLocalityClientsList,
         updateResumen,
+        applyAbonosCommission,
         updateGasto,
         addGasto,
         removeGasto,

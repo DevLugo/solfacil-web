@@ -4,8 +4,6 @@ import { Search, CheckCheck, Ban, RotateCcw } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-export type CommissionMode = 'tarifa' | 'hardcoded'
-
 interface Props {
   searchTerm: string
   onSearchChange: (term: string) => void

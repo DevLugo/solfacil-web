@@ -83,11 +83,6 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
         : (matchedClient.expectedWeeklyPayment || 0)
       const entregado = credit.monto - (pendingBalance - sameSessionPayment)
 
-      // Find loantype from matched client to auto-fill commission
-      const clientLoanType = matchedClient.loantypeId
-        ? loantypes.find(lt => lt.id === matchedClient.loantypeId)
-        : null
-
       updateCredit(jobId, locality.localidad, i, {
         tipo: 'R',
         matchedClientPos: credit.matchedClientPos,
@@ -101,9 +96,6 @@ export function CapturaCreditosTable({ jobId, locality, loantypes }: Props) {
         semanas: matchedClient.weekDuration || credit.semanas,
         porcentaje: matchedClient.rate != null ? matchedClient.rate * 100 : credit.porcentaje,
         loantypeId: matchedClient.loantypeId || credit.loantypeId,
-        comisionCredito: clientLoanType
-          ? parseFloat(clientLoanType.loanGrantedComission) || 0
-          : undefined,
         aval: (matchedClient.collateralName || matchedClient.collateralPhone)
           ? { nombre: matchedClient.collateralName || '', telefono: matchedClient.collateralPhone || '' }
           : credit.aval,

@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, RotateCcw } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -19,19 +18,21 @@ interface Props {
 }
 
 export function CapturaResumenEditor({ jobId, locality }: Props) {
-  const { updateResumen } = useCapturaOcr()
+  const { updateResumen, getEditedResult, applyAbonosCommission } = useCapturaOcr()
   const resumen = locality.resumenInferior
   const [isOpen, setIsOpen] = useState(false)
   if (!resumen) return null
 
-  // Unified commission: OCR default = abonos + creditos (from OCR).
-  // Primer pago commission stays separate (different concept) and is shown
-  // read-only so the operator sees the total projection.
-  const ocrComisionAbonos = resumen.comisionRegular?.total ?? 0
-  const ocrComisionCreditos = resumen.comisionCreditos?.total ?? 0
-  const ocrComisionSum = ocrComisionAbonos + ocrComisionCreditos
-  const hasOverride = resumen.comisionOverride != null
-  const comisionValue = hasOverride ? (resumen.comisionOverride as number) : ocrComisionSum
+  // Commission is synced with excepciones[i].comision (single source of truth).
+  // Read live excepciones from editedResults so the field reflects any edits
+  // made in the Abonos tab (per-row or global apply).
+  const editedLocality = getEditedResult(jobId)?.localities?.find(
+    l => l.localidad === locality.localidad,
+  )
+  const excepciones = editedLocality?.excepciones || []
+  const comisionTotal = excepciones
+    .filter(e => e.marca !== 'FALTA')
+    .reduce((s, e) => s + (e.comision || 0), 0)
 
   return (
     <Card>
@@ -68,44 +69,19 @@ export function CapturaResumenEditor({ jobId, locality }: Props) {
             onChange={(v) => updateResumen(jobId, locality.localidad, { tarifaComision: v })}
           />
           <div className="md:col-span-2">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs text-muted-foreground">
-                Comision (abonos + creditos)
-                {hasOverride && (
-                  <Badge variant="outline" className="ml-2 text-[10px] border-amber-400 text-amber-600 dark:text-amber-400">
-                    override
-                  </Badge>
-                )}
-              </label>
-              {hasOverride && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-1.5 text-[10px] gap-1"
-                  onClick={() => updateResumen(jobId, locality.localidad, { comisionOverride: null })}
-                  title={`Restaurar al valor OCR: ${formatCurrency(ocrComisionSum)}`}
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  OCR
-                </Button>
-              )}
-            </div>
+            <label className="text-xs text-muted-foreground">Comisión total</label>
             <Input
               type="number"
-              value={comisionValue}
+              value={comisionTotal}
               onChange={(e) => {
                 const parsed = parseFloat(e.target.value)
                 const v = isNaN(parsed) ? 0 : parsed
-                updateResumen(jobId, locality.localidad, { comisionOverride: v })
+                applyAbonosCommission(jobId, locality.localidad, v)
               }}
-              className={cn(
-                'h-8 text-sm tabular-nums',
-                hasOverride && 'border-amber-400 dark:border-amber-600',
-              )}
+              className="h-8 text-sm tabular-nums"
             />
-            <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-              OCR: abonos {formatCurrency(ocrComisionAbonos)} + creditos {formatCurrency(ocrComisionCreditos)} = {formatCurrency(ocrComisionSum)}
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Sincronizado con Abonos. Aplica el total al primer cliente elegible.
             </p>
           </div>
           <Field

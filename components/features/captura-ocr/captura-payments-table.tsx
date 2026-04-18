@@ -7,9 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import {
   Table, TableBody, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Ban } from 'lucide-react'
@@ -23,7 +20,6 @@ import { CapturaPaymentRow } from './captura-payment-row'
 import type { CapturaPaymentRowState } from './captura-payment-row'
 import { CapturaKPIBadges } from './captura-kpi-badges'
 import { CapturaActionBar } from './captura-action-bar'
-import type { CommissionMode } from './captura-action-bar'
 import { CapturaDistributionModal } from './captura-distribution-modal'
 import { ACTIVE_LOANS_BY_LEAD_QUERY } from '@/graphql/queries/transactions'
 import type { CapturaLocalityResult, CapturaClient, CapturaException } from './types'
@@ -139,7 +135,7 @@ function buildPaymentStates(
 }
 
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
-  const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList } = useCapturaOcr()
+  const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission } = useCapturaOcr()
 
   // Fetch live loans from DB, merged with OCR clientsList
   const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
@@ -171,9 +167,6 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
 
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
-  // Default a "Monto fijo": solo el primer cliente elegible recibe la comision
-  // completa, el resto queda en 0 (patron mas comun para lideres de localidad).
-  const [commissionMode, setCommissionMode] = useState<CommissionMode>('hardcoded')
   const [globalCommission, setGlobalCommission] = useState('')
   const [showDistributionModal, setShowDistributionModal] = useState(false)
   // Pre-load cashToBank from OCR data
@@ -309,42 +302,8 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const handleApplyGlobalCommission = useCallback(() => {
     const value = parseFloat(globalCommission)
     if (isNaN(value)) return
-
-    if (commissionMode === 'tarifa') {
-      // Tarifa fija: apply to all non-FALTA clients whose base commission > 0
-      clients.forEach(client => {
-        const state = paymentStates.get(client.pos)
-        if (!state || state.marca === 'FALTA') return
-        const baseComision = client.loanPaymentComission ?? defaultComision
-        if (baseComision <= 0) return // Skip clients with no base commission
-        updateException(jobId, locality.localidad, client.pos, {
-          marca: state.marca,
-          montoPagado: state.montoPagado,
-          comision: value,
-          paymentMethod: state.paymentMethod,
-          notas: state.notas,
-        })
-      })
-    } else {
-      // Hardcoded: apply the full amount to the first eligible client, all others get 0
-      let applied = false
-      clients.forEach(client => {
-        const state = paymentStates.get(client.pos)
-        if (!state || state.marca === 'FALTA') return
-        const baseComision = client.loanPaymentComission ?? defaultComision
-        // First client with base commission > 0 gets the value, everyone else gets 0
-        const comision = (!applied && baseComision > 0) ? value : 0
-        updateException(jobId, locality.localidad, client.pos, {
-          marca: state.marca,
-          montoPagado: state.montoPagado,
-          comision,
-          paymentMethod: state.paymentMethod,
-          notas: state.notas,
-        })
-        if (!applied && baseComision > 0) applied = true
-      })
-    }
-  }, [jobId, locality.localidad, clients, paymentStates, globalCommission, commissionMode, defaultComision, updateException])
+    applyAbonosCommission(jobId, locality.localidad, value)
+  }, [globalCommission, jobId, locality.localidad, applyAbonosCommission])
 
   return (
     <Card>
@@ -482,24 +441,12 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
           {/* Commission controls — inline con el Total para edicion rapida */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Comision:</span>
-            <Select
-              value={commissionMode}
-              onValueChange={(v) => setCommissionMode(v as CommissionMode)}
-            >
-              <SelectTrigger className="h-7 w-[110px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="hardcoded" className="text-xs">Monto fijo</SelectItem>
-                <SelectItem value="tarifa" className="text-xs">Tarifa c/u</SelectItem>
-              </SelectContent>
-            </Select>
             <Input
               type="number"
               value={globalCommission}
               onChange={(e) => setGlobalCommission(e.target.value)}
               onWheel={(e) => e.currentTarget.blur()}
-              placeholder={commissionMode === 'tarifa' ? 'c/u' : 'Total'}
+              placeholder="Total"
               className="h-7 w-[80px] text-xs text-right"
             />
             <Button

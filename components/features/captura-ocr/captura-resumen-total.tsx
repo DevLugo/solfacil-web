@@ -79,29 +79,20 @@ export function computeProjection(
     })
 
     // Credits: primer pago (entrada), comision primer pago (salida),
-    // comision credito (salida), entregado (salida)
+    // entregado (salida). La comisión combinada vive en excepciones[i].comision
+    // (única fuente persistida); no se suma aparte una comisión por crédito.
     const primerPagoCobranza = credits.reduce(
       (sum, c) => sum + (c.primerPago ? (c.primerPagoMonto ?? 0) : 0), 0
     )
     const primerPagoComision = credits.reduce(
       (sum, c) => sum + (c.primerPago ? (c.primerPagoComision ?? 0) : 0), 0
     )
-    const comisionCreditos = credits.reduce(
-      (sum, c) => sum + (c.comisionCredito ?? 0), 0
-    )
     const creditosEntregado = credits.reduce(
       (sum, c) => sum + (c.entregado ?? c.monto ?? 0), 0
     )
 
     const cobranza = cobranzaFromClients + primerPagoCobranza
-    // Unified commission: if user set an explicit override, it fully replaces
-    // abonos + creditos commission (but primer pago stays separate since it
-    // represents a different operation). Otherwise sum all sources.
-    const comisionesDefault = comisionFromClients + comisionCreditos
-    const comisionesUnified = r?.comisionOverride != null
-      ? r.comisionOverride
-      : comisionesDefault
-    const comisiones = comisionesUnified + primerPagoComision
+    const comisiones = comisionFromClients + primerPagoComision
     const cashToBank = r?.cashToBank ?? 0
     const delta = cobranza - comisiones - creditosEntregado - cashToBank
 
