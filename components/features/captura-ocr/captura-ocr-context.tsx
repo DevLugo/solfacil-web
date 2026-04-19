@@ -448,11 +448,25 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
       //     como `comissionAmount` y genera el LOAN_GRANT_COMMISSION debit.
       // Normalizamos a 0 cualquier credito sin valor explícito para evitar que
       // el backend haga fallback a loantype.loanGrantedComission.
+      //
+      // Nombres (titular y aval) se normalizan a UPPERCASE aquí para evitar
+      // cursor-jump en la UI (el input mantiene el texto tal como lo tipea el
+      // usuario y la visualización es via CSS `text-transform: uppercase`).
       const payload = {
         ...edited,
         localities: edited.localities.map(loc => ({
           ...loc,
-          creditos: (loc.creditos || []).map(c => ({ ...c, comisionCredito: c.comisionCredito ?? 0 })),
+          creditos: (loc.creditos || []).map(c => ({
+            ...c,
+            comisionCredito: c.comisionCredito ?? 0,
+            nombre: c.nombre ? c.nombre.toUpperCase() : c.nombre,
+            aval: c.aval
+              ? {
+                  ...c.aval,
+                  nombre: c.aval.nombre ? c.aval.nombre.toUpperCase() : c.aval.nombre,
+                }
+              : c.aval,
+          })),
         })),
       }
       await saveEditsMutation({

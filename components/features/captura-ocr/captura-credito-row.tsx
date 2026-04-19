@@ -12,8 +12,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn, formatCurrency } from '@/lib/utils'
 
 import { useCapturaOcr } from './captura-ocr-context'
-import { CapturaClientAutocomplete } from './captura-client-autocomplete'
-import { CapturaAvalAutocomplete, type AvalOption } from './captura-aval-autocomplete'
+import { CapturaClientAutocomplete, type GlobalBorrowerSearchResult } from './captura-client-autocomplete'
+import { CapturaAvalAutocomplete, type AvalOption, type GlobalPersonalDataResult } from './captura-aval-autocomplete'
 import { CapturaRenewalSummary } from './captura-renewal-summary'
 import { fuzzyMatchName, normalizeName } from '@/lib/fuzzy-match'
 import type { CapturaCredit, CapturaClient, CapturaLoanType, CapturaException } from './types'
@@ -83,6 +83,10 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   const editedLocality = editedResult?.localities?.find(l => l.localidad === localidad)
   const credit = editedLocality?.creditos?.[index] || creditProp
 
+  // Scope para búsquedas globales (searchBorrowers/searchPersonalData)
+  const leadId = editedLocality?.leadId
+  const locationId = editedLocality?.locationId
+
   const isRenewal = credit.tipo === 'R'
 
   // Find the matched client from clientsList
@@ -91,8 +95,12 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
     return clientsList.find(c => c.pos === credit.matchedClientPos) || null
   }, [credit.matchedClientPos, clientsList])
 
-  // Find DB client for diff comparison (works even without formal matchedClient)
+  // Find DB client for diff comparison (works even without formal matchedClient).
+  // Skip completamente cuando hay selección GLOBAL (credit.borrowerId): no
+  // queremos que un fuzzy-match local accidental sobre el nombre genere badges
+  // DB/OCR con valores de OTRO cliente.
   const dbComparisonClient = useMemo(() => {
+    if (credit.borrowerId) return null
     if (matchedClient) return matchedClient
     if (!isRenewal || clientsList.length === 0) return null
     if (credit.loanIdAnterior) {
@@ -106,7 +114,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       }
     }
     return null
-  }, [matchedClient, isRenewal, credit.loanIdAnterior, credit.nombre, clientsList])
+  }, [matchedClient, isRenewal, credit.loanIdAnterior, credit.nombre, credit.borrowerId, clientsList])
 
   // Find the selected loantype
   const selectedLoanType = useMemo(() => {
@@ -197,9 +205,10 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   // → no necesita validacion manual.
   const avalNeedsValidation = avalDbFuzzyMatch != null && avalDbFuzzyMatch.confidence !== 'HIGH'
 
-  // Renovacion sin match: tipo=R pero no hay matchedClient. Posiblemente el
-  // nombre OCR no corresponde a ningun cliente en la lista de la localidad.
-  const unmatchedRenewal = isRenewal && !matchedClient
+  // Renovacion sin match: tipo=R pero no hay matchedClient local NI selección
+  // global. Una renovación GLOBAL (credit.borrowerId) también cuenta como
+  // "matched" aunque no esté en clientsList.
+  const unmatchedRenewal = isRenewal && !matchedClient && !credit.borrowerId
 
   // Save OCR original on first render for edit tracking
   useEffect(() => {
@@ -256,9 +265,12 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loantypes.length, credit.loantypeId, hasEditedResult])
 
-  // Auto-select matching client for renewals (row-level fallback)
+  // Auto-select matching client for renewals (row-level fallback).
+  // Skip when operator already picked a GLOBAL borrower (credit.borrowerId set):
+  // sobrescribir con fuzzy-match local sería regresión.
   useEffect(() => {
     if (!isRenewal || matchedClient || clientsList.length === 0) return
+    if (credit.borrowerId) return
 
     // Try loanIdAnterior exact match
     if (credit.loanIdAnterior) {
@@ -295,7 +307,9 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
 
   const handleClientSelect = useCallback((client: CapturaClient | null) => {
     if (!client) {
-      // Cleared selection → becomes "Nuevo"
+      // Cleared selection → becomes "Nuevo".
+      // Limpiamos también campos de selección GLOBAL para evitar que el backend
+      // trate el crédito como renovación con un borrowerId obsoleto.
       update({
         tipo: 'N',
         loanIdAnterior: undefined,
@@ -307,6 +321,9 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         _dbPhone: undefined,
         _dbAvalPhone: undefined,
         _dbAvalNombre: undefined,
+        borrowerId: undefined,
+        previousLoanId: undefined,
+        previousLoanPendingSnapshot: undefined,
       })
       return
     }
@@ -470,9 +487,94 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
     if (!aval) {
       update({ aval: null })
     } else {
-      update({ aval: { nombre: aval.name, telefono: aval.phone } })
+      update({
+        aval: {
+          nombre: aval.name,
+          telefono: aval.phone,
+          // Si el aval viene del grupo global (traeremos personalDataId desde handleGlobalAvalSelect
+          // directamente) conservamos el id. Para las fuentes tradicionales (db/ocr/new-client)
+          // no conocemos el personalDataId, así que `aval.personalDataId` será undefined.
+          personalDataId: aval.personalDataId,
+        },
+      })
     }
   }, [update])
+
+  /**
+   * Selección desde la búsqueda GLOBAL de borrowers (incluye FINISHED loans).
+   * Puebla `borrowerId` + nombre + teléfono + (opcionalmente) previousLoanId/snapshot
+   * para permitir renovación de cliente con préstamo ya pagado.
+   */
+  const handleGlobalBorrowerSelect = useCallback((borrower: GlobalBorrowerSearchResult) => {
+    const pd = borrower.personalData
+    const phone = pd.phones?.[0]?.number || ''
+    const hasRenewableLoan = !!borrower.activeLoan
+    const shouldRenew = hasRenewableLoan && (credit.tipo === 'R' || !credit.tipo)
+
+    // loantype heredado del préstamo previo cuando renovamos
+    const inheritedLoanType = shouldRenew && borrower.activeLoan?.loantype
+      ? loantypes.find(lt => lt.id === borrower.activeLoan!.loantype!.id)
+        || loantypes.find(lt => lt.weekDuration === borrower.activeLoan!.loantype!.weekDuration)
+      : null
+
+    const pendingAmount = shouldRenew && borrower.activeLoan
+      ? parseFloat(borrower.activeLoan.pendingAmountStored || '0')
+      : 0
+
+    // entregado = monto - pendingAmount (clamp a [0, monto])
+    const computedEntregado = shouldRenew
+      ? Math.min(credit.monto, Math.max(0, credit.monto - pendingAmount))
+      : credit.monto
+
+    const changes: Partial<CapturaCredit> = {
+      // Si no hay renewable loan (raro: sólo si dedupe backend falla), forzar 'N'.
+      // Evita quedar en 'R' sin previousLoanId (estado inválido).
+      tipo: shouldRenew ? 'R' : 'N',
+      nombre: pd.fullName,
+      clientCode: pd.clientCode || credit.clientCode,
+      telefonoTitular: credit.telefonoTitular || phone,
+      borrowerId: borrower.id,
+      // Al venir de búsqueda global NO hay match en la clientsList local (clientes de la localidad)
+      // — limpiamos los campos que apuntan a esa lista para no confundir UI/handlers existentes.
+      matchedClientPos: undefined,
+      matchConfidence: shouldRenew ? 'HIGH' : undefined,
+      loanIdAnterior: shouldRenew && borrower.activeLoan ? borrower.activeLoan.id : undefined,
+      previousLoanId: shouldRenew && borrower.activeLoan ? borrower.activeLoan.id : undefined,
+      previousLoanPendingSnapshot: shouldRenew && borrower.activeLoan ? pendingAmount : undefined,
+      entregado: computedEntregado,
+      // Heredar loantype / semanas / porcentaje SOLO en renovaciones válidas para mantener
+      // la coherencia con el préstamo previo (igual que handleClientSelect).
+      ...(inheritedLoanType
+        ? {
+            loantypeId: inheritedLoanType.id,
+            semanas: inheritedLoanType.weekDuration,
+            porcentaje: parseFloat(inheritedLoanType.rate) * 100,
+          }
+        : {}),
+      // Reset diff tracking: no hay "DB client" en clientsList que comparar, pero sí podemos
+      // guardar el teléfono DB como referencia rápida para el toggle de data source.
+      _dbPhone: phone,
+      _dbAvalPhone: undefined,
+      _dbAvalNombre: undefined,
+    }
+    update(changes)
+  }, [credit.tipo, credit.monto, credit.telefonoTitular, credit.clientCode, loantypes, update])
+
+  /**
+   * Selección desde la búsqueda GLOBAL de PersonalData para aval.
+   * Establece `aval.personalDataId` para que el backend reutilice la PersonalData
+   * existente en lugar de crear una nueva (evita duplicados).
+   */
+  const handleGlobalAvalSelect = useCallback((pd: GlobalPersonalDataResult) => {
+    const phone = pd.phones?.[0]?.number || ''
+    update({
+      aval: {
+        nombre: pd.fullName,
+        telefono: credit.aval?.telefono || phone,
+        personalDataId: pd.id,
+      },
+    })
+  }, [credit.aval?.telefono, update])
 
   // Edit indicators (case-insensitive for names)
   const ocrOrig = credit._ocrOriginal
@@ -564,6 +666,10 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
                 onSelect={handleClientSelect}
                 initialSearch={credit.nombre}
                 className="w-full h-7 text-xs"
+                enableGlobalSearch
+                leadId={leadId}
+                locationId={locationId}
+                onGlobalSelect={handleGlobalBorrowerSelect}
               />
             ) : isRenewal ? (
               <CapturaClientAutocomplete
@@ -572,12 +678,17 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
                 onSelect={handleClientSelect}
                 initialSearch={credit.nombre}
                 className="w-full h-7 text-xs"
+                enableGlobalSearch
+                leadId={leadId}
+                locationId={locationId}
+                onGlobalSelect={handleGlobalBorrowerSelect}
               />
             ) : (
               <>
                 <TruncatingInput
-                  value={(credit.nombre || '').toUpperCase()}
-                  onChange={(e) => update({ nombre: e.target.value.toUpperCase() })}
+                  value={credit.nombre || ''}
+                  onChange={(e) => update({ nombre: e.target.value })}
+                  style={{ textTransform: 'uppercase' }}
                   className={cn(
                     'h-7 text-xs flex-1 min-w-0',
                     isNameEdited && 'border-l-2 border-l-neutral-400'
@@ -590,6 +701,10 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
                   onSelect={handleClientSelect}
                   initialSearch={credit.nombre}
                   iconOnly
+                  enableGlobalSearch
+                  leadId={leadId}
+                  locationId={locationId}
+                  onGlobalSelect={handleGlobalBorrowerSelect}
                 />
               </>
             )}
@@ -637,10 +752,11 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
           <div className="flex items-center gap-1">
             <div className="flex items-center gap-1 flex-1 min-w-0">
               <TruncatingInput
-                value={(credit.aval?.nombre || '').toUpperCase()}
+                value={credit.aval?.nombre || ''}
                 onChange={(e) => update({
-                  aval: { nombre: e.target.value.toUpperCase(), telefono: credit.aval?.telefono || '' }
+                  aval: { nombre: e.target.value, telefono: credit.aval?.telefono || '' }
                 })}
+                style={{ textTransform: 'uppercase' }}
                 className={cn(
                   'h-7 text-xs flex-1 min-w-0',
                   isAvalNameEdited && 'border-l-2 border-l-neutral-400',
@@ -690,6 +806,10 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
               selectedAval={credit.aval || null}
               onSelect={handleAvalSelect}
               iconOnly
+              enableGlobalSearch
+              excludeBorrowerId={credit.borrowerId}
+              locationId={locationId}
+              onGlobalSelect={handleGlobalAvalSelect}
             />
           </div>
           <div className="flex items-center gap-1">

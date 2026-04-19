@@ -274,6 +274,102 @@ export const CAPTURA_ROUTE_LEADS_QUERY = gql`
   }
 `
 
+/**
+ * Búsqueda global de borrowers para captura-OCR que INCLUYE préstamos FINISHED.
+ * Permite al usuario encontrar clientes cuyo último loan ya está pagado para renovarlos.
+ * A diferencia de SEARCH_BORROWERS_QUERY (transacciones, solo ACTIVE), este pasa
+ * includeInactiveLoans=true.
+ */
+export const CAPTURA_SEARCH_BORROWERS_QUERY = gql`
+  query CapturaSearchBorrowers(
+    $searchTerm: String!
+    $leadId: ID
+    $locationId: ID
+    $limit: Int
+  ) {
+    searchBorrowers(
+      searchTerm: $searchTerm
+      leadId: $leadId
+      locationId: $locationId
+      limit: $limit
+      includeInactiveLoans: true
+    ) {
+      id
+      loanFinishedCount
+      hasActiveLoans
+      pendingDebtAmount
+      locationId
+      locationName
+      isFromCurrentLocation
+      personalData {
+        id
+        fullName
+        clientCode
+        phones {
+          id
+          number
+        }
+      }
+      activeLoan {
+        id
+        requestedAmount
+        amountGived
+        pendingAmountStored
+        profitAmount
+        totalDebtAcquired
+        expectedWeeklyPayment
+        totalPaid
+        signDate
+        status
+        loantype {
+          id
+          name
+          weekDuration
+          rate
+          loanPaymentComission
+          loanGrantedComission
+        }
+        collaterals {
+          id
+          fullName
+          phones {
+            number
+          }
+        }
+        leadLocationName
+      }
+    }
+  }
+`
+
+/**
+ * Búsqueda global de PersonalData para seleccionar aval sin crear duplicados.
+ * Reutiliza el resolver existente searchPersonalData (no requiere cambios backend).
+ */
+export const CAPTURA_SEARCH_PERSONAL_DATA_QUERY = gql`
+  query CapturaSearchPersonalData(
+    $searchTerm: String!
+    $excludeBorrowerId: ID
+    $locationId: ID
+    $limit: Int
+  ) {
+    searchPersonalData(
+      searchTerm: $searchTerm
+      excludeBorrowerId: $excludeBorrowerId
+      locationId: $locationId
+      limit: $limit
+    ) {
+      id
+      fullName
+      clientCode
+      phones {
+        id
+        number
+      }
+    }
+  }
+`
+
 export const CAPTURA_LEAD_LOANS_QUERY = gql`
   query CapturaLeadLoans($leadId: ID!) {
     loans(leadId: $leadId, status: ACTIVE, excludePortfolioCleanup: true, limit: 500) {

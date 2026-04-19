@@ -21,9 +21,27 @@ export interface CapturaCredit {
   semanas?: number
   porcentaje?: number
   loantypeId?: string
-  aval?: { nombre?: string; telefono?: string } | null
+  aval?: { nombre?: string; telefono?: string; personalDataId?: string } | null
   telefonoTitular?: string
   loanIdAnterior?: string
+  /**
+   * Borrower existente seleccionado vía autocomplete global (con o sin préstamo activo).
+   * Si está presente, el backend usa este `borrowerId` directo en lugar de buscar en clientsList
+   * o crear nueva PersonalData. Permite renovar clientes FINISHED y reutilizar PersonalData.
+   */
+  borrowerId?: string
+  /**
+   * Loan previo a renovar (puede estar en estado ACTIVE o FINISHED) seleccionado manualmente.
+   * Cuando está presente junto con `borrowerId`, el backend crea el nuevo loan con
+   * `previousLoanId` = este valor.
+   */
+  previousLoanId?: string
+  /**
+   * Snapshot del pendingAmountStored del previousLoan al momento de seleccionar.
+   * Se envía como `previousLoanPendingOverride` al backend para cálculo de profit heredado
+   * y amountGived consistente con lo que el usuario vio.
+   */
+  previousLoanPendingSnapshot?: number
   // Auto-match fields
   matchedClientPos?: number
   matchConfidence?: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE'

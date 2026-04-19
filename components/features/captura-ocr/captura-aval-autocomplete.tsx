@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Check, ChevronsUpDown, X, Database, ScanText, Search, UserPlus } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { useLazyQuery } from '@apollo/client'
+import { Check, ChevronsUpDown, X, Database, ScanText, Search, UserPlus, Globe, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -9,19 +10,37 @@ import {
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { normalizeName } from '@/lib/fuzzy-match'
+import { CAPTURA_SEARCH_PERSONAL_DATA_QUERY } from '@/graphql/queries/captura'
 
 export interface AvalOption {
   name: string
   phone: string
   source: 'db' | 'ocr' | 'new-client'
+  /** PersonalData ID cuando la opción proviene de búsqueda global (source='global') */
+  personalDataId?: string
+}
+
+export interface GlobalPersonalDataResult {
+  id: string
+  fullName: string
+  clientCode?: string | null
+  phones?: Array<{ id: string; number: string }>
 }
 
 interface Props {
   avales: AvalOption[]
-  selectedAval: { nombre?: string; telefono?: string } | null
+  selectedAval: { nombre?: string; telefono?: string; personalDataId?: string } | null
   onSelect: (aval: AvalOption | null) => void
   className?: string
   iconOnly?: boolean
+  /** Habilita búsqueda global en PersonalData cuando el término es >= 3 chars */
+  enableGlobalSearch?: boolean
+  /** Borrower a excluir de la búsqueda global (para evitar self-aval) */
+  excludeBorrowerId?: string
+  /** Locality actual para reordenar resultados por localidad */
+  locationId?: string
+  /** Callback al seleccionar un resultado global */
+  onGlobalSelect?: (pd: GlobalPersonalDataResult) => void
 }
 
 export function CapturaAvalAutocomplete({
@@ -30,9 +49,44 @@ export function CapturaAvalAutocomplete({
   onSelect,
   className,
   iconOnly,
+  enableGlobalSearch = false,
+  excludeBorrowerId,
+  locationId,
+  onGlobalSelect,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  const [runGlobalSearch, globalSearchResult] = useLazyQuery<{ searchPersonalData: GlobalPersonalDataResult[] }>(
+    CAPTURA_SEARCH_PERSONAL_DATA_QUERY,
+    { fetchPolicy: 'network-only' }
+  )
+
+  useEffect(() => {
+    if (!enableGlobalSearch) return
+    const trimmed = search.trim()
+    if (trimmed.length < 3) return
+    const handle = setTimeout(() => {
+      runGlobalSearch({
+        variables: {
+          searchTerm: trimmed,
+          excludeBorrowerId,
+          locationId,
+          limit: 10,
+        },
+      })
+    }, 300)
+    return () => clearTimeout(handle)
+  }, [search, enableGlobalSearch, excludeBorrowerId, locationId, runGlobalSearch])
+
+  // Excluir nombres ya presentes en local `avales` para no duplicar visualmente
+  const localNormalizedNames = useMemo(
+    () => new Set(avales.map((a) => normalizeName(a.name))),
+    [avales]
+  )
+  const globalResults = (globalSearchResult.data?.searchPersonalData ?? []).filter(
+    (pd) => !localNormalizedNames.has(normalizeName(pd.fullName))
+  )
 
   // Resolve display name: if selectedAval matches an option case-insensitively, use that option's name
   const resolvedName = useMemo(() => {
@@ -118,7 +172,9 @@ export function CapturaAvalAutocomplete({
           />
           <CommandList>
             <CommandEmpty className="py-2 text-xs text-center text-muted-foreground">
-              No se encontro aval
+              {enableGlobalSearch && search.trim().length < 3
+                ? 'Escribe al menos 3 letras para buscar en toda la DB'
+                : 'No se encontro aval'}
             </CommandEmpty>
             {dbAvales.length > 0 && (
               <CommandGroup heading={<span className="flex items-center gap-1 text-[10px] uppercase tracking-wider"><Database className="h-3 w-3" />Existentes</span>}>
@@ -202,6 +258,43 @@ export function CapturaAvalAutocomplete({
                     </div>
                   </CommandItem>
                 ))}
+              </CommandGroup>
+            )}
+            {enableGlobalSearch && onGlobalSelect && (
+              <CommandGroup heading={
+                <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                  <Globe className="h-3 w-3" />
+                  Buscar en toda la DB
+                  {globalSearchResult.loading && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
+                </span>
+              }>
+                {globalResults.map((pd) => {
+                  const phone = pd.phones?.[0]?.number || ''
+                  return (
+                    <CommandItem
+                      key={`global-pd-${pd.id}`}
+                      value={`${pd.fullName} ${pd.clientCode || ''}`}
+                      onSelect={() => {
+                        onGlobalSelect(pd)
+                        setOpen(false)
+                      }}
+                      className="text-xs"
+                    >
+                      <Check className="mr-1.5 h-3 w-3 shrink-0 opacity-0" />
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <span className="font-medium truncate">{pd.fullName.toUpperCase()}</span>
+                        {pd.clientCode && (
+                          <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                            {pd.clientCode}
+                          </span>
+                        )}
+                        {phone && (
+                          <span className="text-muted-foreground shrink-0">{phone}</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             )}
           </CommandList>
