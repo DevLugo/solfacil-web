@@ -76,6 +76,18 @@ interface Props {
   locationId?: string
   /** Callback al seleccionar un resultado global (borrower con FINISHED o ACTIVE loan) */
   onGlobalSelect?: (borrower: GlobalBorrowerSearchResult) => void
+  /**
+   * Cuando se seleccionó un borrower vía búsqueda GLOBAL (no está en clientsList),
+   * el consumidor pasa este objeto para que el trigger button muestre el nombre
+   * y clientCode en lugar del placeholder "Buscar cliente...".
+   */
+  globalSelection?: { fullName: string; clientCode?: string } | null
+  /**
+   * Callback para limpiar una selección global (X en el trigger button).
+   * Se llama en lugar de `onSelect(null)` para que el parent pueda limpiar
+   * los campos específicos del global (borrowerId, previousLoanId, etc.).
+   */
+  onClearGlobal?: () => void
 }
 
 export function CapturaClientAutocomplete({
@@ -89,13 +101,18 @@ export function CapturaClientAutocomplete({
   leadId,
   locationId,
   onGlobalSelect,
+  globalSelection,
+  onClearGlobal,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 
+  const hasGlobalSelection = !selectedClient && !!globalSelection
   const displayLabel = selectedClient
     ? `${(selectedClient.borrowerName || '').toUpperCase()} (${selectedClient.clientCode})`
-    : (initialSearch || '').toUpperCase()
+    : hasGlobalSelection
+      ? `${globalSelection!.fullName.toUpperCase()}${globalSelection!.clientCode ? ` (${globalSelection!.clientCode})` : ''}`
+      : (initialSearch || '').toUpperCase()
 
   const labelRef = useRef<HTMLSpanElement>(null)
   const [truncated, setTruncated] = useState(false)
@@ -153,10 +170,54 @@ export function CapturaClientAutocomplete({
     () => new Set(clientsList.map((c) => c.borrowerId).filter(Boolean) as string[]),
     [clientsList]
   )
-  const filteredGlobalResults = useMemo(
-    () => globalResults.filter((b) => !localBorrowerIds.has(b.id)),
-    [globalResults, localBorrowerIds]
+  const localPersonalDataNames = useMemo(
+    () => new Set(clientsList.map((c) => normalizeName(c.borrowerName || '')).filter(Boolean)),
+    [clientsList]
   )
+  /**
+   * Deduplicación crítica:
+   *  1) Excluye borrowers ya presentes en clientsList (por id).
+   *  2) Dedupe por `personalData.id` — una misma PersonalData no debe aparecer dos
+   *     veces aunque esté ligada a múltiples Borrower records (legacy de renovaciones
+   *     antiguas que creaban nuevas PersonalData en lugar de reusar).
+   *  3) Dedupe secundario por (normalizeName + clientCode) — maneja duplicados
+   *     históricos donde se crearon PersonalData distintas para la misma persona
+   *     real. Se prioriza la fila con préstamo ACTIVE > mayor loanFinishedCount
+   *     > isFromCurrentLocation, para que al renovar siempre apuntemos al último
+   *     crédito real del cliente.
+   *  4) Excluye PersonalData cuyo normalized(fullName) ya aparece en la lista local
+   *     (evita mostrar lo mismo que ya está en "En esta localidad").
+   */
+  const filteredGlobalResults = useMemo(() => {
+    const notInLocal = globalResults.filter((b) => !localBorrowerIds.has(b.id))
+
+    const score = (x: GlobalBorrowerSearchResult) =>
+      (x.activeLoan?.status === 'ACTIVE' ? 1_000_000 : 0) +
+      (x.loanFinishedCount || 0) * 100 +
+      (x.isFromCurrentLocation ? 50 : 0) +
+      (x.activeLoan ? 10 : 0)
+
+    // Step 1: dedup por personalData.id
+    const byPd = new Map<string, GlobalBorrowerSearchResult>()
+    for (const b of notInLocal) {
+      const key = b.personalData.id
+      const existing = byPd.get(key)
+      if (!existing || score(b) > score(existing)) byPd.set(key, b)
+    }
+
+    // Step 2: dedup secundario por nombre normalizado + clientCode
+    const byNameCode = new Map<string, GlobalBorrowerSearchResult>()
+    for (const b of byPd.values()) {
+      const key = `${normalizeName(b.personalData.fullName)}|${b.personalData.clientCode || ''}`
+      const existing = byNameCode.get(key)
+      if (!existing || score(b) > score(existing)) byNameCode.set(key, b)
+    }
+
+    // Step 3: excluir nombres que ya están en el grupo local
+    return Array.from(byNameCode.values()).filter(
+      (b) => !localPersonalDataNames.has(normalizeName(b.personalData.fullName))
+    )
+  }, [globalResults, localBorrowerIds, localPersonalDataNames])
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -181,10 +242,15 @@ export function CapturaClientAutocomplete({
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
-                className={cn('h-8 justify-between text-xs font-normal', className)}
+                className={cn(
+                  'h-8 justify-between text-xs font-normal',
+                  hasGlobalSelection && 'border-purple-300 bg-purple-50/40 text-purple-900 dark:border-purple-700 dark:bg-purple-950/30 dark:text-purple-100',
+                  className,
+                )}
               >
-                <span ref={labelRef} className="truncate min-w-0">
-                  {selectedClient ? displayLabel : (initialSearch || 'Buscar cliente...')}
+                <span ref={labelRef} className="truncate min-w-0 flex items-center gap-1">
+                  {hasGlobalSelection && <Globe className="h-3 w-3 text-purple-600 dark:text-purple-400 shrink-0" />}
+                  {selectedClient || hasGlobalSelection ? displayLabel : (initialSearch || 'Buscar cliente...')}
                 </span>
                 <div className="flex items-center gap-0.5 ml-1 shrink-0">
                   {selectedClient && (
@@ -194,6 +260,18 @@ export function CapturaClientAutocomplete({
                       onClick={(e) => {
                         e.stopPropagation()
                         onSelect(null)
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  )}
+                  {hasGlobalSelection && onClearGlobal && (
+                    <span
+                      role="button"
+                      className="h-4 w-4 flex items-center justify-center rounded-sm hover:bg-muted"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onClearGlobal()
                       }}
                     >
                       <X className="h-3 w-3" />

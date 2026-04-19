@@ -84,9 +84,30 @@ export function CapturaAvalAutocomplete({
     () => new Set(avales.map((a) => normalizeName(a.name))),
     [avales]
   )
-  const globalResults = (globalSearchResult.data?.searchPersonalData ?? []).filter(
-    (pd) => !localNormalizedNames.has(normalizeName(pd.fullName))
-  )
+  /**
+   * Dedupe de resultados globales:
+   *  1) Por `pd.id` (seguridad — el backend debería devolverlos únicos ya).
+   *  2) Por (normalizeName + clientCode) — detecta PersonalData duplicadas
+   *     creadas históricamente para la misma persona real (mismo código o mismo
+   *     nombre exacto). Mostramos una sola entrada para evitar que el capturista
+   *     escoja la PersonalData "huérfana" y se perpetúe el duplicado.
+   *  3) Excluye nombres que ya viven en el grupo local de avales.
+   */
+  const globalResults = useMemo(() => {
+    const raw = globalSearchResult.data?.searchPersonalData ?? []
+    const byId = new Map<string, GlobalPersonalDataResult>()
+    for (const pd of raw) byId.set(pd.id, pd)
+
+    const byNameCode = new Map<string, GlobalPersonalDataResult>()
+    for (const pd of byId.values()) {
+      const key = `${normalizeName(pd.fullName)}|${pd.clientCode || ''}`
+      if (!byNameCode.has(key)) byNameCode.set(key, pd)
+    }
+
+    return Array.from(byNameCode.values()).filter(
+      (pd) => !localNormalizedNames.has(normalizeName(pd.fullName))
+    )
+  }, [globalSearchResult.data, localNormalizedNames])
 
   // Resolve display name: if selectedAval matches an option case-insensitively, use that option's name
   const resolvedName = useMemo(() => {

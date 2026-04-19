@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
-import { Trash2, Minus, Plus, Shield, UserPlus, RotateCw, AlertTriangle } from 'lucide-react'
+import { Trash2, Minus, Plus, Shield, UserPlus, RotateCw, AlertTriangle, Globe } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -209,6 +209,11 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   // global. Una renovación GLOBAL (credit.borrowerId) también cuenta como
   // "matched" aunque no esté en clientsList.
   const unmatchedRenewal = isRenewal && !matchedClient && !credit.borrowerId
+
+  // Selección GLOBAL activa: borrowerId seteado desde búsqueda en toda la DB,
+  // sin match en la clientsList local.
+  const isGlobalBorrower = !!credit.borrowerId && !matchedClient
+  const isGlobalRenewal = isGlobalBorrower && isRenewal
 
   // Save OCR original on first render for edit tracking
   useEffect(() => {
@@ -556,6 +561,17 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       _dbPhone: phone,
       _dbAvalPhone: undefined,
       _dbAvalNombre: undefined,
+      // UI-only snapshot para renderizar estado "Cliente existente" (púrpura) sin matchedClient
+      _globalBorrowerSnapshot: {
+        fullName: pd.fullName,
+        clientCode: pd.clientCode ?? undefined,
+        previousLoanTotalPaid: borrower.activeLoan
+          ? parseFloat(borrower.activeLoan.totalPaid || '0')
+          : undefined,
+        previousLoanStatus: borrower.activeLoan?.status === 'FINISHED' ? 'FINISHED' : 'ACTIVE',
+        sourceLocationName: borrower.locationName ?? undefined,
+        isFromCurrentLocation: borrower.isFromCurrentLocation ?? undefined,
+      },
     }
     update(changes)
   }, [credit.tipo, credit.monto, credit.telefonoTitular, credit.clientCode, loantypes, update])
@@ -575,6 +591,24 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       },
     })
   }, [credit.aval?.telefono, update])
+
+  /**
+   * Limpia la selección global de borrower (X en el autocomplete).
+   * Revierte a estado "cliente nuevo" / sin match, descartando el snapshot UI
+   * y los campos de renovación (previousLoanId, override de pending, etc.).
+   */
+  const handleClearGlobalBorrower = useCallback(() => {
+    update({
+      borrowerId: undefined,
+      previousLoanId: undefined,
+      loanIdAnterior: undefined,
+      previousLoanPendingSnapshot: undefined,
+      _globalBorrowerSnapshot: undefined,
+      tipo: 'N',
+      matchConfidence: undefined,
+      matchedClientPos: undefined,
+    })
+  }, [update])
 
   // Edit indicators (case-insensitive for names)
   const ocrOrig = credit._ocrOriginal
@@ -643,20 +677,37 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
           'relative rounded-md border pl-2.5 pr-2 py-1.5 space-y-1 before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full',
           unmatchedRenewal
             ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-400 dark:border-amber-700 ring-1 ring-amber-300 before:bg-amber-500'
-            : 'bg-blue-50/20 dark:bg-blue-950/10 border-blue-200/60 dark:border-blue-800/40 before:bg-blue-500/60',
+            : isGlobalRenewal
+              ? 'bg-purple-50/40 dark:bg-purple-950/20 border-purple-300 dark:border-purple-700 before:bg-purple-500'
+              : 'bg-blue-50/20 dark:bg-blue-950/10 border-blue-200/60 dark:border-blue-800/40 before:bg-blue-500/60',
         )}>
           <div className="flex items-center gap-1.5">
             {unmatchedRenewal ? (
               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" aria-label="Cliente sin match" />
+            ) : isGlobalRenewal ? (
+              <RotateCw className="h-3.5 w-3.5 text-purple-600 shrink-0" aria-label="Renovacion existente" />
             ) : (
               <UserPlus className="h-3.5 w-3.5 text-blue-600 shrink-0" aria-label="Cliente" />
             )}
             <span className={cn(
               'text-[10px] uppercase tracking-wide',
-              unmatchedRenewal ? 'text-amber-700 dark:text-amber-400 font-semibold' : 'text-muted-foreground',
+              unmatchedRenewal
+                ? 'text-amber-700 dark:text-amber-400 font-semibold'
+                : isGlobalRenewal
+                  ? 'text-purple-700 dark:text-purple-300 font-semibold'
+                  : 'text-muted-foreground',
             )}>
-              {unmatchedRenewal ? 'Renovación sin match' : 'Cliente'}
+              {unmatchedRenewal
+                ? 'Renovación sin match'
+                : isGlobalRenewal
+                  ? 'Renovación (existente)'
+                  : 'Cliente'}
             </span>
+            {isGlobalRenewal && (credit._globalBorrowerSnapshot?.clientCode || credit.clientCode) && (
+              <span className="font-mono text-[10px] text-purple-700 dark:text-purple-300">
+                {credit._globalBorrowerSnapshot?.clientCode || credit.clientCode}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {matchedClient ? (
@@ -682,6 +733,15 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
                 leadId={leadId}
                 locationId={locationId}
                 onGlobalSelect={handleGlobalBorrowerSelect}
+                globalSelection={
+                  isGlobalBorrower
+                    ? {
+                        fullName: credit._globalBorrowerSnapshot?.fullName || credit.nombre || '',
+                        clientCode: credit._globalBorrowerSnapshot?.clientCode || credit.clientCode,
+                      }
+                    : null
+                }
+                onClearGlobal={handleClearGlobalBorrower}
               />
             ) : (
               <>
@@ -801,6 +861,24 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
                 onUseDb={() => update({ aval: { ...credit.aval, nombre: dbAvalNombre, telefono: credit.aval?.telefono || '' } })}
               />
             </div>
+            {credit.aval?.personalDataId && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded border border-purple-300 bg-purple-100 px-1 text-[10px] font-semibold text-purple-800 dark:border-purple-700 dark:bg-purple-900/40 dark:text-purple-200 shrink-0"
+                      aria-label="PersonalData reutilizada"
+                    >
+                      <Globe className="h-2.5 w-2.5" />
+                      Reutilizado
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[280px]">
+                    Se reutilizará la PersonalData existente (sin duplicar).
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <CapturaAvalAutocomplete
               avales={availableAvals}
               selectedAval={credit.aval || null}
@@ -848,6 +926,26 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
           matchConfidence={credit.matchConfidence || 'HIGH'}
           selectedLoanType={selectedLoanType}
           sameSessionPayment={getPaymentForClient(excepciones, clientsList, matchedClient.pos)}
+        />
+      )}
+
+      {/* Renewal summary (modo global: borrower de búsqueda DB, sin match local) */}
+      {isRenewal && !matchedClient && credit.borrowerId && credit.previousLoanPendingSnapshot != null && (
+        <CapturaRenewalSummary
+          requestedAmount={credit.monto}
+          matchConfidence={credit.matchConfidence || 'HIGH'}
+          selectedLoanType={selectedLoanType}
+          globalInfo={{
+            fullName: credit._globalBorrowerSnapshot?.fullName || credit.nombre || '',
+            clientCode: credit._globalBorrowerSnapshot?.clientCode || credit.clientCode,
+            previousLoanPending: credit.previousLoanPendingSnapshot,
+            previousLoanTotalPaid: credit._globalBorrowerSnapshot?.previousLoanTotalPaid,
+            rate: selectedLoanType ? parseFloat(selectedLoanType.rate) : undefined,
+            weekDuration: selectedLoanType?.weekDuration,
+            loantypeName: selectedLoanType?.name,
+            sourceLocationName: credit._globalBorrowerSnapshot?.sourceLocationName,
+            isFinishedLoanRenewal: credit._globalBorrowerSnapshot?.previousLoanStatus === 'FINISHED',
+          }}
         />
       )}
 

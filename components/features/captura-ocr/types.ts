@@ -71,6 +71,20 @@ export interface CapturaCredit {
     avalNombre?: string
     avalTelefono?: string
   }
+  /**
+   * UI-only snapshot guardado cuando la selección de borrower viene de búsqueda GLOBAL
+   * (no de clientsList local). El prefijo `_` indica que es campo de presentación:
+   * el backend debe ignorarlo. Sirve para renderizar CapturaRenewalSummary y el
+   * autocomplete en modo "cliente existente global" sin depender de matchedClient.
+   */
+  _globalBorrowerSnapshot?: {
+    fullName: string
+    clientCode?: string
+    previousLoanTotalPaid?: number
+    previousLoanStatus?: 'ACTIVE' | 'FINISHED'
+    sourceLocationName?: string
+    isFromCurrentLocation?: boolean
+  }
 }
 
 export interface CapturaComision {
