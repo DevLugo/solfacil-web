@@ -26,6 +26,7 @@ import {
   Cake,
   Map,
   ScanLine,
+  Users2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -71,6 +72,7 @@ const navegacion: NavItem[] = [
       { titulo: 'Gastos', href: '/administrar/gastos', icono: BarChart3 },
       { titulo: 'Cuentas', href: '/administrar/cuentas', icono: Wallet },
       { titulo: 'Cartera Muerta', href: '/administrar/cartera-muerta', icono: Skull },
+      { titulo: 'Duplicados', href: '/administrar/duplicados', icono: Users2 },
       { titulo: 'Notificaciones', href: '/administrar/notificaciones-telegram', icono: Bell },
     ],
   },

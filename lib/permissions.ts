@@ -38,6 +38,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRoleType[]> = {
   '/administrar/usuarios': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/usuarios-telegram': ROLE_GROUPS.ADMIN_ONLY,
   '/administrar/notificaciones-telegram': ROLE_GROUPS.ADMIN_ONLY,
+  '/administrar/duplicados': ROLE_GROUPS.ADMIN_ONLY,
 }
 
 // Role labels for UI - re-exported from shared
