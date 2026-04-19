@@ -105,8 +105,11 @@ export function useAbonosQueries({
   // In capture mode: only ACTIVE loans
   // In history mode: loans from payments (including FINISHED) + active loans without payments (faltas)
   const loans: ActiveLoan[] = useMemo(() => {
-    const rawActiveLoans =
+    // Exclude loans marked as bad debt — they should not appear in the abonos
+    // listing (paridad con captura-OCR).
+    const rawActiveLoans = (
       loansData?.loans?.edges?.map((edge: { node: ActiveLoan }) => edge.node) || []
+    ).filter((loan: ActiveLoan) => !(loan as ActiveLoan & { badDebtDate?: string | null }).badDebtDate)
 
     // Sort helper function
     const sortBySignDate = (a: ActiveLoan, b: ActiveLoan) => {

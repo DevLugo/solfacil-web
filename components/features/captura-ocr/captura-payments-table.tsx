@@ -74,10 +74,15 @@ function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[])
   return useMemo(() => {
     if (!data?.loans?.edges) return { clients: ocrClients, loading }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbLoans: any[] = data.loans.edges.map((e: any) => e.node)
+    // DB is the source of truth. Exclude loans marked as bad debt and any
+    // non-ACTIVE status (defensive — API filters status=ACTIVE but this
+    // guards against schema drift).
+    const dbLoans: any[] = data.loans.edges
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((e: any) => e.node)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((l: any) => l.status === 'ACTIVE' && !l.badDebtDate)
 
-    // DB is the source of truth for which clients to show.
     // OCR data is only used to preserve original pos (for exception matching).
     const ocrByLoanId = new Map(ocrClients.map(c => [c.loanId, c]))
     let maxPos = ocrClients.length > 0 ? Math.max(...ocrClients.map(c => c.pos)) : 0
@@ -138,13 +143,14 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission, updateResumen } = useCapturaOcr()
 
   // Fetch live loans from DB, merged with OCR clientsList.
-  // Filter out FINISHED loans: the Python pipeline may include the last FINISHED
-  // loan for borrowers without an ACTIVE one (used for renewal detection in the
-  // dropdown), but this listing — like /transacciones → abonos — must show ACTIVE
-  // loans only. Without this filter, the fallback in useLiveClients (when the DB
-  // query hasn't resolved yet) would render FINISHED loans.
+  // Filter out FINISHED/RENOVATED loans: the Python pipeline includes the last
+  // FINISHED loan per borrower (for renewal detection in the dropdown), but this
+  // listing — like /transacciones → abonos — must show ACTIVE loans only and
+  // exclude those already renovated or marked as bad debt.
   const ocrClients = useMemo(
-    () => (locality.clientsList || []).filter(c => c.loanStatus !== 'FINISHED'),
+    () => (locality.clientsList || []).filter(
+      c => c.loanStatus !== 'FINISHED' && c.loanStatus !== 'RENOVATED'
+    ),
     [locality.clientsList]
   )
   const { clients } = useLiveClients(locality.leadId, ocrClients)
