@@ -329,6 +329,8 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         borrowerId: undefined,
         previousLoanId: undefined,
         previousLoanPendingSnapshot: undefined,
+        _nameEdited: false,
+        _avalNameEdited: false,
       })
       return
     }
@@ -394,6 +396,9 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       _ocrPhone: ocrPhone,
       _ocrAvalPhone: ocrAvalPhone,
       _ocrAvalNombre: ocrAvalNombre,
+      // Reset name-edit flags: nueva selección → nombre canónico del match
+      _nameEdited: false,
+      _avalNameEdited: false,
     })
   }, [credit.monto, credit.semanas, credit.porcentaje, credit.loantypeId, credit.aval, credit.telefonoTitular, credit._ocrPhone, credit._ocrAvalPhone, credit._ocrAvalNombre, loantypes, excepciones, clientsList, update])
 
@@ -490,7 +495,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
 
   const handleAvalSelect = useCallback((aval: AvalOption | null) => {
     if (!aval) {
-      update({ aval: null })
+      update({ aval: null, _avalNameEdited: false })
     } else {
       update({
         aval: {
@@ -501,6 +506,8 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
           // no conocemos el personalDataId, así que `aval.personalDataId` será undefined.
           personalDataId: aval.personalDataId,
         },
+        // Nueva selección → reset flag de edición manual del nombre
+        _avalNameEdited: false,
       })
     }
   }, [update])
@@ -578,6 +585,8 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         sourceLocationName: borrower.locationName ?? undefined,
         isFromCurrentLocation: borrower.isFromCurrentLocation ?? undefined,
       },
+      // Nueva selección global → reset flag de edición manual del nombre
+      _nameEdited: false,
     }
     update(changes)
   }, [credit.monto, credit.telefonoTitular, credit.clientCode, loantypes, update])
@@ -595,6 +604,8 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         telefono: credit.aval?.telefono || phone,
         personalDataId: pd.id,
       },
+      // Nueva selección global → reset flag de edición manual del nombre
+      _avalNameEdited: false,
     })
   }, [credit.aval?.telefono, update])
 
@@ -613,6 +624,9 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       tipo: 'N',
       matchConfidence: undefined,
       matchedClientPos: undefined,
+      // Sin borrowerId ya no hay sentido en rastrear "name edited": el backend
+      // creará/buscará PersonalData desde cero.
+      _nameEdited: false,
     })
   }, [update])
 
@@ -753,7 +767,14 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
               <>
                 <TruncatingInput
                   value={credit.nombre || ''}
-                  onChange={(e) => update({ nombre: e.target.value })}
+                  onChange={(e) => update({
+                    nombre: e.target.value,
+                    // Si hay borrowerId (p.ej. cliente existente sin loan renovable →
+                    // tipo='N' + borrowerId set), al editar el nombre marcamos el flag
+                    // para que el backend haga UPDATE en PersonalData en lugar de crear
+                    // un duplicado.
+                    ...(credit.borrowerId ? { _nameEdited: true } : {}),
+                  })}
                   style={{ textTransform: 'uppercase' }}
                   className={cn(
                     'h-7 text-xs flex-1 min-w-0',
@@ -820,7 +841,17 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
               <TruncatingInput
                 value={credit.aval?.nombre || ''}
                 onChange={(e) => update({
-                  aval: { nombre: e.target.value, telefono: credit.aval?.telefono || '' }
+                  aval: {
+                    nombre: e.target.value,
+                    telefono: credit.aval?.telefono || '',
+                    // Preservar personalDataId al editar el nombre: si el usuario
+                    // sólo corrige un typo, el backend debe reutilizar la misma
+                    // PersonalData haciendo UPDATE del fullName.
+                    personalDataId: credit.aval?.personalDataId,
+                  },
+                  // Si había personalDataId seleccionado y el usuario edita → flag
+                  // para que el backend actualice fullName en vez de crear nuevo.
+                  ...(credit.aval?.personalDataId ? { _avalNameEdited: true } : {}),
                 })}
                 style={{ textTransform: 'uppercase' }}
                 className={cn(

@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ArrowDown, ArrowUp, Banknote, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Banknote, TrendingUp } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { CapturaLocalityResult } from './types'
 
@@ -47,41 +48,61 @@ export function CapturaLocalitySummary({ locality }: Props) {
     const cashToBank = r?.cashToBank ?? 0
     const delta = abonos - comisiones - colocado - cashToBank
 
-    return { abonos, colocado, comisiones, cashToBank, delta }
+    // Si el OCR no logro leer el total manuscrito de comision, marcamos el
+    // card para que el usuario sepa que el numero viene del calculo (no del
+    // lapiz). Usamos === false para no alertar en jobs legacy donde el campo
+    // no existe.
+    const comisionGlobalMissing = r?.comisionGlobalDetectado === false
+
+    return { abonos, colocado, comisiones, cashToBank, delta, comisionGlobalMissing }
   }, [locality.resumenInferior, locality.creditos, locality.excepciones, locality.clientsList])
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <MetricCard
-        icon={<ArrowDown className="h-4 w-4 text-green-600" />}
-        label="Abonos"
-        value={calc.abonos}
-        color="text-green-600"
-        prefix="+"
-      />
-      <MetricCard
-        icon={<Banknote className="h-4 w-4 text-orange-600" />}
-        label="Colocado"
-        value={calc.colocado}
-        color="text-orange-600"
-        prefix="-"
-      />
-      <MetricCard
-        icon={<ArrowUp className="h-4 w-4 text-red-500" />}
-        label="Comisiones"
-        value={calc.comisiones}
-        color="text-red-500"
-        prefix="-"
-      />
-      <MetricCard
-        icon={<TrendingUp className="h-4 w-4" />}
-        label="Delta"
-        value={calc.delta}
-        color={calc.delta >= 0 ? 'text-green-600' : 'text-red-600'}
-        prefix={calc.delta >= 0 ? '+' : ''}
-        bold
-      />
-    </div>
+    <TooltipProvider>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard
+          icon={<ArrowDown className="h-4 w-4 text-green-600" />}
+          label="Abonos"
+          value={calc.abonos}
+          color="text-green-600"
+          prefix="+"
+        />
+        <MetricCard
+          icon={<Banknote className="h-4 w-4 text-orange-600" />}
+          label="Colocado"
+          value={calc.colocado}
+          color="text-orange-600"
+          prefix="-"
+        />
+        <MetricCard
+          icon={<ArrowUp className="h-4 w-4 text-red-500" />}
+          label="Comisiones"
+          value={calc.comisiones}
+          color="text-red-500"
+          prefix="-"
+          badge={
+            calc.comisionGlobalMissing ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Total manuscrito no detectado. Se usa cálculo automático.
+                </TooltipContent>
+              </Tooltip>
+            ) : null
+          }
+        />
+        <MetricCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Delta"
+          value={calc.delta}
+          color={calc.delta >= 0 ? 'text-green-600' : 'text-red-600'}
+          prefix={calc.delta >= 0 ? '+' : ''}
+          bold
+        />
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -92,6 +113,7 @@ function MetricCard({
   color,
   prefix,
   bold,
+  badge,
 }: {
   icon: React.ReactNode
   label: string
@@ -99,12 +121,14 @@ function MetricCard({
   color: string
   prefix?: string
   bold?: boolean
+  badge?: React.ReactNode
 }) {
   return (
     <div className="rounded-lg border p-3 bg-card">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
         {icon}
         <span className="font-medium">{label}</span>
+        {badge ? <span className="ml-auto">{badge}</span> : null}
       </div>
       <p className={cn('tabular-nums text-lg', color, bold && 'font-bold')}>
         {prefix}{formatCurrency(value)}

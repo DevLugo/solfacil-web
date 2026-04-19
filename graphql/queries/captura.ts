@@ -60,6 +60,8 @@ const CAPTURA_RESULT_FIELDS = `
         cantidad
       }
       comisionTotal
+      comisionGlobal
+      comisionGlobalDetectado
       cashToBank
       inicialCaja
     }

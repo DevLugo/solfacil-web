@@ -85,6 +85,24 @@ export interface CapturaCredit {
     sourceLocationName?: string
     isFromCurrentLocation?: boolean
   }
+  /**
+   * Flag UI: el usuario edito el nombre del TITULAR despues de seleccionar
+   * un borrower/PersonalData existente. Cuando es true y hay borrowerId, el
+   * backend actualiza PersonalData.fullName en vez de crear uno nuevo.
+   */
+  _nameEdited?: boolean
+  /**
+   * Flag UI: el usuario edito el nombre del AVAL despues de seleccionar un
+   * PersonalData existente. Mismo comportamiento que _nameEdited pero para
+   * el collateral.
+   */
+  _avalNameEdited?: boolean
+  /**
+   * Flag UI: el usuario confirmo explicitamente crear una PersonalData nueva
+   * a pesar de que hay sugerencias de personas similares en la misma localidad.
+   * Cuando es true, el backend no aplica el fallback preventivo fuzzy.
+   */
+  _forceCreate?: boolean
 }
 
 export interface CapturaComision {
@@ -114,6 +132,8 @@ export interface CapturaResumenInferior {
   comisionRegular: CapturaComision
   comisionCreditos: CapturaComision
   comisionTotal: number
+  comisionGlobal?: number | null
+  comisionGlobalDetectado?: boolean | null
   cashToBank?: number
   inicialCaja?: number | null
 }
