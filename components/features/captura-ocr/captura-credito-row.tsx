@@ -514,7 +514,13 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
     const pd = borrower.personalData
     const phone = pd.phones?.[0]?.number || ''
     const hasRenewableLoan = !!borrower.activeLoan
-    const shouldRenew = hasRenewableLoan && (credit.tipo === 'R' || !credit.tipo)
+    // Si el usuario seleccionó explícitamente un borrower con préstamo previo
+    // (ACTIVE o FINISHED), es una renovación — independientemente de lo que OCR
+    // haya parseado en `credit.tipo`. La acción manual del usuario sobreescribe
+    // al OCR: sin esto, un crédito parseado como 'N' se quedaría en 'N' tras
+    // seleccionar un cliente FINISHED globalmente y la UI no entraría en modo
+    // renovación (sin tint púrpura ni summary).
+    const shouldRenew = hasRenewableLoan
 
     // loantype heredado del préstamo previo cuando renovamos
     const inheritedLoanType = shouldRenew && borrower.activeLoan?.loantype
@@ -574,7 +580,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       },
     }
     update(changes)
-  }, [credit.tipo, credit.monto, credit.telefonoTitular, credit.clientCode, loantypes, update])
+  }, [credit.monto, credit.telefonoTitular, credit.clientCode, loantypes, update])
 
   /**
    * Selección desde la búsqueda GLOBAL de PersonalData para aval.
