@@ -167,14 +167,19 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
 
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
-  // Initialize global commission from persisted excepciones. Tras aplicar
-  // applyAbonosCommission el total vive en una sola row non-FALTA; sumar
-  // cubre también jobs legacy con comisiones per-cliente.
+  // Initialize global commission from persisted state. Orden de búsqueda:
+  //   1. Suma de excepciones[].comision (path normal cuando hay abonos)
+  //   2. Suma de creditos[].comisionCredito (fallback cuando la localidad
+  //      sólo tiene adelantos/creditos nuevos — applyAbonosCommission lo
+  //      persiste ahí por no haber cliente elegible).
   const [globalCommission, setGlobalCommission] = useState(() => {
-    const total = (locality.excepciones || [])
+    const fromExceptions = (locality.excepciones || [])
       .filter(e => e.marca !== 'FALTA')
       .reduce((s, e) => s + (e.comision || 0), 0)
-    return total > 0 ? total.toString() : ''
+    if (fromExceptions > 0) return fromExceptions.toString()
+    const fromCredits = (locality.creditos || [])
+      .reduce((s, c) => s + (c.comisionCredito || 0), 0)
+    return fromCredits > 0 ? fromCredits.toString() : ''
   })
   const [showDistributionModal, setShowDistributionModal] = useState(false)
   // Pre-load cashToBank from OCR data

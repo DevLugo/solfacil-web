@@ -441,17 +441,18 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
     if (!edited) return
     setSavingJobId(jobId)
     try {
-      // Force `comisionCredito: 0` on every credit before persisting.
-      // Desde captura-OCR la comisión de otorgamiento SIEMPRE es 0: la
-      // comisión combinada (abonos + créditos) vive en `excepciones[i].comision`
-      // y se persiste como LoanPayment.comission. Enviar 0 explícito evita el
-      // fallback del backend a `loantype.loanGrantedComission` que crearía un
-      // LOAN_GRANT_COMMISSION debit no contemplado por la proyección.
+      // `comisionCredito` es administrado por `applyAbonosCommission`:
+      //   - Por defecto = 0 (comisión combinada vive en excepciones[i].comision)
+      //   - Cuando la localidad no tiene abonos elegibles, el total global cae
+      //     en creditos[0].comisionCredito como fallback. El backend lo toma
+      //     como `comissionAmount` y genera el LOAN_GRANT_COMMISSION debit.
+      // Normalizamos a 0 cualquier credito sin valor explícito para evitar que
+      // el backend haga fallback a loantype.loanGrantedComission.
       const payload = {
         ...edited,
         localities: edited.localities.map(loc => ({
           ...loc,
-          creditos: (loc.creditos || []).map(c => ({ ...c, comisionCredito: 0 })),
+          creditos: (loc.creditos || []).map(c => ({ ...c, comisionCredito: c.comisionCredito ?? 0 })),
         })),
       }
       await saveEditsMutation({
@@ -736,6 +737,12 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
   // the Resumen tab (synced input). This is the single source of truth for
   // commission — `excepciones[i].comision` is what the backend persists as
   // `LoanPayment.comission`.
+  //
+  // Fallback: cuando la localidad no tiene abonos elegibles (clientsList vacío
+  // o todos los clientes con baseComision=0), se persiste el total en
+  // `creditos[0].comisionCredito`. El backend lo toma como `comissionAmount`
+  // del loan.create y genera un LOAN_GRANT_COMMISSION debit. Esta misma lógica
+  // se refleja en computeProjection (resumen) al leer creditos[].comisionCredito.
   const applyAbonosCommission = useCallback((jobId: string, localidad: string, total: number) => {
     setEditedResults(prev => {
       const result = prev.get(jobId)
@@ -769,8 +776,18 @@ export function CapturaOcrProvider({ children }: { children: ReactNode }) {
         if (!applied && baseComision > 0) applied = true
       })
 
+      // Fallback a creditos[0].comisionCredito cuando no se pudo clavar en un
+      // cliente. Siempre se normalizan creditos[i>0] a 0 para idempotencia y
+      // evitar double-charge si el OCR rellenó algo previamente.
+      const creditos = (loc.creditos || []).map((c, i) => {
+        if (!applied && i === 0) {
+          return { ...c, comisionCredito: total }
+        }
+        return { ...c, comisionCredito: 0 }
+      })
+
       const newLocalities = [...result.localities]
-      newLocalities[locIdx] = { ...loc, excepciones }
+      newLocalities[locIdx] = { ...loc, excepciones, creditos }
       const next = new Map(prev)
       next.set(jobId, { ...result, localities: newLocalities })
       return next

@@ -83,12 +83,17 @@ export function computeProjection(
 
     // Credits: primer pago (entrada), comision primer pago (salida),
     // entregado (salida). La comisión combinada vive en excepciones[i].comision
-    // (única fuente persistida); no se suma aparte una comisión por crédito.
+    // (fuente principal). Cuando la localidad no tiene abonos elegibles,
+    // applyAbonosCommission guarda el total en creditos[0].comisionCredito —
+    // por eso se suma también aquí para que el resumen refleje la comisión.
     const primerPagoCobranza = credits.reduce(
       (sum, c) => sum + (c.primerPago ? (c.primerPagoMonto ?? 0) : 0), 0
     )
     const primerPagoComision = credits.reduce(
       (sum, c) => sum + (c.primerPago ? (c.primerPagoComision ?? 0) : 0), 0
+    )
+    const comisionFromCredits = credits.reduce(
+      (sum, c) => sum + (c.comisionCredito ?? 0), 0
     )
     const creditosEntregado = credits.reduce(
       (sum, c) => sum + (c.entregado ?? c.monto ?? 0), 0
@@ -99,7 +104,7 @@ export function computeProjection(
     // realmente entra al fondo de caja.
     const cashToBank = r?.cashToBank ?? 0
     const cobranza = cobranzaFromClients + primerPagoCobranza - cashToBank
-    const comisiones = comisionFromClients + primerPagoComision
+    const comisiones = comisionFromClients + primerPagoComision + comisionFromCredits
     const delta = cobranza - comisiones - creditosEntregado
 
     return { localidad: loc.localidad, cobranza, comisiones, creditos: creditosEntregado, cashToBank, delta, faltaCount, clientCount: clients.length }
