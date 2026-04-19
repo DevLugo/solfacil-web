@@ -137,8 +137,16 @@ function buildPaymentStates(
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission, updateResumen } = useCapturaOcr()
 
-  // Fetch live loans from DB, merged with OCR clientsList
-  const ocrClients = useMemo(() => locality.clientsList || [], [locality.clientsList])
+  // Fetch live loans from DB, merged with OCR clientsList.
+  // Filter out FINISHED loans: the Python pipeline may include the last FINISHED
+  // loan for borrowers without an ACTIVE one (used for renewal detection in the
+  // dropdown), but this listing — like /transacciones → abonos — must show ACTIVE
+  // loans only. Without this filter, the fallback in useLiveClients (when the DB
+  // query hasn't resolved yet) would render FINISHED loans.
+  const ocrClients = useMemo(
+    () => (locality.clientsList || []).filter(c => c.loanStatus !== 'FINISHED'),
+    [locality.clientsList]
+  )
   const { clients } = useLiveClients(locality.leadId, ocrClients)
 
   // Sync DB-fetched clients back to editedResults. Covers two cases:
