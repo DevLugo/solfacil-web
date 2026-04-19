@@ -240,9 +240,8 @@ export function PersonalDataTab() {
       <BatchApplyDialog
         open={batchOpen}
         onOpenChange={setBatchOpen}
-        count={highGroups.length}
+        highGroups={highGroups}
         onSuccess={() => {
-          setBatchOpen(false)
           refetch()
         }}
       />
