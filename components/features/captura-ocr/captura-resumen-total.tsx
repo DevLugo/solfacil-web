@@ -57,7 +57,12 @@ export function computeProjection(
   const rows: LocalityCalc[] = localities.map(loc => {
     const r = loc.resumenInferior
     const credits = loc.creditos || []
-    const clients = (loc.clientsList || []).filter(c => c.loanStatus !== 'FINISHED')
+    // Paridad con captura-payments-table: excluye FINISHED y RENOVATED. Sin
+    // esto, loans filtrados de la tabla de abonos se contaban como "REGULAR"
+    // por defecto (expectedWeeklyPayment) inflando cobranza y conteo.
+    const clients = (loc.clientsList || []).filter(
+      c => c.loanStatus !== 'FINISHED' && c.loanStatus !== 'RENOVATED'
+    )
     const excepciones = loc.excepciones || []
     const defaultComision = r?.tarifaComision || 0
 

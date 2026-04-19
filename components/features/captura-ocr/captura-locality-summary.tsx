@@ -30,8 +30,17 @@ export function CapturaLocalitySummary({ locality }: Props) {
     const primerPagoComision = credits.reduce(
       (s, c) => s + (c.primerPago ? (c.primerPagoComision ?? 0) : 0), 0
     )
+    // Paridad con captura-payments-table: ignora excepciones huerfanas de
+    // loans filtrados (FINISHED/RENOVATED). Sin este guard, comisiones se
+    // inflaban sumando excepciones persistidas de clientes que ya no se
+    // muestran en la tabla de abonos.
+    const validPos = new Set(
+      (locality.clientsList || [])
+        .filter(c => c.loanStatus !== 'FINISHED' && c.loanStatus !== 'RENOVATED')
+        .map(c => c.pos)
+    )
     const comisionFromClients = (locality.excepciones || [])
-      .filter(e => e.marca !== 'FALTA')
+      .filter(e => e.marca !== 'FALTA' && validPos.has(e.pos))
       .reduce((s, e) => s + (e.comision || 0), 0)
     const comisiones = comisionFromClients + primerPagoComision
 
@@ -39,7 +48,7 @@ export function CapturaLocalitySummary({ locality }: Props) {
     const delta = abonos - comisiones - colocado - cashToBank
 
     return { abonos, colocado, comisiones, cashToBank, delta }
-  }, [locality.resumenInferior, locality.creditos, locality.excepciones])
+  }, [locality.resumenInferior, locality.creditos, locality.excepciones, locality.clientsList])
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
