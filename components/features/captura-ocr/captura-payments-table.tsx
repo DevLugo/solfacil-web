@@ -74,14 +74,14 @@ function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[])
   return useMemo(() => {
     if (!data?.loans?.edges) return { clients: ocrClients, loading }
 
-    // DB is the source of truth. Exclude loans marked as bad debt and any
-    // non-ACTIVE status (defensive — API filters status=ACTIVE but this
-    // guards against schema drift).
+    // DB is the source of truth. Defensive filter on status=ACTIVE (API already
+    // filters, this guards against schema drift). badDebt loans SÍ deben
+    // aparecer en el listado de abonos — paridad con /transacciones → abonos.
     const dbLoans: any[] = data.loans.edges
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((e: any) => e.node)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((l: any) => l.status === 'ACTIVE' && !l.badDebtDate)
+      .filter((l: any) => l.status === 'ACTIVE')
 
     // OCR data is only used to preserve original pos (for exception matching).
     const ocrByLoanId = new Map(ocrClients.map(c => [c.loanId, c]))
@@ -146,7 +146,7 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   // Filter out FINISHED/RENOVATED loans: the Python pipeline includes the last
   // FINISHED loan per borrower (for renewal detection in the dropdown), but this
   // listing — like /transacciones → abonos — must show ACTIVE loans only and
-  // exclude those already renovated or marked as bad debt.
+  // exclude those already renovated.
   const ocrClients = useMemo(
     () => (locality.clientsList || []).filter(
       c => c.loanStatus !== 'FINISHED' && c.loanStatus !== 'RENOVATED'

@@ -460,7 +460,6 @@ export const ACTIVE_LOANS_BY_LEAD_QUERY = gql`
           totalPaid
           pendingAmountStored
           status
-          badDebtDate
           loantype {
             id
             name
