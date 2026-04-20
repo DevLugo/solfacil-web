@@ -77,6 +77,9 @@ interface Props {
 export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index, clientsList, excepciones, loantypes }: Props) {
   const { updateCredit, removeCredit, getEditedResult } = useCapturaOcr()
   const hasInitOcr = useRef(false)
+  // Guard: solo auto-linkeamos personalDataId una vez por montaje cuando
+  // detectamos un match HIGH del aval con un collateral existente en DB.
+  const hasAutoLinkedAvalHigh = useRef(false)
 
   // Read credit directly from context to ensure latest state
   const editedResult = getEditedResult(jobId)
@@ -94,6 +97,27 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
     if (!credit.matchedClientPos) return null
     return clientsList.find(c => c.pos === credit.matchedClientPos) || null
   }, [credit.matchedClientPos, clientsList])
+
+  /**
+   * Derived "entregado" value, computed at render time from LIVE data
+   * (matchedClient.pendingBalance refetcheado por useLiveClients + excepciones
+   * editadas en sesión). Resuelve dos bugs:
+   * - Bug #3: el stored credit.entregado queda stale cuando cambian pagos/loan type
+   *   y no se dispara un handler. Al derivarlo, siempre refleja el estado actual.
+   * - Bug #4: al recargar la página después de capturar un abono faltante en
+   *   /transacciones, el pendingBalance viene refrescado desde DB y liveEntregado
+   *   recalcula automáticamente — sin forzar al usuario a re-capturar la localidad.
+   * Para créditos nuevos (no renovación) siempre es igual a credit.monto.
+   */
+  const liveEntregado = useMemo(() => {
+    return computeEntregado({
+      monto: credit.monto,
+      isRenewal,
+      matchedClient,
+      excepciones,
+      clientsList,
+    })
+  }, [credit.monto, isRenewal, matchedClient, excepciones, clientsList])
 
   // Find DB client for diff comparison (works even without formal matchedClient).
   // Skip completamente cuando hay selección GLOBAL (credit.borrowerId): no
@@ -135,12 +159,19 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   const availableAvals = useMemo(() => {
     const seen = new Map<string, AvalOption>() // normalized name → option
 
-    // 1. Collect all DB avales from clientsList collaterals
+    // 1. Collect all DB avales from clientsList collaterals.
+    //    Incluir `personalDataId: c.collateralId` para que al seleccionar una entrada
+    //    "Existente" se propague el id y el backend/ui puedan marcar Reutilizado.
     for (const c of clientsList) {
       if (c.collateralName) {
         const key = normalizeName(c.collateralName)
         if (!seen.has(key)) {
-          seen.set(key, { name: c.collateralName, phone: c.collateralPhone || '', source: 'db' })
+          seen.set(key, {
+            name: c.collateralName,
+            phone: c.collateralPhone || '',
+            source: 'db',
+            personalDataId: c.collateralId,
+          })
         }
       }
     }
@@ -204,6 +235,43 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
   // HIGH = mismo nombre post-normalizacion (tildes, mayusculas, palabras filler)
   // → no necesita validacion manual.
   const avalNeedsValidation = avalDbFuzzyMatch != null && avalDbFuzzyMatch.confidence !== 'HIGH'
+
+  // Auto-link del PersonalData existente cuando el aval OCR coincide HIGH con un
+  // collateral de la DB (clientsList). El badge "Reutilizado" (globo violeta)
+  // depende de `credit.aval.personalDataId`; sin este effect nunca se encendía
+  // para avales pre-rellenados por OCR.
+  //
+  // Condiciones de seguridad:
+  //   - Solo cuando confidence === 'HIGH' (match exacto post-normalización).
+  //   - Solo si `credit.aval.personalDataId` aún NO está seteado.
+  //   - Solo si el operador NO editó manualmente el nombre (`_avalNameEdited`).
+  //   - Solo una vez por montaje (guard con useRef).
+  useEffect(() => {
+    if (hasAutoLinkedAvalHigh.current) return
+    if (!avalDbFuzzyMatch || avalDbFuzzyMatch.confidence !== 'HIGH') return
+    if (!credit.aval?.nombre) return
+    if (credit.aval?.personalDataId) return
+    if (credit._avalNameEdited) return
+
+    // Encuentra el collateralId del cliente cuyo collateralName coincide
+    // (post-normalización) con el nombre del aval actual.
+    const avalKey = normalizeName(credit.aval.nombre)
+    const matchedClientCollateralId = clientsList.find(
+      c => c.collateralName && normalizeName(c.collateralName) === avalKey,
+    )?.collateralId
+
+    if (!matchedClientCollateralId) return
+
+    hasAutoLinkedAvalHigh.current = true
+    update({
+      aval: {
+        nombre: credit.aval.nombre,
+        telefono: credit.aval.telefono,
+        personalDataId: matchedClientCollateralId,
+      },
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avalDbFuzzyMatch, credit.aval?.nombre, credit.aval?.personalDataId, credit._avalNameEdited, clientsList])
 
   // Renovacion sin match: tipo=R pero no hay matchedClient local NI selección
   // global. Una renovación GLOBAL (credit.borrowerId) también cuenta como
@@ -371,6 +439,15 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
         : (ocrAvalNombre || dbAvalNombre)
     const avalTelefono = ocrAvalPhone || dbAvalPhone
 
+    // Link al PersonalData existente solo si el nombre final del aval (avalNombre)
+    // coincide (post-normalización) con el del collateral DB. Evita linkear a un PD
+    // incorrecto cuando OCR leyó un aval distinto al que la DB tiene registrado.
+    const avalMatchesDb = !!(
+      avalNombre && dbAvalNombre &&
+      normalizeName(avalNombre) === normalizeName(dbAvalNombre)
+    )
+    const avalPersonalDataId = avalMatchesDb ? client.collateralId : undefined
+
     update({
       tipo: 'R',
       loanIdAnterior: client.loanId,
@@ -384,7 +461,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
       loantypeId: clientLoanType?.id || credit.loantypeId,
       // Aval: default = OCR value (or DB if OCR had nothing)
       aval: (avalNombre || avalTelefono)
-        ? { nombre: avalNombre, telefono: avalTelefono }
+        ? { nombre: avalNombre, telefono: avalTelefono, personalDataId: avalPersonalDataId }
         : credit.aval,
       // Phone: default = OCR value (or DB if OCR had nothing)
       telefonoTitular,
@@ -1077,7 +1154,7 @@ export function CapturaCreditoRow({ jobId, localidad, credit: creditProp, index,
             {isRenewal && (
               <SummaryChip
                 label="Entregar"
-                value={formatCurrency(credit.entregado ?? credit.monto)}
+                value={formatCurrency(liveEntregado)}
               />
             )}
 

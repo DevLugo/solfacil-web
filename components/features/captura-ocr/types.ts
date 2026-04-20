@@ -164,6 +164,7 @@ export interface CapturaClient {
   rate?: number
   loanGrantedComission?: number
   // Collateral (for aval pre-fill)
+  collateralId?: string
   collateralName?: string
   collateralPhone?: string
   borrowerPhone?: string

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useQuery } from '@apollo/client'
-import { Wallet, Building2, ArrowRight, Pencil, Plus } from 'lucide-react'
+import { Wallet, Building2, ArrowRight, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +57,7 @@ function mapLoanToClient(loan: any, pos: number): CapturaClient {
     weekDuration: Number(lt.weekDuration) || 0,
     rate: Number(lt.rate) || 0,
     loanGrantedComission: Number(lt.loanGrantedComission) || 0,
+    collateralId: collateral.id || undefined,
     collateralName: collateral.fullName || '',
     collateralPhone: collateral.phones?.[0]?.number || '',
     borrowerPhone: pd.phones?.[0]?.number || '',
@@ -65,14 +66,33 @@ function mapLoanToClient(loan: any, pos: number): CapturaClient {
 }
 
 function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[]) {
-  const { data, loading } = useQuery(ACTIVE_LOANS_BY_LEAD_QUERY, {
+  const { data, loading, refetch } = useQuery(ACTIVE_LOANS_BY_LEAD_QUERY, {
     variables: { leadId: leadId || '' },
     skip: !leadId,
     fetchPolicy: 'cache-and-network',
+    notifyOnNetworkStatusChange: true,
   })
 
-  return useMemo(() => {
-    if (!data?.loans?.edges) return { clients: ocrClients, loading }
+  // Fix #5: timestamp del último fetch completado. Se actualiza cada vez que
+  // `data` cambia (cache-and-network entrega tanto el cache hit como la
+  // respuesta fresca de red). Usado para el indicador "datos actualizados
+  // hace Xs" en la UI.
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null)
+  useEffect(() => {
+    if (data?.loans?.edges) setLastFetchedAt(Date.now())
+  }, [data])
+
+  // Fix #5: refetch automático al volver foco a la ventana (típico: usuario
+  // capturó un abono en /transacciones en otra pestaña y vuelve aquí).
+  useEffect(() => {
+    if (!leadId) return
+    const onFocus = () => { refetch().catch(() => {}) }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [leadId, refetch])
+
+  const computed = useMemo(() => {
+    if (!data?.loans?.edges) return { clients: ocrClients }
 
     // DB is the source of truth. Defensive filter on status=ACTIVE (API already
     // filters, this guards against schema drift). badDebt loans SÍ deben
@@ -90,7 +110,13 @@ function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[])
     const clients: CapturaClient[] = dbLoans.map(loan => {
       const ocr = ocrByLoanId.get(loan.id)
       if (ocr) {
-        // Loan exists in OCR — keep original pos (exceptions reference it)
+        // Loan exists in OCR — keep original pos (exceptions reference it).
+        // Enrich with collateralId from DB so the aval-reuse UX has the PersonalData id
+        // available even when the OCR result predates the field being wired through.
+        const dbCollateralId = loan.collaterals?.[0]?.id || undefined
+        if (dbCollateralId && !ocr.collateralId) {
+          return { ...ocr, collateralId: dbCollateralId }
+        }
         return ocr
       }
       // New loan not in OCR — assign fresh pos
@@ -98,8 +124,10 @@ function useLiveClients(leadId: string | undefined, ocrClients: CapturaClient[])
       return mapLoanToClient(loan, maxPos)
     })
 
-    return { clients, loading }
-  }, [data, ocrClients, loading])
+    return { clients }
+  }, [data, ocrClients])
+
+  return { ...computed, loading, refetch, lastFetchedAt }
 }
 
 /**
@@ -139,6 +167,56 @@ function buildPaymentStates(
   return states
 }
 
+/**
+ * Fix #5: indicador compacto "hace Xs/Xm" + botón de refresh manual.
+ * Vive junto al título de la tabla de abonos para dar feedback inmediato
+ * sobre la frescura de los datos vivos (pendingBalance, pagos recientes en
+ * /transacciones).
+ */
+function LiveDataIndicator({
+  lastFetchedAt,
+  onRefresh,
+  loading,
+}: {
+  lastFetchedAt: number | null
+  onRefresh: () => void
+  loading?: boolean
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const label = useMemo(() => {
+    if (!lastFetchedAt) return 'cargando…'
+    const deltaSec = Math.max(0, Math.floor((now - lastFetchedAt) / 1000))
+    if (deltaSec < 5) return 'actualizado ahora'
+    if (deltaSec < 60) return `hace ${deltaSec}s`
+    const deltaMin = Math.floor(deltaSec / 60)
+    if (deltaMin < 60) return `hace ${deltaMin}m`
+    const deltaHr = Math.floor(deltaMin / 60)
+    return `hace ${deltaHr}h`
+  }, [lastFetchedAt, now])
+
+  return (
+    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+      <span className="tabular-nums">{label}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-5 w-5"
+        onClick={onRefresh}
+        disabled={loading}
+        title="Refrescar datos de clientes"
+        aria-label="Refrescar datos de clientes"
+      >
+        <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+      </Button>
+    </div>
+  )
+}
+
 export function CapturaPaymentsTable({ jobId, locality }: Props) {
   const { updateException, setAllRegular, setAllFalta, resetToOriginal, setLocalityClientsList, applyAbonosCommission, updateResumen } = useCapturaOcr()
 
@@ -153,7 +231,7 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
     ),
     [locality.clientsList]
   )
-  const { clients } = useLiveClients(locality.leadId, ocrClients)
+  const { clients, refetch: refetchLiveClients, lastFetchedAt } = useLiveClients(locality.leadId, ocrClients)
 
   // Sync DB-fetched clients back to editedResults. Covers two cases:
   //   1. OCR failed (clientsList empty): seed from DB.
@@ -182,11 +260,20 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
   // Initialize global commission from persisted state. Orden de búsqueda:
-  //   1. Suma de excepciones[].comision (path normal cuando hay abonos)
-  //   2. Suma de creditos[].comisionCredito (fallback cuando la localidad
+  //   1. resumenInferior.comisionGlobal (canónico cuando el OCR detecta la
+  //      comisión global en el resumen inferior del PDF — Fix #1). Se prioriza
+  //      porque es el valor que el PDF indica explícitamente; las derivaciones
+  //      por suma de excepciones/creditos pueden divergir por redondeo en la
+  //      distribución y producir "pérdidas" del valor manual.
+  //   2. Suma de excepciones[].comision (path normal cuando hay abonos)
+  //   3. Suma de creditos[].comisionCredito (fallback cuando la localidad
   //      sólo tiene adelantos/creditos nuevos — applyAbonosCommission lo
   //      persiste ahí por no haber cliente elegible).
   const [globalCommission, setGlobalCommission] = useState(() => {
+    const resumen = locality.resumenInferior
+    if (resumen?.comisionGlobalDetectado && typeof resumen.comisionGlobal === 'number' && resumen.comisionGlobal > 0) {
+      return resumen.comisionGlobal.toString()
+    }
     const fromExceptions = (locality.excepciones || [])
       .filter(e => e.marca !== 'FALTA')
       .reduce((s, e) => s + (e.comision || 0), 0)
@@ -201,6 +288,31 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
     () => locality.resumenInferior?.cashToBank?.toString() || '0'
   )
   const lastSelectedIndex = useRef<number | null>(null)
+  const hasSyncedOcrCommission = useRef(false)
+
+  // Fix #1: sembrar la distribución de la comisión global detectada por OCR
+  // cuando las excepciones aún no la reflejan (caso típico: primer abrir del
+  // job después del procesamiento Python). Se ejecuta UNA sola vez por
+  // montaje. No se reactivate si el usuario luego pone 0 / borra — eso es un
+  // cambio manual legítimo.
+  useEffect(() => {
+    if (hasSyncedOcrCommission.current) return
+    const resumen = locality.resumenInferior
+    if (!resumen?.comisionGlobalDetectado) return
+    const detected = typeof resumen.comisionGlobal === 'number' ? resumen.comisionGlobal : 0
+    if (detected <= 0) return
+    const sumInExceptions = (locality.excepciones || [])
+      .filter(e => e.marca !== 'FALTA')
+      .reduce((s, e) => s + (e.comision || 0), 0)
+    // Si las excepciones ya suman el valor detectado (±0.01 tolerancia por
+    // redondeo), no hay nada que hacer.
+    if (Math.abs(sumInExceptions - detected) < 0.01) {
+      hasSyncedOcrCommission.current = true
+      return
+    }
+    applyAbonosCommission(jobId, locality.localidad, detected)
+    hasSyncedOcrCommission.current = true
+  }, [jobId, locality.localidad, locality.resumenInferior, locality.excepciones, applyAbonosCommission])
 
   // Filtered clients
   const filteredClients = useMemo(() => {
@@ -325,22 +437,29 @@ export function CapturaPaymentsTable({ jobId, locality }: Props) {
 
     lastSelectedIndex.current = clientIndex
 
-    // Re-aplicar comisión global: si el cliente que la tenía quedó FALTA,
-    // applyAbonosCommission la migra a la primera row elegible vigente.
-    const total = parseFloat(globalCommission)
-    if (!isNaN(total) && total > 0) {
-      applyAbonosCommission(jobId, locality.localidad, total)
-    }
-  }, [jobId, locality.localidad, clients, filteredClients, paymentStates, updateException, globalCommission, applyAbonosCommission])
+    // Fix #2: NO re-aplicar comisión global aquí.
+    // Antes: si el cliente que tenía la comisión quedaba FALTA, migrábamos via
+    // applyAbonosCommission. Pero ese código reactivo pisaba la intención
+    // manual del usuario (p.ej. al cambiar un abono luego de setear comisión).
+    // La comisión sólo cambia por: (a) OCR al cargar el job, (b) el usuario
+    // editando el input explícitamente. Los clientes FALTA ya son ignorados en
+    // buildPaymentStates (comision forzada a 0), así que no hay doble conteo.
+  }, [jobId, locality.localidad, clients, filteredClients, paymentStates, updateException])
 
   return (
     <Card>
       <CardHeader className="pb-3 border-b">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-shrink-0">
-            <CardTitle className="text-sm font-medium">
-              Pagos ({clients.length} clientes)
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-medium">
+                Pagos ({clients.length} clientes)
+              </CardTitle>
+              <LiveDataIndicator
+                lastFetchedAt={lastFetchedAt}
+                onRefresh={() => { refetchLiveClients().catch(() => {}) }}
+              />
+            </div>
             <CardDescription className="text-xs">
               {locality.localidad} — {distributionTotals.count} con pago, {distributionTotals.faltasCount} faltas
             </CardDescription>
