@@ -39,6 +39,15 @@ export const GET_MUNICIPALITIES = gql`
   }
 `
 
+export const GET_STATES = gql`
+  query GetStates {
+    states {
+      id
+      name
+    }
+  }
+`
+
 export const CHECK_EXISTING_LEADER = gql`
   query CheckExistingLeader($locationId: ID!) {
     checkExistingLeader(locationId: $locationId) {

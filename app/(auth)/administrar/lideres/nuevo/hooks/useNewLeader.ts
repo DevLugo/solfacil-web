@@ -5,9 +5,10 @@ import {
   GET_ROUTES,
   GET_LOCATIONS,
   GET_MUNICIPALITIES,
+  GET_STATES,
   CHECK_EXISTING_LEADER
 } from '@/graphql/queries/leader'
-import { CREATE_NEW_LEADER, CREATE_LOCATION } from '@/graphql/mutations/leader'
+import { CREATE_NEW_LEADER, CREATE_LOCATION, CREATE_MUNICIPALITY } from '@/graphql/mutations/leader'
 import type { LeaderFormData, LocationFormData, ExistingLeader } from '../types'
 import { validateLocationFormData, convertDateToISO } from '../utils/validation'
 
@@ -43,6 +44,8 @@ export function useNewLeader() {
 
   const { data: municipalitiesData, loading: municipalitiesLoading } = useQuery(GET_MUNICIPALITIES)
 
+  const { data: statesData, loading: statesLoading } = useQuery(GET_STATES)
+
   const { refetch: checkExistingLeaderQuery } = useQuery(CHECK_EXISTING_LEADER, {
     skip: true
   })
@@ -50,6 +53,10 @@ export function useNewLeader() {
   // Mutations
   const [createNewLeader, { loading: creatingLeader }] = useMutation(CREATE_NEW_LEADER)
   const [createLocation, { loading: creatingLocation }] = useMutation(CREATE_LOCATION)
+  const [createMunicipalityMutation, { loading: creatingMunicipality }] = useMutation(CREATE_MUNICIPALITY, {
+    refetchQueries: [{ query: GET_MUNICIPALITIES }],
+    awaitRefetchQueries: true,
+  })
 
   // Check for existing leader when location changes
   useEffect(() => {
@@ -87,6 +94,49 @@ export function useNewLeader() {
     setExistingLeader(null)
     setShowSuccess(false)
   }, [])
+
+  const handleCreateMunicipality = useCallback(async (name: string, stateId: string): Promise<{ id: string; name: string } | null> => {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      toast({
+        title: 'Nombre inválido',
+        description: 'Escribe un nombre para el municipio.',
+        variant: 'destructive',
+      })
+      return null
+    }
+    if (!stateId) {
+      toast({
+        title: 'Estado requerido',
+        description: 'Selecciona el estado al que pertenece el municipio.',
+        variant: 'destructive',
+      })
+      return null
+    }
+
+    try {
+      const result = await createMunicipalityMutation({
+        variables: { input: { name: trimmed, stateId } },
+      })
+      const created = result.data?.createMunicipality
+      if (created) {
+        toast({
+          title: 'Municipio creado',
+          description: `Se creó "${created.name}" correctamente.`,
+        })
+        return { id: created.id, name: created.name }
+      }
+      return null
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al crear el municipio.'
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      })
+      return null
+    }
+  }, [createMunicipalityMutation, toast])
 
   const handleCreateLocation = useCallback(async () => {
     const missingFields = validateLocationFormData(locationFormData, formData.routeId)
@@ -217,20 +267,25 @@ export function useNewLeader() {
     routes: routesData?.routes || [],
     locations: locationsData?.locations || [],
     municipalities: municipalitiesData?.municipalities || [],
+    states: statesData?.states || [],
 
     // Loading states
     routesLoading,
     locationsLoading,
     municipalitiesLoading,
+    statesLoading,
     creatingLeader,
     creatingLocation,
+    creatingMunicipality,
 
     // Actions
     handleFormChange,
     handleLocationFormChange,
     handleClearForm,
     handleCreateLocation,
+    handleCreateMunicipality,
     handleSubmit,
     setShowLocationForm,
+    setLocationFormData,
   }
 }

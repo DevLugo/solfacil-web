@@ -44,20 +44,25 @@ export default function NuevoLiderPage() {
     routes,
     locations,
     municipalities,
+    states,
     routesLoading,
     locationsLoading,
     municipalitiesLoading,
+    statesLoading,
     creatingLeader,
     creatingLocation,
+    creatingMunicipality,
     handleFormChange,
     handleLocationFormChange,
     handleClearForm,
     handleCreateLocation,
+    handleCreateMunicipality,
     handleSubmit,
     setShowLocationForm,
+    setLocationFormData,
   } = useNewLeader()
 
-  if (routesLoading || municipalitiesLoading) {
+  if (routesLoading || municipalitiesLoading || statesLoading) {
     return <NewLeaderPageSkeleton />
   }
 
@@ -120,13 +125,17 @@ export default function NuevoLiderPage() {
               routes={routes}
               locations={locations}
               municipalities={municipalities}
+              states={states}
               showLocationForm={showLocationForm}
               locationsLoading={locationsLoading}
               creatingLocation={creatingLocation}
+              creatingMunicipality={creatingMunicipality}
               onFormChange={handleFormChange}
               onLocationFormChange={handleLocationFormChange}
               onCreateLocation={handleCreateLocation}
+              onCreateMunicipality={handleCreateMunicipality}
               onToggleLocationForm={setShowLocationForm}
+              onPrefillLocationName={(name) => setLocationFormData((prev) => ({ ...prev, name }))}
             />
           </CardContent>
         </Card>

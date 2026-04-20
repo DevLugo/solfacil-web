@@ -42,3 +42,16 @@ export const CREATE_LOCATION = gql`
     }
   }
 `
+
+export const CREATE_MUNICIPALITY = gql`
+  mutation CreateMunicipality($input: CreateMunicipalityInput!) {
+    createMunicipality(input: $input) {
+      id
+      name
+      state {
+        id
+        name
+      }
+    }
+  }
+`
