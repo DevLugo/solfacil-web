@@ -27,6 +27,7 @@ import {
   Map,
   ScanLine,
   Users2,
+  TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -73,6 +74,7 @@ const navegacion: NavItem[] = [
       { titulo: 'Cuentas', href: '/administrar/cuentas', icono: Wallet },
       { titulo: 'Cartera Muerta', href: '/administrar/cartera-muerta', icono: Skull },
       { titulo: 'Duplicados', href: '/administrar/duplicados', icono: Users2 },
+      { titulo: 'Validar Profits', href: '/administrar/validar-profits', icono: TrendingUp },
       { titulo: 'Notificaciones', href: '/administrar/notificaciones-telegram', icono: Bell },
     ],
   },
